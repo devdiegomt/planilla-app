@@ -3,6 +3,7 @@ import type {
   Course, Student, Todo, CalendarEvent,
   ScheduleBlock, CalendarDay, YearConfig,
   AttendanceMark, ChangeLog,
+  Rubric, GradingResult,
 } from '@/types';
 
 class PlanillaDB extends Dexie {
@@ -15,6 +16,8 @@ class PlanillaDB extends Dexie {
   yearConfig!: Table<YearConfig, number>;
   attendanceMarks!: Table<AttendanceMark, number>;
   changeLog!: Table<ChangeLog, number>;
+  rubrics!: Table<Rubric, number>;
+  gradingResults!: Table<GradingResult, number>;
 
   constructor() {
     super('planilla-app');
@@ -61,6 +64,21 @@ class PlanillaDB extends Dexie {
       yearConfig: '++id, &year',
       attendanceMarks: '++id, courseId, ciclo, [courseId+ciclo]',
       changeLog: '++id, courseId, studentId, at, kind, ciclo',
+    });
+
+    // v5: agente IA calificador (rúbricas y resultados)
+    this.version(5).stores({
+      courses: '++id, code, grade, year, trimestre',
+      students: '++id, courseId, codAlum, nombre, order',
+      todos: '++id, status, priority, dueDate, courseCode',
+      events: '++id, date, courseCode, kind',
+      schedule: '++id, dayType, block, courseCode, [dayType+block]',
+      calendarDays: '++id, &date, status',
+      yearConfig: '++id, &year',
+      attendanceMarks: '++id, courseId, ciclo, [courseId+ciclo]',
+      changeLog: '++id, courseId, studentId, at, kind, ciclo',
+      rubrics: '++id, name, courseCode, createdAt',
+      gradingResults: '++id, rubricId, at, courseCode, studentName',
     });
   }
 }
@@ -248,6 +266,30 @@ export async function updateEvent(id: number, patch: Partial<CalendarEvent>) {
 
 export async function deleteEvent(id: number) {
   await db.events.delete(id);
+}
+
+// ---- Rúbricas ----
+
+export async function addRubric(r: Omit<Rubric, 'id'>) {
+  return (await db.rubrics.add(r)) as number;
+}
+
+export async function updateRubric(id: number, patch: Partial<Rubric>) {
+  await db.rubrics.update(id, patch);
+}
+
+export async function deleteRubric(id: number) {
+  await db.rubrics.delete(id);
+}
+
+// ---- Resultados del agente ----
+
+export async function addGradingResult(g: Omit<GradingResult, 'id'>) {
+  return (await db.gradingResults.add(g)) as number;
+}
+
+export async function deleteGradingResult(id: number) {
+  await db.gradingResults.delete(id);
 }
 
 // ---- Asistencia (F/R confirmada por ciclo/sesión) ----

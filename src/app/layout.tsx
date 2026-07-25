@@ -38,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/calendario" className="text-neutral-600 hover:text-neutral-900">Calendario</Link>
             <Link href="/pendientes" className="text-neutral-600 hover:text-neutral-900">Pendientes</Link>
             <Link href="/classroom" className="text-neutral-600 hover:text-neutral-900">Classroom</Link>
+            <Link href="/agente" className="text-neutral-600 hover:text-neutral-900">Agente IA</Link>
           </div>
         </nav>
         <PwaSetup />

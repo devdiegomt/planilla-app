@@ -130,6 +130,49 @@ export interface ChangeLog {
   summary: string;                    // 'C4: 50→77' o 'Ciclo 3 · S1 · F on'
 }
 
+/** Criterio de una rúbrica (una fila del cuadro de evaluación). */
+export interface RubricCriterion {
+  name: string;                       // 'Correctitud', 'Estilo', 'Explicación'
+  weight: number;                     // 0..100, la suma debería ser 100
+  description: string;                // qué evalúa este criterio
+}
+
+/** Rúbrica reutilizable de evaluación. */
+export interface Rubric {
+  id?: number;
+  name: string;
+  description?: string;
+  criteria: RubricCriterion[];
+  maxPoints: number;                  // escala máxima (típicamente 100)
+  courseCode?: string;                // opcional: rúbrica atada a un curso
+  createdAt: string;                  // ISO datetime
+}
+
+/** Puntaje que el agente asignó a un criterio. */
+export interface CriterionScore {
+  name: string;
+  score: number;                      // en escala del criterio (0..criterion.weight)
+  maxScore: number;                   // = criterion.weight
+  reasoning: string;
+}
+
+/** Resultado de una calificación por el agente. */
+export interface GradingResult {
+  id?: number;
+  rubricId: number;
+  rubricName: string;                 // snapshot para auditar aunque se borre la rúbrica
+  submissionPreview: string;          // primeros N caracteres de la entrega
+  submissionLength: number;           // total en chars
+  grade: number;                      // 0..maxPoints
+  breakdown: CriterionScore[];
+  feedback: string;                   // retroalimentación libre para el estudiante
+  studentName?: string;
+  courseCode?: string;
+  model: string;                      // 'claude-opus-5' etc.
+  tokensUsed?: { input: number; output: number };
+  at: string;                         // ISO datetime
+}
+
 /** Resultado del cálculo de definitiva por estudiante. */
 export interface DefResult {
   K: number;

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",
     "exceljs": "^4.4.0",

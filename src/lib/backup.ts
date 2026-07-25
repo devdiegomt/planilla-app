@@ -10,7 +10,7 @@ import { db } from './db';
 const TABLES = [
   'courses', 'students', 'todos', 'events',
   'schedule', 'calendarDays', 'yearConfig', 'attendanceMarks',
-  'changeLog',
+  'changeLog', 'rubrics', 'gradingResults',
 ] as const;
 
 export interface Backup {
