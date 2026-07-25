@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0f172a"/>
+  <rect x="64" y="64" width="384" height="384" rx="52" fill="#f8fafc"/>
+  <g fill="#0f172a" font-family="system-ui, -apple-system, sans-serif" font-weight="700">
+    <text x="256" y="272" text-anchor="middle" font-size="192">pl</text>
+    <rect x="108" y="348" width="296" height="10" rx="5"/>
+    <rect x="108" y="384" width="192" height="10" rx="5"/>
+  </g>
+</svg>
