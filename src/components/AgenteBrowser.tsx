@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db, addRubric, updateRubric, deleteRubric,
@@ -335,6 +335,39 @@ function GraderPanel({ rubric }: { rubric: Rubric | null }) {
     result: null,
     error: null,
   });
+  const [handoffNote, setHandoffNote] = useState<string | null>(null);
+
+  // Al montar, si hay handoff pendiente desde /classroom, precargar el panel.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = sessionStorage.getItem('agente:handoff');
+    if (!raw) return;
+    try {
+      const h = JSON.parse(raw) as {
+        submissionText: string;
+        studentName?: string;
+        additionalContext?: string;
+        at?: number;
+      };
+      // Ignorar handoffs viejos (>10 min) para no revivir sesiones olvidadas
+      if (h.at && Date.now() - h.at > 10 * 60_000) {
+        sessionStorage.removeItem('agente:handoff');
+        return;
+      }
+      setState(s => ({
+        ...s,
+        submissionText: h.submissionText,
+        studentName: h.studentName ?? '',
+        additionalContext: h.additionalContext ?? '',
+      }));
+      setHandoffNote(
+        `Entrega precargada desde Classroom${h.studentName ? ` (${h.studentName})` : ''}.`,
+      );
+      sessionStorage.removeItem('agente:handoff');
+    } catch {
+      sessionStorage.removeItem('agente:handoff');
+    }
+  }, []);
 
   const disabled = !rubric || state.loading || state.submissionText.trim().length === 0;
 
@@ -390,7 +423,26 @@ function GraderPanel({ rubric }: { rubric: Rubric | null }) {
 
   return (
     <div className="border rounded-lg bg-white p-4 space-y-3">
-      <h3 className="text-sm font-medium">Calificar entrega</h3>
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-medium">Calificar entrega</h3>
+        {(state.submissionText.length > 0 || state.studentName.length > 0) && (
+          <button
+            onClick={() => setState(s => ({
+              ...s, submissionText: '', studentName: '', additionalContext: '',
+              result: null, error: null,
+            }))}
+            className="text-[11px] text-neutral-500 hover:text-neutral-900 underline"
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+
+      {handoffNote && (
+        <div className="border-l-4 border-blue-500 bg-blue-50 rounded-r px-3 py-2 text-xs text-blue-900">
+          ✓ {handoffNote}
+        </div>
+      )}
 
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="text-sm">

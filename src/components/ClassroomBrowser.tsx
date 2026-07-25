@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type {
   ClassroomCourse, CourseWork, StudentSubmission, Attachment,
 } from '@/lib/classroomApi';
@@ -197,7 +198,12 @@ export function ClassroomBrowser({
           ) : submissions.length === 0 ? (
             <p className="text-sm text-neutral-500">Sin entregas registradas.</p>
           ) : (
-            <SubmissionsList submissions={submissions} maxPoints={selectedCw.maxPoints} />
+            <SubmissionsList
+              submissions={submissions}
+              maxPoints={selectedCw.maxPoints}
+              courseWorkTitle={selectedCw.title}
+              courseName={selectedCourse?.name}
+            />
           )}
         </Panel>
       </div>
@@ -217,8 +223,13 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function SubmissionsList({
-  submissions, maxPoints,
-}: { submissions: SubmissionWithName[]; maxPoints?: number }) {
+  submissions, maxPoints, courseWorkTitle, courseName,
+}: {
+  submissions: SubmissionWithName[];
+  maxPoints?: number;
+  courseWorkTitle: string;
+  courseName?: string;
+}) {
   const sorted = useMemo(
     () => [...submissions].sort((a, b) => (a.studentName ?? '').localeCompare(b.studentName ?? '', 'es')),
     [submissions],
@@ -240,24 +251,91 @@ function SubmissionsList({
       </div>
       <ul className="space-y-1 max-h-[70vh] overflow-y-auto">
         {sorted.map(s => (
-          <li key={s.id} className="border-b last:border-b-0 py-2 text-sm">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="font-medium truncate">{s.studentName}</span>
-              <StateBadge state={s.state} late={s.late} />
-            </div>
-            <div className="text-[11px] text-neutral-500 mt-0.5">
-              {s.assignedGrade != null
-                ? <>Nota: <strong>{s.assignedGrade}</strong>{maxPoints ? `/${maxPoints}` : ''}</>
-                : 'Sin calificar'}
-              {s.updateTime && (
-                <> · Actualizado {new Date(s.updateTime).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}</>
-              )}
-            </div>
-            <AttachmentsRow attachments={s.assignmentSubmission?.attachments} />
-          </li>
+          <SubmissionRow
+            key={s.id}
+            submission={s}
+            maxPoints={maxPoints}
+            courseWorkTitle={courseWorkTitle}
+            courseName={courseName}
+          />
         ))}
       </ul>
     </div>
+  );
+}
+
+function SubmissionRow({
+  submission, maxPoints, courseWorkTitle, courseName,
+}: {
+  submission: SubmissionWithName;
+  maxPoints?: number;
+  courseWorkTitle: string;
+  courseName?: string;
+}) {
+  const router = useRouter();
+  const [gradeBusy, setGradeBusy] = useState(false);
+  const [gradeErr, setGradeErr] = useState<string | null>(null);
+  const attachments = submission.assignmentSubmission?.attachments ?? [];
+  const gradable = attachments.some(a => a.driveFile);
+
+  const sendToAgent = async () => {
+    if (!gradable) return;
+    setGradeBusy(true); setGradeErr(null);
+    try {
+      const res = await fetch('/api/classroom/extract-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attachments }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      if (!data.text || data.text.trim().length === 0) {
+        throw new Error('El attachment no produjo texto extraíble.');
+      }
+      const handoff = {
+        submissionText: data.text,
+        studentName: submission.studentName ?? '',
+        additionalContext: courseName
+          ? `Tarea "${courseWorkTitle}" del curso "${courseName}" en Google Classroom.`
+          : `Tarea "${courseWorkTitle}" en Google Classroom.`,
+        at: Date.now(),
+      };
+      sessionStorage.setItem('agente:handoff', JSON.stringify(handoff));
+      router.push('/agente');
+    } catch (e) {
+      setGradeErr((e as Error).message);
+      setGradeBusy(false);
+    }
+  };
+
+  return (
+    <li className="border-b last:border-b-0 py-2 text-sm">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-medium truncate">{submission.studentName}</span>
+        <StateBadge state={submission.state} late={submission.late} />
+      </div>
+      <div className="text-[11px] text-neutral-500 mt-0.5">
+        {submission.assignedGrade != null
+          ? <>Nota: <strong>{submission.assignedGrade}</strong>{maxPoints ? `/${maxPoints}` : ''}</>
+          : 'Sin calificar'}
+        {submission.updateTime && (
+          <> · Actualizado {new Date(submission.updateTime).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}</>
+        )}
+      </div>
+      <AttachmentsRow attachments={attachments} />
+      {gradable && (
+        <div className="mt-1.5 flex items-center gap-2">
+          <button
+            onClick={sendToAgent}
+            disabled={gradeBusy}
+            className="text-[11px] px-2 py-0.5 rounded bg-neutral-900 text-white disabled:opacity-40"
+          >
+            {gradeBusy ? 'Extrayendo…' : '🤖 Calificar con IA'}
+          </button>
+          {gradeErr && <span className="text-[11px] text-red-700">❌ {gradeErr}</span>}
+        </div>
+      )}
+    </li>
   );
 }
 
