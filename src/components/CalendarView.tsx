@@ -7,7 +7,9 @@ import {
   upsertYearConfig,
   upsertCalendarDay,
   clearCalendarDay,
+  addEvent, deleteEvent,
 } from '@/lib/db';
+import { CURSOS_ORDER } from '@/lib/constants';
 import {
   computeDayTypes,
   dayTypeLabel,
@@ -16,13 +18,23 @@ import {
   type DateStatus,
 } from '@/lib/schedule';
 import { holidaysForYear } from '@/lib/holidays-co';
-import type { DayType } from '@/types';
+import { eventDotColor } from './EventsList';
+import type { DayType, CalendarEvent } from '@/types';
 
 const DEFAULT_YEAR = new Date().getFullYear();
 
 export function CalendarView() {
   const yearCfg = useLiveQuery(() => db.yearConfig.where('year').equals(DEFAULT_YEAR).first());
   const customDays = useLiveQuery(() => db.calendarDays.toArray()) ?? [];
+  const events = useLiveQuery(() => db.events.toArray()) ?? [];
+  const eventsByDate = useMemo(() => {
+    const m = new Map<string, CalendarEvent[]>();
+    for (const e of events) {
+      const arr = m.get(e.date);
+      if (arr) arr.push(e); else m.set(e.date, [e]);
+    }
+    return m;
+  }, [events]);
 
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const d = new Date();
@@ -100,6 +112,7 @@ export function CalendarView() {
               isToday={isToday}
               customStatus={custom?.status}
               customOverride={custom?.overrideDayType ?? null}
+              events={eventsByDate.get(cell.iso) ?? []}
             />
           );
         })}
@@ -109,7 +122,7 @@ export function CalendarView() {
 }
 
 function DayCell({
-  iso, day, status, holidayName, isToday, customStatus, customOverride,
+  iso, day, status, holidayName, isToday, customStatus, customOverride, events,
 }: {
   iso: string;
   day: number;
@@ -118,6 +131,7 @@ function DayCell({
   isToday: boolean;
   customStatus?: 'lectivo' | 'festivo' | 'cancelado';
   customOverride: DayType | null;
+  events: CalendarEvent[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -163,6 +177,17 @@ function DayCell({
             {holidayName}
           </div>
         )}
+        {events.length > 0 && (
+          <div className="mt-0.5 flex gap-0.5 flex-wrap">
+            {events.slice(0, 6).map(ev => (
+              <span
+                key={ev.id}
+                className={`w-1.5 h-1.5 rounded-full ${eventDotColor(ev.kind)}`}
+                title={`${ev.title}${ev.courseCode ? ` (${ev.courseCode})` : ''}`}
+              />
+            ))}
+          </div>
+        )}
       </button>
 
       {open && (
@@ -198,9 +223,87 @@ function DayCell({
               Quitar override
             </button>
           )}
+          <div className="border-t mt-1 pt-2">
+            <div className="text-[10px] text-neutral-500 px-2 pb-1">Eventos:</div>
+            {events.length === 0 && (
+              <div className="text-[10px] text-neutral-400 px-2 pb-1 italic">Ninguno</div>
+            )}
+            {events.map(ev => (
+              <div key={ev.id} className="flex items-center gap-1 px-2 py-0.5 group">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${eventDotColor(ev.kind)}`} />
+                <span className="text-[10px] truncate flex-1" title={ev.title}>
+                  {ev.title}
+                  {ev.courseCode && <span className="text-neutral-400"> · {ev.courseCode}</span>}
+                </span>
+                <button
+                  onClick={e => { e.stopPropagation(); deleteEvent(ev.id!); }}
+                  className="text-[10px] text-neutral-300 hover:text-red-700"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <QuickAddEvent iso={iso} />
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+function QuickAddEvent({ iso }: { iso: string }) {
+  const [title, setTitle] = useState('');
+  const [kind, setKind] = useState<CalendarEvent['kind']>('entrega');
+  const [courseCode, setCourseCode] = useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    await addEvent({
+      title: title.trim(),
+      date: iso,
+      kind,
+      courseCode: courseCode || undefined,
+    });
+    setTitle('');
+  };
+
+  return (
+    <form onClick={e => e.stopPropagation()} onSubmit={submit} className="mt-1 space-y-1 px-1">
+      <input
+        type="text"
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        placeholder="Añadir evento..."
+        className="w-full border rounded px-1.5 py-0.5 text-[10px]"
+      />
+      <div className="flex gap-1">
+        <select
+          value={kind}
+          onChange={e => setKind(e.target.value as CalendarEvent['kind'])}
+          className="border rounded px-1 py-0.5 text-[10px] flex-1 min-w-0"
+        >
+          <option value="entrega">Entrega</option>
+          <option value="actividad">Actividad</option>
+          <option value="otro">Otro</option>
+        </select>
+        <select
+          value={courseCode}
+          onChange={e => setCourseCode(e.target.value)}
+          className="border rounded px-1 py-0.5 text-[10px] flex-1 min-w-0"
+        >
+          <option value="">Curso</option>
+          {CURSOS_ORDER.map(c => <option key={c} value={String(c)}>{c}</option>)}
+        </select>
+        <button
+          type="submit"
+          disabled={!title.trim()}
+          className="px-2 py-0.5 rounded bg-neutral-900 text-white text-[10px] disabled:opacity-40"
+        >
+          +
+        </button>
+      </div>
+    </form>
   );
 }
 

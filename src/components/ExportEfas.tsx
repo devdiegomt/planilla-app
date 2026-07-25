@@ -68,7 +68,7 @@ export function ExportEfas() {
           <div className="bg-neutral-50 px-3 py-2 border-b flex items-baseline justify-between">
             <span className="font-medium">✅ {lastReport.filename}</span>
             <span className="text-xs text-neutral-500">
-              Total {lastReport.totals.activos} · {lastReport.totals.aprobandoPct}% aprob · {lastReport.totals.expertoPct}% ≥80
+              Total {lastReport.totals.activos} · {lastReport.totals.aprobandoPct}% aprob · {lastReport.totals.expertoPct}% ≥80 · {lastReport.honor.length} en salón de honor
             </span>
           </div>
           <div className="overflow-x-auto max-h-64">

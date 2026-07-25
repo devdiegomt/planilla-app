@@ -36,6 +36,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="font-semibold">planilla-app</Link>
             <Link href="/horario" className="text-neutral-600 hover:text-neutral-900">Horario</Link>
             <Link href="/calendario" className="text-neutral-600 hover:text-neutral-900">Calendario</Link>
+            <Link href="/pendientes" className="text-neutral-600 hover:text-neutral-900">Pendientes</Link>
+            <Link href="/classroom" className="text-neutral-600 hover:text-neutral-900">Classroom</Link>
           </div>
         </nav>
         <PwaSetup />

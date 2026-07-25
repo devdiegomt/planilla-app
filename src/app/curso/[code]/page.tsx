@@ -10,6 +10,8 @@ import { ExportCalifica } from '@/components/ExportCalifica';
 import { CicloAttendance } from '@/components/CicloAttendance';
 import { CourseDashboard } from '@/components/CourseDashboard';
 import { ChangeLogView } from '@/components/ChangeLogView';
+import { EventsList } from '@/components/EventsList';
+import { PendientesList } from '@/components/PendientesList';
 import type { Student } from '@/types';
 
 export default function CoursePage({ params }: { params: Promise<{ code: string }> }) {
@@ -48,6 +50,20 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
       </div>
 
       <CourseDashboard course={course} />
+
+      <section>
+        <h2 className="text-sm font-medium text-neutral-500 uppercase tracking-wide mb-2">
+          Próximas entregas y actividades
+        </h2>
+        <EventsList courseCode={course.code} onlyUpcoming limit={10} />
+      </section>
+
+      <section>
+        <h2 className="text-sm font-medium text-neutral-500 uppercase tracking-wide mb-2">
+          Pendientes del curso
+        </h2>
+        <PendientesList courseCode={course.code} />
+      </section>
 
       <CicloAttendance course={course} initialCiclo={cicloParam} />
 

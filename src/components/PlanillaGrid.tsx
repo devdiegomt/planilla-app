@@ -38,18 +38,30 @@ export function PlanillaGrid({ course }: Props) {
           <tr className="border-b bg-neutral-50 text-left">
             <th className="p-2 sticky left-0 bg-neutral-50">#</th>
             <th className="p-2 sticky left-8 bg-neutral-50">Estudiante</th>
-            {columns.map(col => (
-              <th
-                key={col.column}
-                className="p-2 text-center whitespace-nowrap"
-                title={col.slotKeys.join(' + ')}
-              >
-                <div>{col.column}</div>
-                <div className="text-[9px] text-neutral-500 font-normal">
-                  {col.cats.join('·')}
-                </div>
-              </th>
-            ))}
+            {columns.map(col => {
+              const isEv = col.cats.length === 1 && col.cats[0] === 'E';
+              return (
+                <th
+                  key={col.column}
+                  className={`p-2 text-center whitespace-nowrap ${
+                    isEv ? 'bg-amber-100 border-x-2 border-amber-400' : ''
+                  }`}
+                  title={
+                    isEv
+                      ? `${col.slotKeys.join(' + ')} · Nota de evaluación: 100% de la categoría E (peso 20% de la DEF)`
+                      : col.slotKeys.join(' + ')
+                  }
+                >
+                  <div className={isEv ? 'font-bold text-amber-900' : ''}>
+                    {col.column}
+                    {isEv && <span className="ml-1 text-[11px]">★</span>}
+                  </div>
+                  <div className={`text-[9px] font-normal ${isEv ? 'text-amber-800' : 'text-neutral-500'}`}>
+                    {col.cats.join('·')}
+                  </div>
+                </th>
+              );
+            })}
             <th className="p-2 text-center bg-neutral-100">DEF</th>
           </tr>
         </thead>
@@ -65,8 +77,14 @@ export function PlanillaGrid({ course }: Props) {
                 <td className="p-2 sticky left-8 bg-white whitespace-nowrap">{s.nombre}</td>
                 {columns.map(col => {
                   const value = s.subnotas[col.slotKeys[0]] ?? 0;
+                  const isEv = col.cats.length === 1 && col.cats[0] === 'E';
                   return (
-                    <td key={col.column} className="p-1 text-center">
+                    <td
+                      key={col.column}
+                      className={`p-1 text-center ${
+                        isEv ? 'bg-amber-50 border-x-2 border-amber-400' : ''
+                      }`}
+                    >
                       <input
                         type="number"
                         min={0}
@@ -76,7 +94,9 @@ export function PlanillaGrid({ course }: Props) {
                           const v = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
                           updateColumnValue(s.id!, col.slotKeys, v);
                         }}
-                        className="w-12 text-center border rounded p-1"
+                        className={`w-12 text-center border rounded p-1 ${
+                          isEv ? 'border-amber-500 font-semibold' : ''
+                        }`}
                       />
                     </td>
                   );
@@ -92,6 +112,9 @@ export function PlanillaGrid({ course }: Props) {
       <p className="mt-2 text-xs text-neutral-500">
         {columns.length} columnas ({slots.length} slots internos) · {activos.length} activos ·
         Definitiva con algoritmo de la plataforma (ignore-zeros).
+        <span className="ml-2 text-amber-800">
+          ★ C7 (EV) es toda la categoría E — un cambio ahí mueve la DEF ~4 pts.
+        </span>
       </p>
     </div>
   );

@@ -4,6 +4,7 @@ import { TodayClasses } from '@/components/TodayClasses';
 import { ExportEfas } from '@/components/ExportEfas';
 import { BackupRestore } from '@/components/BackupRestore';
 import { PwaInstall } from '@/components/PwaInstall';
+import { PendientesList } from '@/components/PendientesList';
 
 export default function Home() {
   return (
@@ -17,6 +18,13 @@ export default function Home() {
 
       <section>
         <TodayClasses />
+      </section>
+
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="font-medium">Pendientes</h2>
+        </div>
+        <PendientesList limit={5} compact />
       </section>
 
       <section>

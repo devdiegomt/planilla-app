@@ -222,6 +222,34 @@ export async function clearCalendarDay(dateIso: string) {
   if (existing?.id) await db.calendarDays.delete(existing.id);
 }
 
+// ---- Pendientes (To-do) ----
+
+export async function addTodo(t: Omit<Todo, 'id'>) {
+  return (await db.todos.add(t)) as number;
+}
+
+export async function updateTodo(id: number, patch: Partial<Todo>) {
+  await db.todos.update(id, patch);
+}
+
+export async function deleteTodo(id: number) {
+  await db.todos.delete(id);
+}
+
+// ---- Eventos de curso (entregas, actividades) ----
+
+export async function addEvent(e: Omit<CalendarEvent, 'id'>) {
+  return (await db.events.add(e)) as number;
+}
+
+export async function updateEvent(id: number, patch: Partial<CalendarEvent>) {
+  await db.events.update(id, patch);
+}
+
+export async function deleteEvent(id: number) {
+  await db.events.delete(id);
+}
+
 // ---- Asistencia (F/R confirmada por ciclo/sesión) ----
 
 /**

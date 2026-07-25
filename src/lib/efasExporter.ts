@@ -20,19 +20,27 @@ export interface EfasRow {
   promedio: number;
 }
 
+export interface HonorRow {
+  curso: string;
+  nombre: string;
+  def: number;
+}
+
 export interface EfasReport {
   filename: string;
   trimestre: number;
   rows: EfasRow[];
   totals: Omit<EfasRow, 'curso'>;
+  honor: HonorRow[];
 }
 
-/** Calcula las filas EFAS a partir de los cursos + estudiantes cargados. */
+/** Calcula las filas EFAS + la lista de salón de honor a partir de los cursos. */
 export function buildEfasRows(
   courses: Course[],
   studentsByCourse: Map<number, Student[]>,
-): { rows: EfasRow[]; totals: Omit<EfasRow, 'curso'> } {
+): { rows: EfasRow[]; totals: Omit<EfasRow, 'curso'>; honor: HonorRow[] } {
   const rows: EfasRow[] = [];
+  const honor: HonorRow[] = [];
   const ordered = [...courses].sort((a, b) => {
     const ai = CURSOS_ORDER.indexOf(parseInt(a.code));
     const bi = CURSOS_ORDER.indexOf(parseInt(b.code));
@@ -53,6 +61,9 @@ export function buildEfasRows(
       expertoPct: stats.expertoPct,
       promedio: stats.promedio,
     });
+    for (const e of stats.expertos) {
+      honor.push({ curso: c.code, nombre: e.student.nombre, def: e.def });
+    }
     totalActivos += stats.activos;
     totalAprob += stats.aprobando;
     totalExp += stats.experto;
@@ -68,16 +79,16 @@ export function buildEfasRows(
     promedio: totalActivos ? Math.round(sumPromWeighted / totalActivos) : 0,
   };
 
-  return { rows, totals };
+  return { rows, totals, honor };
 }
 
-/** Genera el Blob XLSX del EFAS. */
+/** Genera el Blob XLSX del EFAS con hoja Consolidado + hoja Salón de honor. */
 export async function exportEfas(
   courses: Course[],
   studentsByCourse: Map<number, Student[]>,
   trimestre: number,
 ): Promise<{ blob: Blob; report: EfasReport }> {
-  const { rows, totals } = buildEfasRows(courses, studentsByCourse);
+  const { rows, totals, honor } = buildEfasRows(courses, studentsByCourse);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'planilla-app';
@@ -156,13 +167,58 @@ export async function exportEfas(
   // Congelar encabezado
   ws.views = [{ state: 'frozen', ySplit: 3 }];
 
+  // ---- Hoja 2: Salón de honor ----
+  const hs = wb.addWorksheet('Salón de honor');
+  hs.mergeCells('A1:D1');
+  const hsTitle = hs.getCell('A1');
+  hsTitle.value = `Salón de honor · DEF ≥ ${NOTA_EXPERTO} · Trimestre ${trimestre} · ${year}`;
+  hsTitle.font = { bold: true, size: 14 };
+  hsTitle.alignment = { horizontal: 'center', vertical: 'middle' };
+  hs.getRow(1).height = 24;
+
+  hs.addRow([]);
+  hs.addRow(['#', 'CURSO', 'ESTUDIANTE', 'DEF']);
+  const hsHeader = hs.getRow(3);
+  hsHeader.eachCell(c => {
+    c.font = { bold: true };
+    c.alignment = { horizontal: 'center', vertical: 'middle' };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE5E7EB' } };
+    c.border = allBorders();
+  });
+
+  // Ya ordenados por curso (CURSOS_ORDER); resortear cada bloque por DEF desc
+  const grouped = new Map<string, HonorRow[]>();
+  for (const h of honor) {
+    (grouped.get(h.curso) ?? grouped.set(h.curso, []).get(h.curso)!).push(h);
+  }
+  const sortedHonor: HonorRow[] = [];
+  for (const [, list] of grouped) {
+    list.sort((a, b) => b.def - a.def || a.nombre.localeCompare(b.nombre, 'es'));
+    sortedHonor.push(...list);
+  }
+
+  sortedHonor.forEach((h, i) => {
+    const row = hs.addRow([i + 1, h.curso, h.nombre, h.def]);
+    row.getCell(1).alignment = { horizontal: 'right' };
+    row.getCell(2).alignment = { horizontal: 'center' };
+    row.getCell(4).alignment = { horizontal: 'center' };
+    row.eachCell(c => { c.border = allBorders(); });
+    tintByDef(row.getCell(4), h.def);
+  });
+
+  hs.getColumn(1).width = 6;
+  hs.getColumn(2).width = 10;
+  hs.getColumn(3).width = 40;
+  hs.getColumn(4).width = 10;
+  hs.views = [{ state: 'frozen', ySplit: 3 }];
+
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
   const filename = `EFAS-${year}-T${trimestre}.xlsx`;
 
-  return { blob, report: { filename, trimestre, rows, totals } };
+  return { blob, report: { filename, trimestre, rows, totals, honor: sortedHonor } };
 }
 
 // ---- helpers de estilo ----
@@ -179,4 +235,13 @@ function tintByAprobacion(cell: ExcelJS.Cell, pct: number) {
     pct >= 60 ? 'FFFFEDD5' :   // naranja claro
                 'FFFECACA';    // rojo claro
   cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+}
+
+function tintByDef(cell: ExcelJS.Cell, def: number) {
+  const argb =
+    def >= 95 ? 'FFBBF7D0' :   // verde
+    def >= 90 ? 'FFDCFCE7' :   // verde claro
+                'FFECFCCB';    // lima claro (80-89)
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+  cell.font = { bold: true };
 }

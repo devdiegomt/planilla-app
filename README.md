@@ -104,22 +104,34 @@ Los estudiantes retirados NO se borran: `withdrawnAt` los marca. El exportador C
 
 ## Roadmap
 
-### v2 (siguiente hito)
-- [ ] Auth OTP con Supabase (Resend SMTP como en Margen)
-- [ ] Sync Dexie ↔ Supabase (local-first sigue mandando, servidor es respaldo/multi-dispositivo)
-- [ ] Exportador **EFAS** (consolidado institucional con % aprobación por curso, lista de ≥80)
-- [ ] Horario editable con modelo Día 1–5 + Día Fijo
-- [ ] Motor de días: función `getDayType(date)` con festivos y días 0 (perdidos)
-- [ ] Recordatorio por clase para subir F/R a la plataforma
+### v2 ✅
+- [x] Exportador **EFAS** — consolidado + hoja Salón de honor con estudiantes ≥80
+- [x] Horario editable con modelo Día 1–5 + Día Fijo
+- [x] Motor de días con festivos (Ley Emiliani auto) y días 0 (cancelados)
+- [x] Recordatorio F/R por clase — widget "Hoy" con badge por ciclo y banner de pendientes
+- [ ] Auth OTP con Supabase — pospuesto (necesita backend)
+- [ ] Sync Dexie ↔ Supabase — pospuesto (necesita backend)
 
-### v3
-- [ ] To-do con prioridad y estado
-- [ ] Calendario de entregas y actividades por curso
-- [ ] PWA install + push notifications (VAPID como en Mamba)
+### v3 ✅
+- [x] To-do con prioridad y estado (con curso opcional y fecha de vencimiento)
+- [x] Calendario de entregas y actividades por curso (overlay en calendario + "Próximas entregas" por curso)
+- [x] PWA install (manifest + iconos + service worker + botón instalar + persistencia)
+- [ ] Push notifications (VAPID) — v3.1 opcional; requiere endpoint público
 
 ### v4+
 - [ ] Integración Google Classroom (descarga de entregas)
 - [ ] Agente IA calificador con criterios configurables por actividad
+
+## Extras entregados fuera del roadmap original
+
+- **Dashboard por curso** — activos, DEF promedio, % aprobación, distribución, promedios por categoría K/M/U/C/E, listas de riesgo/reprobados/salón de honor, top fallas
+- **Dashboard global** en home — grid de las 19 tarjetas por curso con alerta destacada de cursos que requieren atención
+- **Backup/restore** JSON de toda la base local (portable, versionado)
+- **Notas por columna real** (C2..C9) — el docente ingresa la nota una sola vez; se propaga a los slots K/M/U/C/E que la usen
+- **Historial de cambios** — log auditable por curso ("editaste C4 de ALONSO 50→77 hace 5m")
+- **F/R por sesión S1/S2 para 11°** — el editor y widget diferencian las dos sesiones por ciclo, con confirmaciones separadas
+- **Motor de sesiones por ciclo** — 8°/10°: 1 sesión = 1 ciclo. 11°: 2 sesiones = 1 ciclo
+- **Resaltado visual de C7 (EV)** — un cambio ahí mueve la DEF ~4 pts (100% de la categoría E)
 
 ## Notas heredadas del análisis
 
