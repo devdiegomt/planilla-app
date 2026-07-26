@@ -4,6 +4,7 @@ import { TodayClasses } from '@/components/TodayClasses';
 import { ExportEfas } from '@/components/ExportEfas';
 import { BackupRestore } from '@/components/BackupRestore';
 import { PwaInstall } from '@/components/PwaInstall';
+import { PushSetup } from '@/components/PushSetup';
 import { PendientesList } from '@/components/PendientesList';
 
 export default function Home() {
@@ -50,6 +51,11 @@ export default function Home() {
       <section className="border rounded-lg p-4 bg-neutral-50">
         <h2 className="font-medium mb-3">Instalar app</h2>
         <PwaInstall />
+      </section>
+
+      <section className="border rounded-lg p-4 bg-neutral-50">
+        <h2 className="font-medium mb-3">Notificaciones</h2>
+        <PushSetup />
       </section>
     </main>
   );

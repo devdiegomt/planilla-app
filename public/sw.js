@@ -62,3 +62,43 @@ self.addEventListener('fetch', event => {
     })
   );
 });
+
+// ---- Push notifications ----
+
+// Recibe un push del servidor. Payload esperado (JSON):
+// { title: string, body: string, url?: string, tag?: string }
+self.addEventListener('push', event => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: 'planilla-app', body: event.data?.text() || '' };
+  }
+  const title = data.title || 'planilla-app';
+  const options = {
+    body: data.body || '',
+    icon: '/icon-192.svg',
+    badge: '/icon-192.svg',
+    tag: data.tag || 'planilla-app',
+    data: { url: data.url || '/' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Click en la notificación: enfoca una ventana existente o abre una nueva.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      for (const client of clients) {
+        const url = new URL(client.url);
+        if (url.origin === self.location.origin && 'focus' in client) {
+          client.navigate(targetUrl).catch(() => {});
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    })
+  );
+});
