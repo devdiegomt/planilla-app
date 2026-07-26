@@ -1,7 +1,6 @@
 'use client';
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import type {
   ClassroomCourse, CourseWork, StudentSubmission, Attachment,
 } from '@/lib/classroomApi';
@@ -201,8 +200,6 @@ export function ClassroomBrowser({
             <SubmissionsList
               submissions={submissions}
               maxPoints={selectedCw.maxPoints}
-              courseWorkTitle={selectedCw.title}
-              courseName={selectedCourse?.name}
             />
           )}
         </Panel>
@@ -223,12 +220,10 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function SubmissionsList({
-  submissions, maxPoints, courseWorkTitle, courseName,
+  submissions, maxPoints,
 }: {
   submissions: SubmissionWithName[];
   maxPoints?: number;
-  courseWorkTitle: string;
-  courseName?: string;
 }) {
   const sorted = useMemo(
     () => [...submissions].sort((a, b) => (a.studentName ?? '').localeCompare(b.studentName ?? '', 'es')),
@@ -255,8 +250,6 @@ function SubmissionsList({
             key={s.id}
             submission={s}
             maxPoints={maxPoints}
-            courseWorkTitle={courseWorkTitle}
-            courseName={courseName}
           />
         ))}
       </ul>
@@ -265,48 +258,12 @@ function SubmissionsList({
 }
 
 function SubmissionRow({
-  submission, maxPoints, courseWorkTitle, courseName,
+  submission, maxPoints,
 }: {
   submission: SubmissionWithName;
   maxPoints?: number;
-  courseWorkTitle: string;
-  courseName?: string;
 }) {
-  const router = useRouter();
-  const [gradeBusy, setGradeBusy] = useState(false);
-  const [gradeErr, setGradeErr] = useState<string | null>(null);
   const attachments = submission.assignmentSubmission?.attachments ?? [];
-  const gradable = attachments.some(a => a.driveFile);
-
-  const sendToAgent = async () => {
-    if (!gradable) return;
-    setGradeBusy(true); setGradeErr(null);
-    try {
-      const res = await fetch('/api/classroom/extract-text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attachments }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-      if (!data.text || data.text.trim().length === 0) {
-        throw new Error('El attachment no produjo texto extraíble.');
-      }
-      const handoff = {
-        submissionText: data.text,
-        studentName: submission.studentName ?? '',
-        additionalContext: courseName
-          ? `Tarea "${courseWorkTitle}" del curso "${courseName}" en Google Classroom.`
-          : `Tarea "${courseWorkTitle}" en Google Classroom.`,
-        at: Date.now(),
-      };
-      sessionStorage.setItem('agente:handoff', JSON.stringify(handoff));
-      router.push('/agente');
-    } catch (e) {
-      setGradeErr((e as Error).message);
-      setGradeBusy(false);
-    }
-  };
 
   return (
     <li className="border-b last:border-b-0 py-2 text-sm">
@@ -323,18 +280,6 @@ function SubmissionRow({
         )}
       </div>
       <AttachmentsRow attachments={attachments} />
-      {gradable && (
-        <div className="mt-1.5 flex items-center gap-2">
-          <button
-            onClick={sendToAgent}
-            disabled={gradeBusy}
-            className="text-[11px] px-2 py-0.5 rounded bg-neutral-900 text-white disabled:opacity-40"
-          >
-            {gradeBusy ? 'Extrayendo…' : '🤖 Calificar con IA'}
-          </button>
-          {gradeErr && <span className="text-[11px] text-red-700">❌ {gradeErr}</span>}
-        </div>
-      )}
     </li>
   );
 }

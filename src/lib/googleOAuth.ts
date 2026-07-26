@@ -13,8 +13,6 @@ export const CLASSROOM_SCOPES = [
   'https://www.googleapis.com/auth/classroom.rosters.readonly',
   'https://www.googleapis.com/auth/classroom.profile.emails',
   'https://www.googleapis.com/auth/userinfo.profile',
-  // Necesario para descargar contenido de attachments (Google Docs, código fuente, etc.)
-  'https://www.googleapis.com/auth/drive.readonly',
 ];
 
 export function getOAuth2Client(): OAuth2Client {

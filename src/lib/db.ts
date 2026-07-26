@@ -3,7 +3,6 @@ import type {
   Course, Student, Todo, CalendarEvent,
   ScheduleBlock, CalendarDay, YearConfig,
   AttendanceMark, ChangeLog,
-  Rubric, GradingResult,
 } from '@/types';
 
 /** Registro local de una eliminación pendiente de propagar al servidor. */
@@ -24,8 +23,6 @@ class PlanillaDB extends Dexie {
   yearConfig!: Table<YearConfig, number>;
   attendanceMarks!: Table<AttendanceMark, number>;
   changeLog!: Table<ChangeLog, number>;
-  rubrics!: Table<Rubric, number>;
-  gradingResults!: Table<GradingResult, number>;
   syncTombstones!: Table<SyncTombstone, number>;
 
   constructor() {
@@ -167,7 +164,6 @@ if (typeof window !== 'undefined') {
   const SYNCABLE = [
     'courses', 'students', 'todos', 'events', 'schedule',
     'calendarDays', 'yearConfig', 'attendanceMarks', 'changeLog',
-    'rubrics', 'gradingResults',
   ];
   for (const name of SYNCABLE) {
     const table = db.table(name);
@@ -391,34 +387,6 @@ export async function updateEvent(id: number, patch: Partial<CalendarEvent>) {
 export async function deleteEvent(id: number) {
   await db.transaction('rw', db.events, db.syncTombstones, async () => {
     await db.events.delete(id);
-  });
-}
-
-// ---- Rúbricas ----
-
-export async function addRubric(r: Omit<Rubric, 'id'>) {
-  return (await db.rubrics.add(r)) as number;
-}
-
-export async function updateRubric(id: number, patch: Partial<Rubric>) {
-  await db.rubrics.update(id, patch);
-}
-
-export async function deleteRubric(id: number) {
-  await db.transaction('rw', db.rubrics, db.syncTombstones, async () => {
-    await db.rubrics.delete(id);
-  });
-}
-
-// ---- Resultados del agente ----
-
-export async function addGradingResult(g: Omit<GradingResult, 'id'>) {
-  return (await db.gradingResults.add(g)) as number;
-}
-
-export async function deleteGradingResult(id: number) {
-  await db.transaction('rw', db.gradingResults, db.syncTombstones, async () => {
-    await db.gradingResults.delete(id);
   });
 }
 

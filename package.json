@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0",
     "@supabase/supabase-js": "^2.110.8",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",

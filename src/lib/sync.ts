@@ -19,7 +19,6 @@ import { getSupabase } from './supabase';
 export const SYNCABLE_TABLES = [
   'courses', 'students', 'todos', 'events', 'schedule',
   'calendarDays', 'yearConfig', 'attendanceMarks', 'changeLog',
-  'rubrics', 'gradingResults',
 ] as const;
 
 export type SyncableTable = typeof SYNCABLE_TABLES[number];

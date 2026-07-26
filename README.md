@@ -1,89 +1,150 @@
 # planilla-app
 
-Automatización de planillas y Califica para docentes de GLA — v1 (MVP local-first).
+Automatización del flujo docente para profesores de GLA — PWA local-first con backup en la nube.
 
-## Qué hace este MVP
+**Deploy:** https://planillaapp.vercel.app
 
-1. **Importar** una `PLANILLA-NOTAS-*.xlsx` con los 19 cursos y sus notas. Se detecta automáticamente el layout (8°–10° vs 11°) y se guarda en IndexedDB.
-2. **Importar** un `Califica-XXX.xls/xlsx` consolidado del colegio (el "Califica-451") para hidratar los COD_ALUM de cada estudiante.
+## Qué hace la app
+
+**Gestión de planilla y Califica (v1):**
+1. **Importar** una `PLANILLA-NOTAS-*.xlsx` con los 19 cursos y sus notas. Detección automática del layout (8°–10° vs 11°) y guardado en IndexedDB.
+2. **Importar** un `Califica-XXX.xls/xlsx` consolidado del colegio (el "Califica-451") para hidratar los COD_ALUM.
 3. **Editar** notas y F/R por estudiante desde una vista tipo planilla optimizada para móvil.
-4. **Ver la DEF calculada con el algoritmo real de la plataforma** (ignore-zeros + half-up), no con el que trae tu Excel — de una sacas quién va aprobando de verdad.
-5. **Exportar** el Califica actualizado del curso, listo para subir a la plataforma del colegio. Preserva el formato del archivo original y refleja siempre la lista viva (sin retirados). Los typos de nombre se corrigen automáticamente contra el consolidado del colegio.
+4. **Ver la DEF con el algoritmo real de la plataforma** (ignore-zeros + half-up), no con el que trae tu Excel — sabes quién va aprobando de verdad.
+5. **Exportar** el Califica del curso preservando el formato del template, con lista viva de activos y corrección automática de typos.
 
-Todo corre en el navegador. Cero backend, cero cuenta. Los datos viven en IndexedDB del dispositivo.
+**Horario, calendario y agenda (v2):**
+6. **Modelo de días D1–D5 + Día Fijo** con motor que respeta festivos colombianos (Ley Emiliani auto) y cancelaciones — no consumen turno rotativo.
+7. **Widget "Hoy"** en la home: qué clases toca, en qué bloque, con badge de ciclo y estado F/R por clase.
+8. **Editor F/R por ciclo** — checkboxes por estudiante, con `S1/S2` separadas para 11°, botón de confirmación por sesión.
+9. **Calendario mensual** con overlay de entregas/actividades por color; agregar/editar desde el mismo popover.
+10. **To-do** con prioridad y vencimiento, por curso opcional.
+11. **Exportador EFAS** — consolidado institucional en XLSX con hoja de Salón de Honor (estudiantes ≥80).
+
+**Backup y multi-dispositivo (v2 completa):**
+12. **Auth email OTP** vía Supabase — código de 6/8 dígitos por email (Resend SMTP).
+13. **Sync Dexie ↔ Supabase** de las 11 tablas locales, last-write-wins por `updated_at`, con auto-sync cada 60s + debounce on-write de 5s.
+14. **Tombstones** para que los deletes se propaguen entre dispositivos.
+15. **Contador de conflictos** cuando el remoto pisa un cambio local no sincronizado.
+16. **Backup/restore JSON** de toda la base local, portable y versionado (funciona incluso sin Supabase).
+
+**Integraciones (v4):**
+17. **Google Classroom read-only** — conectar cuenta, listar cursos/tareas/entregas, ver adjuntos.
+18. **Link a classroom-rpa** — para descargar entregas de un ciclo por curso, se usa la app hermana [classroom-rpa.vercel.app](https://classroom-rpa.vercel.app) (link en el nav bar). La calificación de las entregas se hace manualmente por el docente en su flujo habitual.
+
+**PWA:**
+19. **Instalable en móvil** con service worker (cache app shell + persistencia de IndexedDB).
 
 ## Stack
 
 - **Next.js 15** (App Router, RSC + Client Components donde hace falta)
-- **Dexie 4** sobre IndexedDB (local-first, sin sync todavía)
-- **SheetJS (xlsx)** para leer archivos Excel
-- **ExcelJS** para generar Califica preservando estilos del template
-- **Tailwind CSS** para el estilado
+- **Dexie 4** sobre IndexedDB — local-first, con hooks que autogeneran `syncId` (UUID) y `updatedAt` en cada escritura
+- **Supabase** (auth OTP + sync JSONB con RLS)
+- **Resend** (SMTP para OTP emails)
+- **google-auth-library** — OAuth2 read-only a Classroom
+- **SheetJS (xlsx)** — leer archivos Excel
+- **ExcelJS** — generar Califica y EFAS preservando estilos
+- **Tailwind CSS**
+- **Deploy:** Vercel
 
-Decisión clave: `Supabase + auth OTP + sync` está *pospuesto a v2* — el mismo camino que Margen. Empezar cliente-only permite validar el flujo entero sin fricción.
-
-## Setup
+## Setup local
 
 ```bash
 npm install
+cp .env.local.example .env.local
+# Edita .env.local con tus keys
 npm run dev
 ```
 
 Y abres `http://localhost:3000`.
 
-Para probar rápido:
+**Env vars requeridas** (ver `.env.local.example`):
 
-1. Sube `PLANILLA-NOTAS-2026_TRIM_2.xlsx` en la sección "Importar datos".
-2. Sube `Califica-451-02.xls` en la misma sección.
-3. Entra a cualquier curso (ej. 801).
-4. Edita alguna nota, verás la DEF actualizarse en vivo.
-5. Click en "Generar Califica del curso 801" → descarga el `.xlsx`.
+| Variable | Prefijo | Notas |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | `NEXT_PUBLIC_` (safe) | URL del proyecto Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `NEXT_PUBLIC_` (safe) | anon key, protegido por RLS |
+| `GOOGLE_CLIENT_ID` | server-only | OAuth client de Google Cloud |
+| `GOOGLE_CLIENT_SECRET` | server-only | nunca en el bundle cliente |
+| `GOOGLE_REDIRECT_URI` | server-only | `http://localhost:3000/api/classroom/callback` en dev, URL de Vercel en prod |
+
+**Supabase schema** — corre en orden en Dashboard → SQL Editor:
+1. `supabase/schema.sql` (tabla `sync_records` + RLS)
+2. `supabase/migrations/002_tombstones.sql` (columna `deleted_at`)
+
+**Auth OTP** requiere SMTP custom en Supabase (el default rate-limita brutal). Config Resend en Authentication → Emails → SMTP Settings:
+- Host `smtp.resend.com`, Port `465`, Username `resend`, Password `re_...`
+- Editar template "Magic Link" para incluir `{{ .Token }}` (código, no solo link)
+- Site URL: la URL de tu deploy. Redirect URLs: `https://tu-deploy/**`
+
+**Google OAuth** — crear proyecto en Google Cloud Console, habilitar Classroom API, crear OAuth Client Web con redirect URIs para localhost y prod.
+
+**Para probar el flujo rápido:**
+1. Sube tu `PLANILLA-NOTAS-*.xlsx` en la sección "Importar datos"
+2. Sube tu `Califica-451-*.xls` en la misma sección
+3. Entra a cualquier curso → edita notas, marca F/R, exporta Califica
+4. En `/classroom` conecta tu cuenta Google para ver cursos y entregas
+5. Para descargar entregas de un ciclo, usa el link "Descargar entregas" del nav → abre [classroom-rpa](https://classroom-rpa.vercel.app)
 
 ## Estructura
 
 ```
 src/
 ├── app/
-│   ├── page.tsx                     # home: importador + lista de cursos
-│   ├── curso/[code]/page.tsx        # planilla editable + exportar Califica
-│   ├── layout.tsx
-│   └── globals.css
+│   ├── page.tsx                      # home: Hoy + Pendientes + Global dashboard + Reportes + Importar + Backup + PWA
+│   ├── auth/page.tsx                 # login OTP email
+│   ├── curso/[code]/page.tsx         # dashboard + editor F/R + planilla + historial
+│   ├── horario/page.tsx              # config de bloques por tipo día
+│   ├── calendario/page.tsx           # mensual con overlay de eventos
+│   ├── pendientes/page.tsx           # to-do completo
+│   ├── classroom/page.tsx            # browse cursos/tareas/entregas
+│   ├── manifest.ts                   # PWA manifest
+│   └── api/
+│       └── classroom/                # login/callback/me/courses/coursework/submissions
 ├── lib/
-│   ├── constants.ts                 # GRADE_META, CURSO_PALABRAS, SLOTS_8_10, SLOTS_11
-│   ├── formula.ts                   # calcDef(subnotas, slots, mode) — strict o platform
-│   ├── importer.ts                  # importPlanilla + importCodAlumMap
-│   ├── exporter.ts                  # exportCalifica (usa templates/Califica-*.xlsx)
-│   ├── db.ts                        # Dexie schema
-│   └── utils.ts                     # normalizeName, findFuzzyMatch, downloadBlob
-├── components/
-│   ├── ImportPlanilla.tsx
-│   ├── ExportCalifica.tsx
-│   ├── CoursesList.tsx
-│   └── PlanillaGrid.tsx
-├── types/index.ts
+│   ├── constants.ts                  # GRADE_META, SLOTS, escala de notas
+│   ├── formula.ts                    # calcDef (strict + platform)
+│   ├── importer.ts / exporter.ts     # xlsx planilla + Califica
+│   ├── efasExporter.ts               # EFAS consolidado + salón de honor
+│   ├── stats.ts                      # métricas de curso
+│   ├── db.ts                         # Dexie v7 + hooks de sync + helpers
+│   ├── sync.ts                       # push/pull/status Supabase
+│   ├── supabase.ts                   # cliente browser
+│   ├── schedule.ts                   # motor de días D1-D5 + Fijo
+│   ├── holidays-co.ts                # festivos Colombia con Ley Emiliani
+│   ├── backup.ts                     # export/import JSON de Dexie
+│   ├── googleOAuth.ts                # server-only OAuth2 helpers
+│   ├── classroomSession.ts           # tokens en cookie httpOnly
+│   ├── classroomApi.ts               # wrapper Classroom REST v1
+│   └── utils.ts                      # normalizeName, downloadBlob, etc.
+├── components/                       # 25+ componentes client-side
+└── types/index.ts                    # entidades con syncId + updatedAt
+
 public/
-└── templates/
-    ├── Califica-8-10-template.xlsx  # base para 801-1004
-    └── Califica-11-template.xlsx    # base para 1101-1104
+├── templates/Califica-*.xlsx         # bases para el exportador
+├── icon-192.svg / icon-512.svg       # PWA icons
+└── sw.js                             # service worker
+
+supabase/
+├── schema.sql                        # tabla base + RLS
+└── migrations/002_tombstones.sql
 ```
 
 ## Lógica de la fórmula (crítico entenderla)
 
-Hay **dos** cálculos posibles y ambos están implementados en `formula.ts`:
+Dos cálculos posibles en `formula.ts`:
 
-**`strict`** — lo que hace tu Excel Planilla. Los 0 cuentan como notas reales. Ejemplo: si K = C4:60% + C5:40% con C4=100 y C5=0, la Def de K es 60. Con esta cuenta, mientras no hayas calificado un ciclo la DEF de todos se hunde. Es engañoso.
+**`strict`** — lo que hace tu Excel Planilla. Los 0 cuentan como notas reales. Ejemplo: si K = C4:60% + C5:40% con C4=100 y C5=0, la Def de K es 60. Con esta cuenta, mientras no hayas calificado un ciclo la DEF de todos se hunde.
 
-**`platform`** — lo que hace la plataforma del colegio. Los 0 se ignoran (no calificado). El mismo ejemplo da K = 100. Este es el algoritmo confirmado 100% contra la imagen del panel de 801 (curso 801, jul-2026, 27/27 matches exactos):
+**`platform`** (default) — lo que hace la plataforma del colegio. Los 0 se ignoran (no calificado). El mismo ejemplo da K = 100. **Validado 100% contra el panel real** (curso 801, jul-2026, 27/27 matches).
 
-1. Por categoría: promedio ponderado reescalando los pesos entre las subnotas > 0.
-2. Definitiva: promedio simple de las categorías con Def > 0.
-3. Redondeo: half-up (no banker's).
-
-La UI muestra siempre `platform`, que es lo que ven en el colegio. El `strict` queda disponible por si algún día necesitas comparar.
+1. Por categoría: promedio ponderado reescalando los pesos entre las subnotas > 0
+2. Definitiva: promedio simple de las categorías con Def > 0
+3. Redondeo: half-up (no banker's)
 
 ### Pesos internos por categoría
 
-Cada categoría (K, M, U, C, E) pesa 20% de la DEF final. Los pesos DENTRO de la categoría cambian entre 8°–10° y 11° (por eso hay dos SLOT_MAPs distintos):
+Cada categoría K/M/U/C/E pesa 20% de la DEF final. Los pesos DENTRO cambian entre 8°–10° y 11°:
 
 | Categoría | 8°–10° | 11° |
 |---|---|---|
@@ -93,49 +154,44 @@ Cada categoría (K, M, U, C, E) pesa 20% de la DEF final. Los pesos DENTRO de la
 | COMMUNICATION | C3:25 + C4:25 + C5:50 | C3:25 + C4:25 + C6:50 |
 | EV | C7:100 | C7:100 |
 
-## Modelo de datos
+## Modelo de datos (Dexie v7)
 
 Ver `src/types/index.ts`. Cada `Student` guarda:
 - Metadata (codAlum, nombre, orden, activeFrom, withdrawnAt)
-- `cycles[9]` — para 8°–10° son {F, R, nota, obs}; para 11° incluyen también `S1` y `S2`.
-- `subnotas` — diccionario con 10 o 11 claves según el grado (ver SLOTS_8_10 y SLOTS_11).
+- `cycles[9]` — para 8°–10° son `{F, R, nota, obs}`; para 11° incluyen también `S1` y `S2` (cada una con F/R/N)
+- `subnotas` — diccionario con 10 o 11 claves según el grado
 
-Los estudiantes retirados NO se borran: `withdrawnAt` los marca. El exportador Califica solo escribe activos.
+**Sync metadata** (agregado por hooks automáticamente):
+- `syncId` — UUID estable cross-device
+- `updatedAt` — ISO timestamp del último cambio local (base de LWW)
+
+**Deletes:** los estudiantes retirados NO se borran, se marcan con `withdrawnAt` (soft). El resto de tablas se borran duro, pero el hook `deleting` encola una tombstone en la tabla local `syncTombstones` que se propaga a Supabase para multi-dispositivo.
+
+**Sync flow:**
+1. Cada escritura Dexie bumpea `updatedAt` (hook `updating`)
+2. `pushAll(userId)` sube todas las filas donde `updatedAt > lastPush`, luego las tombstones
+3. `pullAll(userId)` baja las filas remotas con `updated_at > lastPull`, LWW merge, aplica tombstones remotas como deletes locales
+4. `SyncStatus` en el nav bar dispara sync manual + auto cada 60s + on-write debounce 5s
 
 ## Roadmap
 
-### v2 ✅
-- [x] Exportador **EFAS** — consolidado + hoja Salón de honor con estudiantes ≥80
-- [x] Horario editable con modelo Día 1–5 + Día Fijo
-- [x] Motor de días con festivos (Ley Emiliani auto) y días 0 (cancelados)
-- [x] Recordatorio F/R por clase — widget "Hoy" con badge por ciclo y banner de pendientes
-- [ ] Auth OTP con Supabase — pospuesto (necesita backend)
-- [ ] Sync Dexie ↔ Supabase — pospuesto (necesita backend)
+### v1 ✅ (importar / editar / exportar)
+### v2 ✅ (horario + calendario + F/R + EFAS + auth + sync)
+### v3 ✅ (to-do + calendario de entregas + PWA install)
+### v4.0 ✅ (Google Classroom read-only + link a classroom-rpa para descarga de entregas)
 
-### v3 ✅
-- [x] To-do con prioridad y estado (con curso opcional y fecha de vencimiento)
-- [x] Calendario de entregas y actividades por curso (overlay en calendario + "Próximas entregas" por curso)
-- [x] PWA install (manifest + iconos + service worker + botón instalar + persistencia)
-- [ ] Push notifications (VAPID) — v3.1 opcional; requiere endpoint público
+### Descartado
+- **Agente IA calificador con Claude** — quitado en 2026-07-26. La calificación se hace manualmente; la descarga de entregas se delega a [classroom-rpa](https://classroom-rpa.vercel.app).
 
-### v4+
-- [ ] Integración Google Classroom (descarga de entregas)
-- [ ] Agente IA calificador con criterios configurables por actividad
+### v4.1+ (candidatos)
+- [ ] Push notifications VAPID (v3 opcional)
+- [ ] Verificar dominio propio en Resend para envío multi-usuario
+- [ ] Resolución manual de conflictos de sync per-row
 
-## Extras entregados fuera del roadmap original
+## Notas heredadas del análisis original
 
-- **Dashboard por curso** — activos, DEF promedio, % aprobación, distribución, promedios por categoría K/M/U/C/E, listas de riesgo/reprobados/salón de honor, top fallas
-- **Dashboard global** en home — grid de las 19 tarjetas por curso con alerta destacada de cursos que requieren atención
-- **Backup/restore** JSON de toda la base local (portable, versionado)
-- **Notas por columna real** (C2..C9) — el docente ingresa la nota una sola vez; se propaga a los slots K/M/U/C/E que la usen
-- **Historial de cambios** — log auditable por curso ("editaste C4 de ALONSO 50→77 hace 5m")
-- **F/R por sesión S1/S2 para 11°** — el editor y widget diferencian las dos sesiones por ciclo, con confirmaciones separadas
-- **Motor de sesiones por ciclo** — 8°/10°: 1 sesión = 1 ciclo. 11°: 2 sesiones = 1 ciclo
-- **Resaltado visual de C7 (EV)** — un cambio ahí mueve la DEF ~4 pts (100% de la categoría E)
-
-## Notas heredadas del análisis
-
-- **19 cursos, 539 estudiantes activos** confirmados contra hoja EFAS del año.
-- **Trimestre por defecto: 2**. Cambia la constante o la UI cuando arranque T3.
-- **La Planilla del docente tiene 3 fórmulas mal en 11°** (Zambrano Guzmán 1101, Zambrano Salazar 1102, Villamil Beltrán 1103). El importador toma bien las subnotas, no la DEF calculada por el Excel; el cálculo en la app siempre pasa por `formula.ts`. Aun así, conviene arreglar el Excel para que sea consistente.
-- **Ingresos posteriores al Califica-451** salen con `FALTA_COD_ALUM`. Hoy: Guerrero Montaña Mariana Isabel (903). En v2 se resolverá con un panel de "estudiantes pendientes de código".
+- **19 cursos, 539 estudiantes activos** confirmados contra hoja EFAS
+- **Trimestre 2 arrancó 2026-04-29** — actualizar `trim3Start` en `/calendario` cuando arranque T3
+- **Aulas por defecto: "Informática"** — cambiar 10° a "Robótica" cuando arranque T3
+- **La Planilla del docente tiene 3 fórmulas mal en 11°** (Zambrano Guzmán 1101, Zambrano Salazar 1102, Villamil Beltrán 1103). El importador toma las subnotas correctas; el cálculo en la app siempre pasa por `formula.ts`.
+- **Ingresos posteriores al Califica-451** salen con `FALTA_COD_ALUM`. Hoy: Guerrero Montaña Mariana Isabel (903).

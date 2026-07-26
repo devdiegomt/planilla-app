@@ -42,7 +42,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/calendario" className="text-neutral-600 hover:text-neutral-900">Calendario</Link>
               <Link href="/pendientes" className="text-neutral-600 hover:text-neutral-900">Pendientes</Link>
               <Link href="/classroom" className="text-neutral-600 hover:text-neutral-900">Classroom</Link>
-              <Link href="/agente" className="text-neutral-600 hover:text-neutral-900">Agente IA</Link>
+              <a
+                href="https://classroom-rpa.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-neutral-600 hover:text-neutral-900"
+                title="Descargar entregas de un ciclo (abre classroom-rpa en pestaña nueva)"
+              >
+                Descargar entregas ↗
+              </a>
               <div className="ml-auto flex items-center gap-2">
                 <SyncStatus />
                 <NavSession />
