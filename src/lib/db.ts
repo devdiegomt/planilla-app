@@ -80,10 +80,67 @@ class PlanillaDB extends Dexie {
       rubrics: '++id, name, courseCode, createdAt',
       gradingResults: '++id, rubricId, at, courseCode, studentName',
     });
+
+    // v6: sync (syncId UUID + updatedAt indexados en todas las tablas)
+    this.version(6).stores({
+      courses: '++id, code, grade, year, trimestre, &syncId, updatedAt',
+      students: '++id, courseId, codAlum, nombre, order, &syncId, updatedAt',
+      todos: '++id, status, priority, dueDate, courseCode, &syncId, updatedAt',
+      events: '++id, date, courseCode, kind, &syncId, updatedAt',
+      schedule: '++id, dayType, block, courseCode, [dayType+block], &syncId, updatedAt',
+      calendarDays: '++id, &date, status, &syncId, updatedAt',
+      yearConfig: '++id, &year, &syncId, updatedAt',
+      attendanceMarks: '++id, courseId, ciclo, [courseId+ciclo], &syncId, updatedAt',
+      changeLog: '++id, courseId, studentId, at, kind, ciclo, &syncId, updatedAt',
+      rubrics: '++id, name, courseCode, createdAt, &syncId, updatedAt',
+      gradingResults: '++id, rubricId, at, courseCode, studentName, &syncId, updatedAt',
+    }).upgrade(async tx => {
+      // Migración de datos: poblar syncId y updatedAt en cada fila existente
+      const tables = [
+        'courses', 'students', 'todos', 'events', 'schedule',
+        'calendarDays', 'yearConfig', 'attendanceMarks', 'changeLog',
+        'rubrics', 'gradingResults',
+      ] as const;
+      for (const name of tables) {
+        await tx.table(name).toCollection().modify(row => {
+          if (!row.syncId) row.syncId = crypto.randomUUID();
+          if (!row.updatedAt) {
+            // Preferir un timestamp preexistente si el schema lo tiene
+            row.updatedAt = row.createdAt || row.at || row.confirmedAt || new Date().toISOString();
+          }
+        });
+      }
+    });
+
   }
 }
 
 export const db = new PlanillaDB();
+
+/**
+ * Instalar hooks de sync después de crear la instancia.
+ * Auto-setean syncId (UUID nuevo si falta) y updatedAt (siempre now) en cada
+ * escritura. Se ejecuta solo en el cliente porque IndexedDB / crypto.randomUUID
+ * no existen server-side.
+ */
+if (typeof window !== 'undefined') {
+  const SYNCABLE = [
+    'courses', 'students', 'todos', 'events', 'schedule',
+    'calendarDays', 'yearConfig', 'attendanceMarks', 'changeLog',
+    'rubrics', 'gradingResults',
+  ];
+  for (const name of SYNCABLE) {
+    const table = db.table(name);
+    table.hook('creating', (_pk, obj: Record<string, unknown>) => {
+      if (!obj.syncId) obj.syncId = crypto.randomUUID();
+      obj.updatedAt = new Date().toISOString();
+    });
+    table.hook('updating', (mods: Record<string, unknown>) => {
+      if ('updatedAt' in mods) return mods;
+      return { ...mods, updatedAt: new Date().toISOString() };
+    });
+  }
+}
 
 /** Helpers de acceso pensados para usarse desde componentes con useLiveQuery. */
 export async function getCourseByCode(code: string) {

@@ -31,6 +31,8 @@ export interface Student {
   withdrawnAt?: string | null;        // null si sigue matriculado
   cycles: CycleData[];                // 9 items
   subnotas: Record<string, number>;   // 10 (o 11 para 11°) claves
+  syncId?: string;                    // UUID estable cross-device (sync)
+  updatedAt?: string;                 // ISO datetime del último cambio local
 }
 
 /** Registro persistente de curso. */
@@ -42,7 +44,8 @@ export interface Course {
   year: number;                       // 2026
   trimestre: number;                  // 1, 2, 3
   cyclesActive: boolean[];            // 9 items
-  updatedAt: string;                  // ISO
+  updatedAt: string;                  // ISO — timestamp del último cambio (usado por sync)
+  syncId?: string;                    // UUID estable cross-device (sync)
 }
 
 /** Item de to-do (para v2, ya lo dejamos preparado). */
@@ -53,6 +56,8 @@ export interface Todo {
   priority: 'high' | 'medium' | 'low';
   dueDate?: string;
   courseCode?: string;
+  syncId?: string;
+  updatedAt?: string;
 }
 
 /** Evento de calendario (para v2). */
@@ -63,6 +68,8 @@ export interface CalendarEvent {
   description?: string;
   courseCode?: string;
   kind: 'entrega' | 'actividad' | 'festivo' | 'otro';
+  syncId?: string;
+  updatedAt?: string;
 }
 
 /** Tipos de día del calendario académico GLA (D1..D5 rotativos + FIJO viernes). */
@@ -77,6 +84,8 @@ export interface ScheduleBlock {
   startTime: string;                  // 'HH:mm'
   endTime: string;                    // 'HH:mm'
   room?: string;
+  syncId?: string;
+  updatedAt?: string;
 }
 
 /**
@@ -90,6 +99,8 @@ export interface CalendarDay {
   status: 'lectivo' | 'festivo' | 'cancelado';
   overrideDayType?: DayType | null;   // fuerza el tipo de día si != null
   note?: string;
+  syncId?: string;
+  updatedAt?: string;
 }
 
 /** Configuración del año escolar (fecha de arranque + rotación inicial). */
@@ -101,6 +112,8 @@ export interface YearConfig {
   trim1Start?: string;                // 'YYYY-MM-DD' inicio trimestre 1
   trim2Start?: string;                // 'YYYY-MM-DD' inicio trimestre 2
   trim3Start?: string;                // 'YYYY-MM-DD' inicio trimestre 3
+  syncId?: string;
+  updatedAt?: string;
 }
 
 /**
@@ -116,6 +129,8 @@ export interface AttendanceMark {
   ciclo: number;                      // 1..9
   session?: 1 | 2;                    // solo aplicable a 11°
   confirmedAt: string;                // ISO datetime
+  syncId?: string;
+  updatedAt?: string;
 }
 
 /** Registro auditado de una edición en el curso. */
@@ -128,6 +143,8 @@ export interface ChangeLog {
   kind: 'nota' | 'attendance';
   ciclo?: number;                     // 1..9, solo attendance o nota-por-ciclo
   summary: string;                    // 'C4: 50→77' o 'Ciclo 3 · S1 · F on'
+  syncId?: string;
+  updatedAt?: string;
 }
 
 /** Criterio de una rúbrica (una fila del cuadro de evaluación). */
@@ -146,6 +163,8 @@ export interface Rubric {
   maxPoints: number;                  // escala máxima (típicamente 100)
   courseCode?: string;                // opcional: rúbrica atada a un curso
   createdAt: string;                  // ISO datetime
+  syncId?: string;
+  updatedAt?: string;
 }
 
 /** Puntaje que el agente asignó a un criterio. */
@@ -171,6 +190,8 @@ export interface GradingResult {
   model: string;                      // 'claude-opus-5' etc.
   tokensUsed?: { input: number; output: number };
   at: string;                         // ISO datetime
+  syncId?: string;
+  updatedAt?: string;
 }
 
 /** Resultado del cálculo de definitiva por estudiante. */
