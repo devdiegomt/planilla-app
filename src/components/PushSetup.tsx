@@ -72,6 +72,24 @@ export function PushSetup() {
       const reg = await navigator.serviceWorker.ready;
       const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!publicKey) throw new Error('VAPID public key no configurada.');
+
+      // Des-suscribir cualquier suscripción previa que pueda estar usando una
+      // VAPID key distinta (causa el 410 Gone inmediato en pruebas). Además,
+      // en Chrome, subscribe() sobre una sub existente con applicationServerKey
+      // distinta lanza InvalidStateError — hay que unsubscribe primero.
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
+        const token0 = await getAccessToken();
+        if (token0) {
+          await fetch('/api/push/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token0}` },
+            body: JSON.stringify({ endpoint: existing.endpoint }),
+          }).catch(() => {});
+        }
+        await existing.unsubscribe();
+      }
+
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey),
