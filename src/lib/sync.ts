@@ -12,7 +12,7 @@
  *   gana el updatedAt más reciente sin avisar al usuario.
  */
 
-import { db } from './db';
+import { db, withoutTombstone } from './db';
 import { getSupabase } from './supabase';
 
 /** Tablas syncables (mismo orden que la migración v6 y el push queue). */
@@ -45,6 +45,7 @@ export interface PushReport {
   perTable: Record<string, { pushed: number; errors: number }>;
   totalPushed: number;
   totalErrors: number;
+  tombstonesPushed: number;
   errorMessages: string[];
   at: string;
 }
@@ -55,7 +56,7 @@ export async function pushAll(userId: string): Promise<PushReport> {
   const lastPushed = localStorage.getItem(lastPushKey(userId)) ?? '1970-01-01T00:00:00Z';
   const report: PushReport = {
     ok: true, perTable: {}, totalPushed: 0, totalErrors: 0,
-    errorMessages: [], at: new Date().toISOString(),
+    tombstonesPushed: 0, errorMessages: [], at: new Date().toISOString(),
   };
 
   for (const table of SYNCABLE_TABLES) {
@@ -98,6 +99,35 @@ export async function pushAll(userId: string): Promise<PushReport> {
     report.totalErrors += errors;
   }
 
+  // Flush tombstones: upsert como fila con deleted_at != null, luego clear
+  const tombstones = await db.syncTombstones.toArray();
+  if (tombstones.length > 0) {
+    const tPayload = tombstones.map(t => ({
+      user_id: userId,
+      table_name: t.tableName,
+      sync_id: t.syncId,
+      data: {},                        // el data del tombstone es irrelevante
+      updated_at: t.deletedAt,
+      deleted_at: t.deletedAt,
+    }));
+    for (let i = 0; i < tPayload.length; i += 100) {
+      const batch = tPayload.slice(i, i + 100);
+      const { error } = await supabase
+        .from('sync_records')
+        .upsert(batch, { onConflict: 'user_id,table_name,sync_id' });
+      if (error) {
+        report.errorMessages.push(`tombstones: ${error.message}`);
+        report.ok = false;
+      } else {
+        report.tombstonesPushed += batch.length;
+      }
+    }
+    // Solo limpiar tombstones que se pushearon exitosamente
+    if (report.tombstonesPushed === tombstones.length) {
+      await db.syncTombstones.clear();
+    }
+  }
+
   if (report.ok) {
     localStorage.setItem(lastPushKey(userId), report.at);
   }
@@ -108,8 +138,10 @@ export async function pushAll(userId: string): Promise<PushReport> {
 
 export interface PullReport {
   ok: boolean;
-  perTable: Record<string, { fetched: number; applied: number; skipped: number }>;
+  perTable: Record<string, { fetched: number; applied: number; skipped: number; deleted: number }>;
   totalApplied: number;
+  totalDeleted: number;
+  conflicts: number;                  // filas donde el remoto pisó un cambio local no sincronizado
   errorMessages: string[];
   at: string;
 }
@@ -118,15 +150,16 @@ export interface PullReport {
 export async function pullAll(userId: string): Promise<PullReport> {
   const supabase = getSupabase();
   const lastPulled = localStorage.getItem(lastPullKey(userId)) ?? '1970-01-01T00:00:00Z';
+  const lastPushed = localStorage.getItem(lastPushKey(userId)) ?? '1970-01-01T00:00:00Z';
   const report: PullReport = {
-    ok: true, perTable: {}, totalApplied: 0, errorMessages: [],
-    at: new Date().toISOString(),
+    ok: true, perTable: {}, totalApplied: 0, totalDeleted: 0,
+    conflicts: 0, errorMessages: [], at: new Date().toISOString(),
   };
 
   for (const table of SYNCABLE_TABLES) {
     const { data, error } = await supabase
       .from('sync_records')
-      .select('sync_id, data, updated_at')
+      .select('sync_id, data, updated_at, deleted_at')
       .eq('user_id', userId)
       .eq('table_name', table)
       .gt('updated_at', lastPulled);
@@ -134,24 +167,41 @@ export async function pullAll(userId: string): Promise<PullReport> {
     if (error) {
       report.errorMessages.push(`${table}: ${error.message}`);
       report.ok = false;
-      report.perTable[table] = { fetched: 0, applied: 0, skipped: 0 };
+      report.perTable[table] = { fetched: 0, applied: 0, skipped: 0, deleted: 0 };
       continue;
     }
 
-    let applied = 0, skipped = 0;
+    let applied = 0, skipped = 0, deleted = 0;
     for (const remote of data ?? []) {
       const localRow = await db.table(table)
         .where('syncId').equals(remote.sync_id).first() as SyncRow | undefined;
 
       const localUpdated = localRow?.updatedAt ?? '';
       const remoteUpdated = remote.updated_at ?? '';
+      const isTombstone = remote.deleted_at != null;
 
+      // Skip si local es más nuevo o igual
       if (localRow && localUpdated >= remoteUpdated) {
         skipped++;
         continue;
       }
 
-      // Payload remoto: `data` es el objeto completo; mantener el `id` local si existe
+      // Conflicto: el remoto va a pisar un cambio local no sincronizado
+      if (localRow && localUpdated > lastPushed) {
+        report.conflicts++;
+      }
+
+      if (isTombstone) {
+        // Delete local (withoutTombstone para no re-enqueue)
+        if (localRow?.id != null) {
+          await withoutTombstone(async () => {
+            await db.table(table).delete(localRow.id as number);
+          });
+          deleted++;
+        }
+        continue;
+      }
+
       const merged: SyncRow = {
         ...(remote.data as Record<string, unknown>),
         syncId: remote.sync_id,
@@ -159,20 +209,17 @@ export async function pullAll(userId: string): Promise<PullReport> {
       };
       if (localRow?.id) merged.id = localRow.id;
 
-      // Los hooks no deben re-bumpear updatedAt en este write; lo evitamos
-      // pasando updatedAt explícito (el hook 'updating' lo respeta).
       if (localRow?.id) {
         await db.table(table).update(localRow.id as number, merged);
       } else {
-        // No local — insertar; el hook 'creating' seteará updatedAt.
-        // Para preservar el remoteUpdated, hacemos put (upsert) con updatedAt explícito.
         delete merged.id;
         await db.table(table).put(merged);
       }
       applied++;
     }
-    report.perTable[table] = { fetched: data?.length ?? 0, applied, skipped };
+    report.perTable[table] = { fetched: data?.length ?? 0, applied, skipped, deleted };
     report.totalApplied += applied;
+    report.totalDeleted += deleted;
   }
 
   if (report.ok) {
@@ -196,7 +243,7 @@ export interface SyncStatus {
   lastPushAt: string | null;
 }
 
-/** Cuenta cuántas filas locales tienen updatedAt > lastPush (pendientes de push). */
+/** Cuenta cuántas filas locales tienen updatedAt > lastPush + tombstones pendientes. */
 export async function getSyncStatus(userId: string): Promise<SyncStatus> {
   const lastPush = localStorage.getItem(lastPushKey(userId));
   const lastPull = localStorage.getItem(lastPullKey(userId));
@@ -209,8 +256,9 @@ export async function getSyncStatus(userId: string): Promise<SyncStatus> {
       .count();
     pending += count;
   }
+  const tombstones = await db.syncTombstones.count();
   return {
-    pendingPush: pending,
+    pendingPush: pending + tombstones,
     lastPullAt: lastPull,
     lastPushAt: lastPush,
   };

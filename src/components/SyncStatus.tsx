@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import {
@@ -9,17 +9,25 @@ import {
 } from '@/lib/sync';
 import { useSession } from './SessionProvider';
 
+const AUTO_SYNC_INTERVAL_MS = 60_000;   // sync cada minuto
+const WRITE_DEBOUNCE_MS = 5_000;         // tras última escritura, sync 5s después
+
 export function SyncStatus() {
   const { user } = useSession();
   const [status, setStatus] = useState<SyncStatusData | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflicts, setConflicts] = useState(0);
   const [open, setOpen] = useState(false);
 
-  // Rehacer conteo cuando cambia cualquier tabla syncable
+  const busyRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Rehacer conteo cuando cambia cualquier tabla syncable (incluye tombstones)
   const trigger = useLiveQuery(async () => {
     let sum = 0;
     for (const t of SYNCABLE_TABLES) sum += await db.table(t).count();
+    sum += await db.syncTombstones.count();
     return sum;
   }, [], 0);
 
@@ -32,17 +40,14 @@ export function SyncStatus() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (!user) { setStatus(null); return; }
-    refresh();
-  }, [user, refresh, trigger]);
-
-  if (!user) return null;
-
-  const sync = async () => {
-    setBusy(true); setError(null);
+  const doSync = useCallback(async (silent = false) => {
+    if (!user || busyRef.current) return;
+    busyRef.current = true;
+    if (!silent) setBusy(true);
+    setError(null);
     try {
       const { pull, push } = await syncAll(user.id);
+      setConflicts(prev => prev + pull.conflicts);
       if (!pull.ok || !push.ok) {
         const msgs = [...pull.errorMessages, ...push.errorMessages].join(' · ');
         setError(msgs || 'Error de sincronización');
@@ -51,12 +56,42 @@ export function SyncStatus() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      busyRef.current = false;
+      if (!silent) setBusy(false);
     }
-  };
+  }, [user, refresh]);
+
+  // Inicial refresh
+  useEffect(() => {
+    if (!user) { setStatus(null); setConflicts(0); return; }
+    refresh();
+  }, [user, refresh]);
+
+  // Interval de auto-sync
+  useEffect(() => {
+    if (!user) return;
+    const iv = setInterval(() => { doSync(true); }, AUTO_SYNC_INTERVAL_MS);
+    return () => clearInterval(iv);
+  }, [user, doSync]);
+
+  // Debounce on write: cuando cambia el count total, agenda un sync 5s después
+  useEffect(() => {
+    if (!user) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { doSync(true); }, WRITE_DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [user, trigger, doSync]);
+
+  // Rerender de status cuando cambien las tablas
+  useEffect(() => { refresh(); }, [trigger, refresh]);
+
+  if (!user) return null;
 
   const pending = status?.pendingPush ?? 0;
   const badgeCls =
+    error ? 'bg-red-100 text-red-800' :
     pending === 0 ? 'bg-green-100 text-green-800' :
     pending < 20 ? 'bg-amber-100 text-amber-800' :
                     'bg-red-100 text-red-800';
@@ -72,7 +107,7 @@ export function SyncStatus() {
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 border rounded-md bg-white shadow-md min-w-[260px] z-20 text-sm"
+          className="absolute right-0 top-full mt-1 border rounded-md bg-white shadow-md min-w-[280px] z-20 text-sm"
           onMouseLeave={() => setOpen(false)}
         >
           <div className="px-3 py-2 border-b space-y-1">
@@ -92,14 +127,32 @@ export function SyncStatus() {
                 <span>{formatWhen(status.lastPullAt)}</span>
               </div>
             )}
+            {conflicts > 0 && (
+              <div className="flex items-center justify-between text-[11px] pt-1 border-t">
+                <span className="text-amber-800">Conflictos resueltos</span>
+                <span className="text-amber-800 font-medium tabular-nums" title="Filas donde el cambio remoto pisó un cambio local no sincronizado">
+                  {conflicts}
+                  <button
+                    onClick={() => setConflicts(0)}
+                    className="ml-2 text-neutral-500 hover:text-neutral-800 underline"
+                    title="Reiniciar contador"
+                  >
+                    ✕
+                  </button>
+                </span>
+              </div>
+            )}
           </div>
           <button
             disabled={busy}
-            onClick={sync}
+            onClick={() => doSync(false)}
             className="w-full text-left px-3 py-2 hover:bg-neutral-50 text-neutral-800 disabled:opacity-40 disabled:hover:bg-white"
           >
             {busy ? 'Sincronizando…' : 'Sincronizar ahora'}
           </button>
+          <div className="px-3 py-1.5 text-[10px] text-neutral-400 border-t">
+            Auto-sync cada {Math.round(AUTO_SYNC_INTERVAL_MS/1000)}s
+          </div>
           {error && (
             <div className="px-3 py-2 text-[11px] text-red-700 border-t">
               ❌ {error}

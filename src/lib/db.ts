@@ -6,6 +6,14 @@ import type {
   Rubric, GradingResult,
 } from '@/types';
 
+/** Registro local de una eliminación pendiente de propagar al servidor. */
+export interface SyncTombstone {
+  id?: number;
+  tableName: string;
+  syncId: string;
+  deletedAt: string;                  // ISO datetime local
+}
+
 class PlanillaDB extends Dexie {
   courses!: Table<Course, number>;
   students!: Table<Student, number>;
@@ -18,6 +26,7 @@ class PlanillaDB extends Dexie {
   changeLog!: Table<ChangeLog, number>;
   rubrics!: Table<Rubric, number>;
   gradingResults!: Table<GradingResult, number>;
+  syncTombstones!: Table<SyncTombstone, number>;
 
   constructor() {
     super('planilla-app');
@@ -112,16 +121,47 @@ class PlanillaDB extends Dexie {
       }
     });
 
+    // v7: tabla local de tombstones para propagar deletes
+    this.version(7).stores({
+      courses: '++id, code, grade, year, trimestre, &syncId, updatedAt',
+      students: '++id, courseId, codAlum, nombre, order, &syncId, updatedAt',
+      todos: '++id, status, priority, dueDate, courseCode, &syncId, updatedAt',
+      events: '++id, date, courseCode, kind, &syncId, updatedAt',
+      schedule: '++id, dayType, block, courseCode, [dayType+block], &syncId, updatedAt',
+      calendarDays: '++id, &date, status, &syncId, updatedAt',
+      yearConfig: '++id, &year, &syncId, updatedAt',
+      attendanceMarks: '++id, courseId, ciclo, [courseId+ciclo], &syncId, updatedAt',
+      changeLog: '++id, courseId, studentId, at, kind, ciclo, &syncId, updatedAt',
+      rubrics: '++id, name, courseCode, createdAt, &syncId, updatedAt',
+      gradingResults: '++id, rubricId, at, courseCode, studentName, &syncId, updatedAt',
+      syncTombstones: '++id, tableName, syncId, deletedAt, [tableName+syncId]',
+    });
+
   }
 }
 
 export const db = new PlanillaDB();
 
 /**
+ * Bandera para saltar el hook 'deleting' cuando la eliminación viene del pull
+ * (aplicando una tombstone remota). El motor sync la levanta con
+ * `withoutTombstone(async () => { ... })` antes de borrar.
+ */
+let SUPPRESS_TOMBSTONE = 0;
+export async function withoutTombstone<T>(fn: () => Promise<T>): Promise<T> {
+  SUPPRESS_TOMBSTONE++;
+  try {
+    return await fn();
+  } finally {
+    SUPPRESS_TOMBSTONE--;
+  }
+}
+
+/**
  * Instalar hooks de sync después de crear la instancia.
- * Auto-setean syncId (UUID nuevo si falta) y updatedAt (siempre now) en cada
- * escritura. Se ejecuta solo en el cliente porque IndexedDB / crypto.randomUUID
- * no existen server-side.
+ * - creating/updating: auto-setean syncId y updatedAt
+ * - deleting: enqueue una tombstone local (excepto si SUPPRESS_TOMBSTONE está activo)
+ * Solo se ejecuta en el cliente.
  */
 if (typeof window !== 'undefined') {
   const SYNCABLE = [
@@ -131,13 +171,34 @@ if (typeof window !== 'undefined') {
   ];
   for (const name of SYNCABLE) {
     const table = db.table(name);
-    table.hook('creating', (_pk, obj: Record<string, unknown>) => {
-      if (!obj.syncId) obj.syncId = crypto.randomUUID();
-      obj.updatedAt = new Date().toISOString();
+    // Dexie hook 'creating': (primKey, obj, transaction) — mutamos obj in place
+    table.hook('creating', function (_pk, obj) {
+      const row = obj as Record<string, unknown>;
+      if (!row.syncId) row.syncId = crypto.randomUUID();
+      row.updatedAt = new Date().toISOString();
     });
-    table.hook('updating', (mods: Record<string, unknown>) => {
-      if ('updatedAt' in mods) return mods;
+    // Dexie hook 'updating': (modifications, primKey, obj, transaction) — devolvemos el patch modificado
+    table.hook('updating', function (modifications) {
+      const mods = modifications as Record<string, unknown>;
+      if ('updatedAt' in mods) return undefined;    // ya lo trae, no tocar
       return { ...mods, updatedAt: new Date().toISOString() };
+    });
+    // Dexie hook 'deleting': (primKey, obj, transaction) — enqueue tombstone si aplica.
+    // Debe usar la transacción actual porque el hook corre dentro de una tx activa;
+    // abrir otra tx (fire-and-forget) genera un TransactionInactiveError silencioso.
+    table.hook('deleting', function (_pk, obj, trans) {
+      if (SUPPRESS_TOMBSTONE > 0) return;
+      const syncId = (obj as { syncId?: string })?.syncId;
+      if (!syncId) return;
+      // trans.table() está scopeada a la tx en curso; syncTombstones debe estar
+      // en el scope 'rw' de esa tx. Los helpers de borrado harán la delete
+      // dentro de db.transaction('rw', <src>, db.syncTombstones, ...).
+      const tsTable = trans.table('syncTombstones');
+      tsTable.add({
+        tableName: name,
+        syncId,
+        deletedAt: new Date().toISOString(),
+      });
     });
   }
 }
@@ -164,7 +225,7 @@ export async function upsertCourseWithStudents(
   course: Omit<Course, 'id'>,
   students: Omit<Student, 'id' | 'courseId'>[]
 ): Promise<number> {
-  return db.transaction('rw', db.courses, db.students, async () => {
+  return db.transaction('rw', db.courses, db.students, db.syncTombstones, async () => {
     const existing = await getCourseByCode(course.code);
     let courseId: number;
     if (existing) {
@@ -276,7 +337,9 @@ export async function upsertScheduleBlock(b: ScheduleBlock) {
 }
 
 export async function deleteScheduleBlock(id: number) {
-  await db.schedule.delete(id);
+  await db.transaction('rw', db.schedule, db.syncTombstones, async () => {
+    await db.schedule.delete(id);
+  });
 }
 
 export async function getCalendarDay(dateIso: string) {
@@ -293,8 +356,10 @@ export async function upsertCalendarDay(cd: CalendarDay) {
 }
 
 export async function clearCalendarDay(dateIso: string) {
-  const existing = await getCalendarDay(dateIso);
-  if (existing?.id) await db.calendarDays.delete(existing.id);
+  await db.transaction('rw', db.calendarDays, db.syncTombstones, async () => {
+    const existing = await getCalendarDay(dateIso);
+    if (existing?.id) await db.calendarDays.delete(existing.id);
+  });
 }
 
 // ---- Pendientes (To-do) ----
@@ -308,7 +373,9 @@ export async function updateTodo(id: number, patch: Partial<Todo>) {
 }
 
 export async function deleteTodo(id: number) {
-  await db.todos.delete(id);
+  await db.transaction('rw', db.todos, db.syncTombstones, async () => {
+    await db.todos.delete(id);
+  });
 }
 
 // ---- Eventos de curso (entregas, actividades) ----
@@ -322,7 +389,9 @@ export async function updateEvent(id: number, patch: Partial<CalendarEvent>) {
 }
 
 export async function deleteEvent(id: number) {
-  await db.events.delete(id);
+  await db.transaction('rw', db.events, db.syncTombstones, async () => {
+    await db.events.delete(id);
+  });
 }
 
 // ---- Rúbricas ----
@@ -336,7 +405,9 @@ export async function updateRubric(id: number, patch: Partial<Rubric>) {
 }
 
 export async function deleteRubric(id: number) {
-  await db.rubrics.delete(id);
+  await db.transaction('rw', db.rubrics, db.syncTombstones, async () => {
+    await db.rubrics.delete(id);
+  });
 }
 
 // ---- Resultados del agente ----
@@ -346,7 +417,9 @@ export async function addGradingResult(g: Omit<GradingResult, 'id'>) {
 }
 
 export async function deleteGradingResult(id: number) {
-  await db.gradingResults.delete(id);
+  await db.transaction('rw', db.gradingResults, db.syncTombstones, async () => {
+    await db.gradingResults.delete(id);
+  });
 }
 
 // ---- Asistencia (F/R confirmada por ciclo/sesión) ----
@@ -382,8 +455,10 @@ export async function confirmAttendance(
 export async function unconfirmAttendance(
   courseId: number, ciclo: number, session?: 1 | 2,
 ) {
-  const existing = await getAttendanceMark(courseId, ciclo, session);
-  if (existing?.id) await db.attendanceMarks.delete(existing.id);
+  await db.transaction('rw', db.attendanceMarks, db.syncTombstones, async () => {
+    const existing = await getAttendanceMark(courseId, ciclo, session);
+    if (existing?.id) await db.attendanceMarks.delete(existing.id);
+  });
 }
 
 /**
