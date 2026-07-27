@@ -77,14 +77,14 @@ export function CourseDashboard({ course }: Props) {
       <div className="grid gap-4 sm:grid-cols-3">
         <StudentList
           title="En riesgo"
-          hint={`DEF 65–${NOTA_APROBACION - 1}`}
+          hint={`DEF ${NOTA_APROBACION}-75`}
           items={stats.enRiesgo}
           emptyMsg="Sin estudiantes en riesgo."
           tone="warn"
         />
         <StudentList
           title="Reprobando"
-          hint="DEF < 65"
+          hint="DEF < 70"
           items={stats.reprobados}
           emptyMsg="Sin reprobados."
           tone="bad"

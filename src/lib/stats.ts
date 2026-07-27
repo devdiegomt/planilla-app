@@ -21,8 +21,8 @@ export interface CourseStats {
   experto: number;                     // DEF >= NOTA_EXPERTO
   expertoPct: number;
   reprobando: number;                  // DEF < NOTA_APROBACION
-  enRiesgo: StudentDef[];              // 65 <= DEF < 70 (border)
-  reprobados: StudentDef[];            // DEF < 65
+  enRiesgo: StudentDef[];              // 70 <= DEF < 75 (border)
+  reprobados: StudentDef[];            // DEF < 70
   expertos: StudentDef[];              // DEF >= NOTA_EXPERTO
   distribution: {
     min30_59: number;
