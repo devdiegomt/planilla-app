@@ -62,10 +62,10 @@ export function computeCourseStats(students: Student[], grade: number): CourseSt
   const reprobando = perStudent.filter(p => p.def < NOTA_APROBACION).length;
 
   const enRiesgo = perStudent
-    .filter(p => p.def >= 65 && p.def < NOTA_APROBACION)
+    .filter(p => p.def >= NOTA_APROBACION && p.def < NOTA_APROBACION + 5)
     .sort((a, b) => b.def - a.def);
   const reprobados = perStudent
-    .filter(p => p.def < 65 && p.def >= NOTA_MIN)
+    .filter(p => p.def < 70 && p.def >= NOTA_MIN)
     .sort((a, b) => a.def - b.def);
   const expertos = perStudent
     .filter(p => p.def >= NOTA_EXPERTO)
