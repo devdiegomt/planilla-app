@@ -67,10 +67,18 @@ Y abres `http://localhost:3000`.
 | `GOOGLE_CLIENT_ID` | server-only | OAuth client de Google Cloud |
 | `GOOGLE_CLIENT_SECRET` | server-only | nunca en el bundle cliente |
 | `GOOGLE_REDIRECT_URI` | server-only | `http://localhost:3000/api/classroom/callback` en dev, URL de Vercel en prod |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | `NEXT_PUBLIC_` (safe) | VAPID public key para push subscribe. Generar con `npx web-push generate-vapid-keys --json` |
+| `VAPID_PRIVATE_KEY` | server-only | pareja privada — NUNCA con prefijo `NEXT_PUBLIC_` |
+| `VAPID_SUBJECT` | server-only | `mailto:tu@email.com` o URL — requerido por VAPID |
+| `CRON_SECRET` | server-only | Bearer que Vercel Cron envía. Generar con `openssl rand -hex 32` |
+| `SUPABASE_SERVICE_ROLE_KEY` | server-only | bypasa RLS, solo lo usa el cron para leer datos de todos los usuarios. Obtener en Supabase → Settings → API |
 
 **Supabase schema** — corre en orden en Dashboard → SQL Editor:
 1. `supabase/schema.sql` (tabla `sync_records` + RLS)
 2. `supabase/migrations/002_tombstones.sql` (columna `deleted_at`)
+3. `supabase/migrations/003_push_subscriptions.sql` (tabla `push_subscriptions` para VAPID)
+
+**Push notifications** — el usuario habilita desde la home (sección "Notificaciones"). El cron diario en Vercel (`vercel.json` → `0 12 * * 1-5` = 7 AM COT lun-vie) hace GET a `/api/push/daily-reminders` con `Authorization: Bearer $CRON_SECRET` y envía a cada usuario con suscripción activa un recordatorio de sus clases del día + F/R pendientes.
 
 **Auth OTP** requiere SMTP custom en Supabase (el default rate-limita brutal). Config Resend en Authentication → Emails → SMTP Settings:
 - Host `smtp.resend.com`, Port `465`, Username `resend`, Password `re_...`
@@ -180,13 +188,16 @@ Ver `src/types/index.ts`. Cada `Student` guarda:
 ### v3 ✅ (to-do + calendario de entregas + PWA install)
 ### v4.0 ✅ (Google Classroom read-only + link a classroom-rpa para descarga de entregas)
 
+### v3.1 ✅ (Push notifications VAPID — suscripción + test manual)
+### v3.2 ✅ (Cron diario en Vercel enviando recordatorio de clases + F/R pendientes)
+
 ### Descartado
 - **Agente IA calificador con Claude** — quitado en 2026-07-26. La calificación se hace manualmente; la descarga de entregas se delega a [classroom-rpa](https://classroom-rpa.vercel.app).
 
 ### v4.1+ (candidatos)
-- [ ] Push notifications VAPID (v3 opcional)
 - [ ] Verificar dominio propio en Resend para envío multi-usuario
 - [ ] Resolución manual de conflictos de sync per-row
+- [ ] Segundo cron por la tarde (recordatorio "F/R sin registrar de hoy")
 
 ## Notas heredadas del análisis original
 
