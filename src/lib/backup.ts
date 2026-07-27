@@ -5,7 +5,7 @@
  * El restore borra y reemplaza todo — es una operación irreversible.
  */
 
-import { db } from './db';
+import { db, withoutTombstone } from './db';
 
 const TABLES = [
   'courses', 'students', 'todos', 'events',
@@ -41,19 +41,32 @@ export async function restoreBackup(data: Backup): Promise<RestoreReport> {
     throw new Error('Backup inválido: falta la clave "tables"');
   }
   const report: RestoreReport = { restored: {}, skipped: [] };
-  await db.transaction('rw', TABLES.map(t => db.table(t)), async () => {
-    for (const name of TABLES) {
-      const rows = data.tables[name];
-      if (!Array.isArray(rows)) {
-        report.skipped.push(name);
-        continue;
-      }
-      await db.table(name).clear();
-      if (rows.length > 0) {
-        await db.table(name).bulkAdd(rows);
-      }
-      report.restored[name] = rows.length;
-    }
+
+  // `clear()` dispara el hook 'deleting' de cada tabla, que escribe en
+  // syncTombstones usando la transacción en curso. Sin esa tabla en el scope,
+  // el restore reventaba con un error de scope de Dexie.
+  //
+  // Y va envuelto en withoutTombstone: restaurar un backup es reemplazar el
+  // estado local, no ordenar el borrado de cientos de filas en el servidor.
+  await withoutTombstone(async () => {
+    await db.transaction(
+      'rw',
+      [...TABLES.map(t => db.table(t)), db.syncTombstones],
+      async () => {
+        for (const name of TABLES) {
+          const rows = data.tables[name];
+          if (!Array.isArray(rows)) {
+            report.skipped.push(name);
+            continue;
+          }
+          await db.table(name).clear();
+          if (rows.length > 0) {
+            await db.table(name).bulkAdd(rows);
+          }
+          report.restored[name] = rows.length;
+        }
+      },
+    );
   });
   return report;
 }

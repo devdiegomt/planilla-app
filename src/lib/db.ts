@@ -4,6 +4,8 @@ import type {
   ScheduleBlock, CalendarDay, YearConfig,
   AttendanceMark, ChangeLog,
 } from '@/types';
+import { courseSyncId, studentSyncId } from './syncId';
+import { normalizeName } from './utils';
 
 /** Registro local de una eliminación pendiente de propagar al servidor. */
 export interface SyncTombstone {
@@ -134,6 +136,54 @@ class PlanillaDB extends Dexie {
       syncTombstones: '++id, tableName, syncId, deletedAt, [tableName+syncId]',
     });
 
+    // v8: las relaciones dejan de vivir en ids autoincrementales locales.
+    //
+    // `courseId` es un ++id de Dexie: solo tiene sentido dentro de la base que
+    // lo generó. Al sincronizarlo, los estudiantes caían en el curso equivocado
+    // en cualquier base cuyo orden de ids fuera distinto. Ahora la relación real
+    // es `courseCode` y `courseId` se recalcula localmente en cada pull.
+    //
+    // OJO: el índice [year+code] NO es único a propósito. IndexedDB crea los
+    // índices ANTES de correr esta función upgrade, así que un &[year+code]
+    // reventaría contra los cursos duplicados que ya existen y dejaría la base
+    // sin poder abrirse. La unicidad se garantiza en `upsertCourseWithStudents`.
+    // Cuando la base esté limpia (ver mergeDuplicateCourses) se puede promover
+    // a &[year+code] en una v9.
+    this.version(8).stores({
+      courses: '++id, code, grade, year, trimestre, [year+code], &syncId, updatedAt',
+      students: '++id, courseId, courseCode, codAlum, nombre, order, &syncId, updatedAt',
+      todos: '++id, status, priority, dueDate, courseCode, &syncId, updatedAt',
+      events: '++id, date, courseCode, kind, &syncId, updatedAt',
+      schedule: '++id, dayType, block, courseCode, [dayType+block], &syncId, updatedAt',
+      calendarDays: '++id, &date, status, &syncId, updatedAt',
+      yearConfig: '++id, &year, &syncId, updatedAt',
+      attendanceMarks: '++id, courseId, courseCode, ciclo, [courseId+ciclo], &syncId, updatedAt',
+      changeLog: '++id, courseId, courseCode, studentId, studentSyncId, at, kind, ciclo, &syncId, updatedAt',
+      rubrics: '++id, name, courseCode, createdAt, &syncId, updatedAt',
+      gradingResults: '++id, rubricId, at, courseCode, studentName, &syncId, updatedAt',
+      syncTombstones: '++id, tableName, syncId, deletedAt, [tableName+syncId]',
+    }).upgrade(async tx => {
+      // Poblar courseCode desde el courseId actual. Es "el mejor esfuerzo
+      // posible": si la base ya venía corrupta, el código heredado será el
+      // equivocado y hay que reparar con mergeDuplicateCourses + reimportación.
+      const courses = await tx.table('courses').toArray();
+      const codeById = new Map<number, string>(
+        courses.map((c: Course) => [c.id!, c.code]),
+      );
+      for (const name of ['students', 'attendanceMarks', 'changeLog']) {
+        await tx.table(name).toCollection().modify(row => {
+          if (!row.courseCode) row.courseCode = codeById.get(row.courseId) ?? '';
+        });
+      }
+      // Referencia estable a estudiante en el audit log
+      const students = await tx.table('students').toArray();
+      const sidById = new Map<number, string>(
+        students.map((s: Student) => [s.id!, s.syncId!]),
+      );
+      await tx.table('changeLog').toCollection().modify(row => {
+        if (!row.studentSyncId) row.studentSyncId = sidById.get(row.studentId) ?? '';
+      });
+    });
   }
 }
 
@@ -141,8 +191,8 @@ export const db = new PlanillaDB();
 
 /**
  * Bandera para saltar el hook 'deleting' cuando la eliminación viene del pull
- * (aplicando una tombstone remota). El motor sync la levanta con
- * `withoutTombstone(async () => { ... })` antes de borrar.
+ * (aplicando una tombstone remota) o de una reparación local. El motor sync la
+ * levanta con `withoutTombstone(async () => { ... })` antes de borrar.
  */
 let SUPPRESS_TOMBSTONE = 0;
 export async function withoutTombstone<T>(fn: () => Promise<T>): Promise<T> {
@@ -171,7 +221,10 @@ if (typeof window !== 'undefined') {
     table.hook('creating', function (_pk, obj) {
       const row = obj as Record<string, unknown>;
       if (!row.syncId) row.syncId = crypto.randomUUID();
-      row.updatedAt = new Date().toISOString();
+      // La guarda es crítica: sin ella, toda fila traída del servidor por el
+      // pull quedaba marcada como "modificada ahora", se re-empujaba en el push
+      // siguiente y el last-write-wins comparaba timestamps inventados.
+      if (!row.updatedAt) row.updatedAt = new Date().toISOString();
     });
     // Dexie hook 'updating': (modifications, primKey, obj, transaction) — devolvemos el patch modificado
     table.hook('updating', function (modifications) {
@@ -199,6 +252,12 @@ if (typeof window !== 'undefined') {
   }
 }
 
+// En desarrollo, `db` queda accesible desde la consola del navegador para
+// diagnosticar. En producción no se expone.
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  (window as unknown as Record<string, unknown>).db = db;
+}
+
 /** Helpers de acceso pensados para usarse desde componentes con useLiveQuery. */
 export async function getCourseByCode(code: string) {
   return db.courses.where('code').equals(code).first();
@@ -216,22 +275,87 @@ export async function getActiveStudentsForCourse(courseId: number) {
   return all.filter(s => !s.withdrawnAt);
 }
 
-/** Reemplaza un curso completo (borra estudiantes previos e inserta los nuevos). */
+/**
+ * Mapa `code → id local`. Lo consume sync.ts para reconstruir el `courseId` de
+ * cada fila hija que llega del servidor.
+ */
+export async function getCourseIdByCodeMap(): Promise<Map<string, number>> {
+  const all = await db.courses.toArray();
+  return new Map(all.map(c => [c.code, c.id!]));
+}
+
+/**
+ * Inserta o actualiza un curso y su lista de estudiantes.
+ *
+ * Antes esto borraba todos los estudiantes del curso y los volvía a crear. Eso
+ * regeneraba los syncId en cada importación (misma persona = registro nuevo →
+ * duplicados al sincronizar), emitía una lápida por estudiante y borraba las
+ * notas ya capturadas en la app. Ahora hace match por nombre normalizado:
+ * actualiza los que siguen, crea los nuevos y retira suavemente los ausentes.
+ */
 export async function upsertCourseWithStudents(
   course: Omit<Course, 'id'>,
-  students: Omit<Student, 'id' | 'courseId'>[]
+  students: Omit<Student, 'id' | 'courseId' | 'courseCode'>[],
 ): Promise<number> {
-  return db.transaction('rw', db.courses, db.students, db.syncTombstones, async () => {
+  return db.transaction('rw', db.courses, db.students, async () => {
+    const now = new Date().toISOString();
+
     const existing = await getCourseByCode(course.code);
     let courseId: number;
     if (existing) {
       courseId = existing.id!;
-      await db.courses.update(courseId, { ...course, updatedAt: new Date().toISOString() });
-      await db.students.where('courseId').equals(courseId).delete();
+      await db.courses.update(courseId, { ...course, updatedAt: now });
     } else {
-      courseId = await db.courses.add({ ...course, updatedAt: new Date().toISOString() }) as number;
+      courseId = await db.courses.add({
+        ...course,
+        // Identidad determinista: el mismo curso produce el mismo UUID en
+        // cualquier dispositivo, así el pull nunca crea una segunda fila 801.
+        syncId: courseSyncId(course.year, course.code),
+        updatedAt: now,
+      }) as number;
     }
-    await db.students.bulkAdd(students.map(s => ({ ...s, courseId })));
+
+    // Dos estudiantes con el mismo nombre en un curso producirían el mismo
+    // syncId determinista y chocarían contra el índice único. El sufijo #n los
+    // separa de forma reproducible (el orden de la planilla es estable).
+    const prevSeen = new Map<string, number>();
+    const prev = (await db.students.where('courseId').equals(courseId).toArray())
+      .sort((a, b) => a.order - b.order);
+    const pending = new Map(prev.map(s => [dedupKey(s.nombre, prevSeen), s]));
+
+    const seen = new Map<string, number>();
+    for (const s of students) {
+      const key = dedupKey(s.nombre, seen);
+      const hit = pending.get(key);
+      if (hit) {
+        // Solo se refresca lo que viene de la planilla. Notas, observaciones y
+        // asistencia capturadas en la app se conservan intactas.
+        await db.students.update(hit.id!, {
+          order: s.order,
+          courseCode: course.code,
+          courseId,
+          withdrawnAt: null,
+        });
+        pending.delete(key);
+      } else {
+        await db.students.add({
+          ...s,
+          courseId,
+          courseCode: course.code,
+          syncId: studentSyncId(course.year, course.code, key),
+          updatedAt: now,
+        } as Student);
+      }
+    }
+
+    // Los que ya no aparecen en la planilla: retiro suave, nunca delete. Un
+    // delete aquí destruiría las notas del trimestre y propagaría una lápida.
+    for (const orphan of pending.values()) {
+      if (!orphan.withdrawnAt) {
+        await db.students.update(orphan.id!, { withdrawnAt: now });
+      }
+    }
+
     return courseId;
   });
 }
@@ -269,7 +393,9 @@ export async function updateColumnValue(
     await db.students.update(studentId, { subnotas: s.subnotas });
     await db.changeLog.add({
       courseId: s.courseId,
+      courseCode: s.courseCode,
       studentId,
+      studentSyncId: s.syncId,
       studentName: s.nombre,
       at: new Date().toISOString(),
       kind: 'nota',
@@ -304,7 +430,9 @@ export async function updateColumnObservation(
     await db.students.update(studentId, { noteObservations: obs });
     await db.changeLog.add({
       courseId: s.courseId,
+      courseCode: s.courseCode,
       studentId,
+      studentSyncId: s.syncId,
       studentName: s.nombre,
       at: new Date().toISOString(),
       kind: 'nota',
@@ -330,7 +458,9 @@ export async function updateAttendance(
     await db.students.update(studentId, { cycles: s.cycles });
     await db.changeLog.add({
       courseId: s.courseId,
+      courseCode: s.courseCode,
       studentId,
+      studentSyncId: s.syncId,
       studentName: s.nombre,
       at: new Date().toISOString(),
       kind: 'attendance',
@@ -450,7 +580,13 @@ export async function confirmAttendance(
     await db.attendanceMarks.update(existing.id!, { confirmedAt });
     return existing.id!;
   }
-  const row: Omit<AttendanceMark, 'id'> = { courseId, ciclo, confirmedAt };
+  const course = await db.courses.get(courseId);
+  const row: Omit<AttendanceMark, 'id'> = {
+    courseId,
+    courseCode: course?.code ?? '',
+    ciclo,
+    confirmedAt,
+  };
   if (session != null) row.session = session;
   return (await db.attendanceMarks.add(row)) as number;
 }
@@ -490,7 +626,9 @@ export async function updateSessionAttendance(
     await db.students.update(studentId, { cycles: s.cycles });
     await db.changeLog.add({
       courseId: s.courseId,
+      courseCode: s.courseCode,
       studentId,
+      studentSyncId: s.syncId,
       studentName: s.nombre,
       at: new Date().toISOString(),
       kind: 'attendance',
@@ -498,4 +636,191 @@ export async function updateSessionAttendance(
       summary: `Ciclo ${ciclo} · S${session} · ${field} ${value ? 'on' : 'off'}`,
     });
   });
+}
+
+// ---- Diagnóstico y reparación ----
+
+export interface DuplicateReport {
+  code: string;
+  ids: number[];
+  studentCounts: number[];
+}
+
+/** Lista los códigos de curso que aparecen más de una vez en la base local. */
+export async function findDuplicateCourses(): Promise<DuplicateReport[]> {
+  const all = await db.courses.toArray();
+  const byCode = new Map<string, Course[]>();
+  for (const c of all) {
+    const arr = byCode.get(c.code) ?? [];
+    arr.push(c);
+    byCode.set(c.code, arr);
+  }
+  const out: DuplicateReport[] = [];
+  for (const [code, rows] of byCode) {
+    if (rows.length < 2) continue;
+    const counts: number[] = [];
+    for (const r of rows) {
+      counts.push(await db.students.where('courseId').equals(r.id!).count());
+    }
+    out.push({ code, ids: rows.map(r => r.id!), studentCounts: counts });
+  }
+  return out;
+}
+
+/**
+ * Colapsa los cursos duplicados en uno solo (se queda con el id más bajo) y
+ * reapunta a él a los estudiantes, marcas de asistencia y changeLog.
+ *
+ * Corre con tombstones suprimidas: los duplicados son basura local, no
+ * eliminaciones que deban propagarse al servidor.
+ */
+export async function mergeDuplicateCourses(): Promise<number> {
+  const dups = await findDuplicateCourses();
+  if (dups.length === 0) return 0;
+
+  let merged = 0;
+  await withoutTombstone(async () => {
+    await db.transaction(
+      'rw',
+      db.courses, db.students, db.attendanceMarks, db.changeLog, db.syncTombstones,
+      async () => {
+        for (const d of dups) {
+          const keep = Math.min(...d.ids);
+          const drop = d.ids.filter(id => id !== keep);
+          for (const name of ['students', 'attendanceMarks', 'changeLog'] as const) {
+            await db.table(name)
+              .where('courseId').anyOf(drop)
+              .modify({ courseId: keep, courseCode: d.code });
+          }
+          await db.courses.bulkDelete(drop);
+          merged += drop.length;
+        }
+      },
+    );
+  });
+  return merged;
+}
+
+/**
+ * Reasigna estudiantes a su curso correcto usando un mapa
+ * `nombreNormalizado → códigoDeCurso` sacado de la planilla original.
+ * Es la salida para bases que ya quedaron cruzadas antes del fix.
+ */
+export async function repairStudentCourses(
+  nameToCode: Map<string, string>,
+): Promise<{ fixed: number; unmatched: string[] }> {
+  const codeToId = await getCourseIdByCodeMap();
+  const unmatched: string[] = [];
+  let fixed = 0;
+
+  await db.transaction('rw', db.students, async () => {
+    const all = await db.students.toArray();
+    for (const s of all) {
+      const code = nameToCode.get(normalizeName(s.nombre));
+      if (!code) { unmatched.push(s.nombre); continue; }
+      const id = codeToId.get(code);
+      if (id == null) { unmatched.push(s.nombre); continue; }
+      if (s.courseId === id && s.courseCode === code) continue;
+      await db.students.update(s.id!, { courseId: id, courseCode: code });
+      fixed++;
+    }
+  });
+  return { fixed, unmatched };
+}
+
+
+/**
+ * Clave de identidad de un estudiante dentro de un curso. Si el nombre ya
+ * apareció, se le agrega un sufijo `#2`, `#3`… para que dos homónimos no
+ * colapsen en el mismo syncId.
+ */
+function dedupKey(nombre: string, seen: Map<string, number>): string {
+  const base = normalizeName(nombre);
+  const n = (seen.get(base) ?? 0) + 1;
+  seen.set(base, n);
+  return n === 1 ? base : `${base}#${n}`;
+}
+
+/**
+ * Cuánta información capturada en la app tiene una fila de estudiante.
+ * Se usa para decidir cuál copia sobrevive al deduplicar: si las notas
+ * quedaron repartidas entre dos duplicados, se conserva la más completa.
+ */
+export function studentDataScore(s: Student): number {
+  const notas = Object.values(s.subnotas ?? {}).filter(v => v > 0).length;
+  const ciclos = (s.cycles ?? []).filter(c => c.F || c.R || c.nota > 0).length;
+  const obs = Object.keys(s.noteObservations ?? {}).length;
+  return notas + ciclos + obs;
+}
+
+export interface DedupeReport {
+  removed: number;
+  merged: number;                     // campos rescatados de la copia perdedora
+  affectedCourses: string[];
+}
+
+/**
+ * Colapsa estudiantes duplicados dentro de un mismo curso (match por nombre
+ * normalizado). Conserva la fila con más datos y, antes de borrar las otras,
+ * rescata de ellas las notas y ciclos que a la ganadora le falten — cuando el
+ * duplicado se creó a mitad de trimestre, las notas quedan repartidas.
+ *
+ * Los deletes SÍ generan lápidas: son filas basura que también hay que eliminar
+ * del servidor.
+ */
+export async function dedupeStudents(): Promise<DedupeReport> {
+  const report: DedupeReport = { removed: 0, merged: 0, affectedCourses: [] };
+  const all = await db.students.toArray();
+
+  const groups = new Map<string, Student[]>();
+  for (const s of all) {
+    const key = `${s.courseId}::${normalizeName(s.nombre)}`;
+    const arr = groups.get(key) ?? [];
+    arr.push(s);
+    groups.set(key, arr);
+  }
+
+  const courses = new Set<string>();
+
+  for (const rows of groups.values()) {
+    if (rows.length < 2) continue;
+    rows.sort((a, b) => studentDataScore(b) - studentDataScore(a) || (a.id! - b.id!));
+    const [keep, ...drop] = rows;
+
+    const subnotas = { ...(keep.subnotas ?? {}) };
+    const cycles = (keep.cycles ?? []).map(c => ({ ...c }));
+    const obs = { ...(keep.noteObservations ?? {}) };
+    let mergedFields = 0;
+
+    for (const d of drop) {
+      for (const [k, v] of Object.entries(d.subnotas ?? {})) {
+        if (v > 0 && !(subnotas[k] > 0)) { subnotas[k] = v; mergedFields++; }
+      }
+      for (const dc of d.cycles ?? []) {
+        const target = cycles.find(c => c.ciclo === dc.ciclo);
+        if (!target) continue;
+        if (dc.nota > 0 && target.nota === 0) { target.nota = dc.nota; mergedFields++; }
+        if (dc.F && !target.F) { target.F = true; mergedFields++; }
+        if (dc.R && !target.R) { target.R = true; mergedFields++; }
+      }
+      for (const [k, v] of Object.entries(d.noteObservations ?? {})) {
+        if (v && !obs[k]) { obs[k] = v; mergedFields++; }
+      }
+      if (!keep.codAlum && d.codAlum) keep.codAlum = d.codAlum;
+    }
+
+    await db.transaction('rw', db.students, db.syncTombstones, async () => {
+      await db.students.update(keep.id!, {
+        subnotas, cycles, noteObservations: obs, codAlum: keep.codAlum,
+      });
+      await db.students.bulkDelete(drop.map(d => d.id!));
+    });
+
+    report.removed += drop.length;
+    report.merged += mergedFields;
+    if (keep.courseCode) courses.add(keep.courseCode);
+  }
+
+  report.affectedCourses = [...courses].sort();
+  return report;
 }

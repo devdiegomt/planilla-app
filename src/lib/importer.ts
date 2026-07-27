@@ -17,7 +17,7 @@ import type { Course, Student, CycleData } from '@/types';
 import { DIRECTORES, SLOTS_8_10, SLOTS_11 } from './constants';
 
 interface ImportResult {
-  courses: (Course & { students: Omit<Student, 'id' | 'courseId'>[] })[];
+  courses: (Course & { students: Omit<Student, 'id' | 'courseId' | 'courseCode'>[] })[];
   warnings: string[];
 }
 
@@ -57,11 +57,11 @@ function findFirstStudentRow(aoa: unknown[][], maxScan = 15): number {
  * 10 subnotas agregadas en cols 43-52.
  * DEF de la hoja en col 53.
  */
-function parseCourse810(aoa: unknown[][], code: string, director: string, trimestre: number): (Course & { students: Omit<Student, 'id' | 'courseId'>[] }) {
+function parseCourse810(aoa: unknown[][], code: string, director: string, trimestre: number): (Course & { students: Omit<Student, 'id' | 'courseId' | 'courseCode'>[] }) {
   const startRow = findFirstStudentRow(aoa);
   if (startRow < 0) throw new Error(`No se encontró la primera fila de estudiantes en ${code}`);
 
-  const students: Omit<Student, 'id' | 'courseId'>[] = [];
+  const students: Omit<Student, 'id' | 'courseId' | 'courseCode'>[] = [];
   let r = startRow;
   while (r < aoa.length) {
     const row = aoa[r] || [];
@@ -120,11 +120,11 @@ function parseCourse810(aoa: unknown[][], code: string, director: string, trimes
  * Layout: 9 ciclos × 8 cols [F1, R1, N1, F2, R2, N2, NOTA, OBS] desde col 2.
  * 11 subnotas agregadas en cols 79-89.
  */
-function parseCourse11(aoa: unknown[][], code: string, director: string, trimestre: number): (Course & { students: Omit<Student, 'id' | 'courseId'>[] }) {
+function parseCourse11(aoa: unknown[][], code: string, director: string, trimestre: number): (Course & { students: Omit<Student, 'id' | 'courseId' | 'courseCode'>[] }) {
   const startRow = findFirstStudentRow(aoa);
   if (startRow < 0) throw new Error(`No se encontró la primera fila de estudiantes en ${code}`);
 
-  const students: Omit<Student, 'id' | 'courseId'>[] = [];
+  const students: Omit<Student, 'id' | 'courseId' | 'courseCode'>[] = [];
   let r = startRow;
   while (r < aoa.length) {
     const row = aoa[r] || [];

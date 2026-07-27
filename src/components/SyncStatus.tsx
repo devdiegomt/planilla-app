@@ -18,6 +18,7 @@ export function SyncStatus() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState(0);
+  const [anomalies, setAnomalies] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
   const busyRef = useRef(false);
@@ -48,6 +49,13 @@ export function SyncStatus() {
     try {
       const { pull, push } = await syncAll(user.id);
       setConflicts(prev => prev + pull.conflicts);
+      // Huérfanos puntuales en el primer pull son normales (llegaron hijos antes
+      // que padres y relinkOrphans los acomodó). Sostenidos en el tiempo, no.
+      setAnomalies(
+        pull.orphans || pull.dedupedCourses
+          ? `${pull.orphans} filas sin curso · ${pull.dedupedCourses} cursos colapsados`
+          : null,
+      );
       if (!pull.ok || !push.ok) {
         const msgs = [...pull.errorMessages, ...push.errorMessages].join(' · ');
         setError(msgs || 'Error de sincronización');
@@ -63,7 +71,7 @@ export function SyncStatus() {
 
   // Inicial refresh
   useEffect(() => {
-    if (!user) { setStatus(null); setConflicts(0); return; }
+    if (!user) { setStatus(null); setConflicts(0); setAnomalies(null); return; }
     refresh();
   }, [user, refresh]);
 
@@ -150,6 +158,14 @@ export function SyncStatus() {
           >
             {busy ? 'Sincronizando…' : 'Sincronizar ahora'}
           </button>
+          {anomalies && (
+            <div className="px-3 py-2 text-[11px] text-amber-800 border-t bg-amber-50">
+              ⚠ {anomalies}
+              <div className="text-neutral-500 mt-0.5">
+                Si persiste, revisa Diagnóstico y reparación.
+              </div>
+            </div>
+          )}
           <div className="px-3 py-1.5 text-[10px] text-neutral-400 border-t">
             Auto-sync cada {Math.round(AUTO_SYNC_INTERVAL_MS/1000)}s
           </div>

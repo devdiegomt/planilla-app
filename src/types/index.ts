@@ -23,7 +23,13 @@ export interface CycleData {
 /** Registro persistente de estudiante. */
 export interface Student {
   id?: number;
+  /**
+   * Id LOCAL de Dexie. NO se sincroniza: en otra base el mismo número apunta a
+   * otro curso. Se recalcula en cada pull a partir de `courseCode`.
+   */
   courseId: number;
+  /** Relación real con el curso ('801', '1101'). Estable entre dispositivos. */
+  courseCode: string;
   codAlum: string;                    // 10 dígitos únicos del colegio
   nombre: string;
   order: number;                      // posición en la lista original
@@ -126,7 +132,10 @@ export interface YearConfig {
  */
 export interface AttendanceMark {
   id?: number;
+  /** Id local, no se sincroniza (ver Student.courseId). */
   courseId: number;
+  /** Relación estable con el curso. */
+  courseCode: string;
   ciclo: number;                      // 1..9
   session?: 1 | 2;                    // solo aplicable a 11°
   confirmedAt: string;                // ISO datetime
@@ -137,8 +146,14 @@ export interface AttendanceMark {
 /** Registro auditado de una edición en el curso. */
 export interface ChangeLog {
   id?: number;
+  /** Id local, no se sincroniza (ver Student.courseId). */
   courseId: number;
+  /** Relación estable con el curso. */
+  courseCode: string;
+  /** Id local, no se sincroniza. */
   studentId: number;
+  /** Relación estable con el estudiante (su syncId). */
+  studentSyncId?: string;
   studentName: string;                // denormalizado para poder mostrar sin join
   at: string;                         // ISO datetime
   kind: 'nota' | 'attendance';
