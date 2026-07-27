@@ -31,6 +31,7 @@ export interface Student {
   withdrawnAt?: string | null;        // null si sigue matriculado
   cycles: CycleData[];                // 9 items
   subnotas: Record<string, number>;   // 10 (o 11 para 11°) claves
+  noteObservations?: Record<string, string>;  // {C4: "razón...", C7: "..."} — por columna real
   syncId?: string;                    // UUID estable cross-device (sync)
   updatedAt?: string;                 // ISO datetime del último cambio local
 }

@@ -278,6 +278,41 @@ export async function updateColumnValue(
   });
 }
 
+/**
+ * Guarda/actualiza/borra la observación docente asociada a una nota de una
+ * columna real (C2..C9). Texto vacío borra la entrada.
+ */
+export async function updateColumnObservation(
+  studentId: number,
+  column: string,
+  text: string,
+) {
+  const s = await db.students.get(studentId);
+  if (!s) return;
+  const prev = s.noteObservations?.[column] ?? '';
+  const next = text.trim();
+  if (prev === next) return;
+  const obs = { ...(s.noteObservations ?? {}) };
+  if (next) obs[column] = next;
+  else delete obs[column];
+  const summary = !prev
+    ? `Obs ${column}: (agregada)`
+    : !next
+    ? `Obs ${column}: (borrada)`
+    : `Obs ${column}: (editada)`;
+  await db.transaction('rw', db.students, db.changeLog, async () => {
+    await db.students.update(studentId, { noteObservations: obs });
+    await db.changeLog.add({
+      courseId: s.courseId,
+      studentId,
+      studentName: s.nombre,
+      at: new Date().toISOString(),
+      kind: 'nota',
+      summary,
+    });
+  });
+}
+
 /** Actualiza F/R de un ciclo (8°–10°) y registra el cambio. */
 export async function updateAttendance(
   studentId: number,
