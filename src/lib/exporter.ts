@@ -11,7 +11,7 @@
 
 import ExcelJS from 'exceljs';
 import type { Course, Student, ExportReport } from '@/types';
-import { CURSO_PALABRAS, GRADE_META, slotsFor } from './constants';
+import { CURSO_PALABRAS, GRADE_META, slotsFor, columnsFor } from './constants';
 import { normalizeName, findFuzzyMatch } from './utils';
 
 interface ExportParams {
@@ -136,5 +136,104 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
       typoMatches,
       filename,
     },
+  };
+}
+
+// ---- Observaciones de nota ----
+
+export interface ObsExportReport {
+  filename: string;
+  rows: number;                        // observaciones exportadas
+  studentsWithObs: number;             // estudiantes que tienen al menos una
+}
+
+/**
+ * Exporta las observaciones docentes por columna a un XLSX plano.
+ *
+ * Diseño intencional: una fila por observación, no una fila por estudiante.
+ * Facilita filtrar en Excel por columna ("todas las C7 con observación"),
+ * por rango de nota ("todos los reprobados con comentario"), o pegar el
+ * texto en un informe. La nota va en columna propia para que ordenar por
+ * ella agrupe reprobados arriba.
+ */
+export async function exportObservations(
+  course: Course,
+  students: Student[],                 // activos
+): Promise<{ blob: Blob; report: ObsExportReport } | null> {
+  const columns = columnsFor(course.grade);
+  const colBySlot = new Map<string, { column: string; cats: string[] }>();
+  for (const c of columns) {
+    for (const k of c.slotKeys) colBySlot.set(k, { column: c.column, cats: c.cats });
+  }
+
+  interface ObsRow {
+    nombre: string;
+    column: string;
+    cats: string;
+    nota: number;
+    obs: string;
+  }
+  const rows: ObsRow[] = [];
+  const studentsWithObs = new Set<string>();
+
+  for (const s of students) {
+    const obs = s.noteObservations ?? {};
+    for (const [col, text] of Object.entries(obs)) {
+      if (!text?.trim()) continue;
+      // La columna en el dict es real ('C4', 'C7', ...). El valor vive en
+      // el primer slot que la usa (ambos slots tienen el mismo valor por
+      // el propagador de updateColumnValue).
+      const columnDef = columns.find(c => c.column === col);
+      const slot = columnDef?.slotKeys[0];
+      const nota = slot ? (s.subnotas[slot] ?? 0) : 0;
+      rows.push({
+        nombre: s.nombre,
+        column: col,
+        cats: columnDef?.cats.join('·') ?? '',
+        nota: Math.round(nota),
+        obs: text.trim(),
+      });
+      studentsWithObs.add(s.nombre);
+    }
+  }
+
+  if (rows.length === 0) return null;
+
+  rows.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')
+    || (parseInt(a.column.slice(1)) - parseInt(b.column.slice(1))));
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(`Obs ${course.code}`);
+
+  ws.columns = [
+    { header: 'Estudiante', key: 'nombre', width: 34 },
+    { header: 'Col',        key: 'column', width: 6  },
+    { header: 'Cat',        key: 'cats',   width: 8  },
+    { header: 'Nota',       key: 'nota',   width: 6  },
+    { header: 'Observación', key: 'obs',   width: 60 },
+  ];
+  ws.getRow(1).font = { bold: true };
+  ws.getRow(1).alignment = { vertical: 'middle' };
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+
+  for (const r of rows) {
+    const excelRow = ws.addRow(r);
+    excelRow.getCell('obs').alignment = { wrapText: true, vertical: 'top' };
+    excelRow.getCell('nota').alignment = { horizontal: 'center' };
+    // Reprobados destacan: mismo criterio que el input rojo en la grilla.
+    if (r.nota > 0 && r.nota < 70) {
+      excelRow.getCell('nota').font = { bold: true, color: { argb: 'FFB91C1C' } };
+    }
+  }
+
+  const outBuffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([outBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+
+  const filename = `Observaciones-${course.code}-${course.year}-T${course.trimestre}.xlsx`;
+  return {
+    blob,
+    report: { filename, rows: rows.length, studentsWithObs: studentsWithObs.size },
   };
 }

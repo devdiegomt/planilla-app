@@ -15,6 +15,22 @@ export interface SyncTombstone {
   deletedAt: string;                  // ISO datetime local
 }
 
+/**
+ * Bandera para saltar el hook 'deleting' cuando la eliminación viene del pull
+ * (aplicando una tombstone remota) o de una reparación local. Declarada antes
+ * de la clase para que el upgrade de v9 pueda subirla dentro del try/finally
+ * sin caer en TDZ.
+ */
+let SUPPRESS_TOMBSTONE = 0;
+export async function withoutTombstone<T>(fn: () => Promise<T>): Promise<T> {
+  SUPPRESS_TOMBSTONE++;
+  try {
+    return await fn();
+  } finally {
+    SUPPRESS_TOMBSTONE--;
+  }
+}
+
 class PlanillaDB extends Dexie {
   courses!: Table<Course, number>;
   students!: Table<Student, number>;
@@ -143,12 +159,11 @@ class PlanillaDB extends Dexie {
     // en cualquier base cuyo orden de ids fuera distinto. Ahora la relación real
     // es `courseCode` y `courseId` se recalcula localmente en cada pull.
     //
-    // OJO: el índice [year+code] NO es único a propósito. IndexedDB crea los
-    // índices ANTES de correr esta función upgrade, así que un &[year+code]
-    // reventaría contra los cursos duplicados que ya existen y dejaría la base
-    // sin poder abrirse. La unicidad se garantiza en `upsertCourseWithStudents`.
-    // Cuando la base esté limpia (ver mergeDuplicateCourses) se puede promover
-    // a &[year+code] en una v9.
+    // El índice [year+code] queda como no-único a propósito: IndexedDB valida los
+    // unique-index al crear el índice, no al insertar, y con cursos duplicados
+    // pre-existentes fallaría antes de que el upgrade tuviera oportunidad de
+    // limpiarlos. La promoción a &[year+code] vive en v10, después de que v9
+    // haya colapsado los duplicados.
     this.version(8).stores({
       courses: '++id, code, grade, year, trimestre, [year+code], &syncId, updatedAt',
       students: '++id, courseId, courseCode, codAlum, nombre, order, &syncId, updatedAt',
@@ -184,25 +199,76 @@ class PlanillaDB extends Dexie {
         if (!row.studentSyncId) row.studentSyncId = sidById.get(row.studentId) ?? '';
       });
     });
+
+    // v9: colapsa cursos duplicados (mismo `code`) antes de que v10 imponga la
+    // unicidad. No hay cambio de esquema — es solo migración de datos.
+    //
+    // Los deletes NO deben propagarse como tombstones: dos dispositivos podrían
+    // elegir keepers distintos (min id local es device-específico) y terminar
+    // borrándose mutuamente el ganador tras el próximo sync. La limpieza queda
+    // local; para bases ya cruzadas con el servidor, RepairPanel → "Reconstruir
+    // servidor" sigue siendo la única forma segura de sanear allá.
+    this.version(9).stores({
+      courses: '++id, code, grade, year, trimestre, [year+code], &syncId, updatedAt',
+      students: '++id, courseId, courseCode, codAlum, nombre, order, &syncId, updatedAt',
+      todos: '++id, status, priority, dueDate, courseCode, &syncId, updatedAt',
+      events: '++id, date, courseCode, kind, &syncId, updatedAt',
+      schedule: '++id, dayType, block, courseCode, [dayType+block], &syncId, updatedAt',
+      calendarDays: '++id, &date, status, &syncId, updatedAt',
+      yearConfig: '++id, &year, &syncId, updatedAt',
+      attendanceMarks: '++id, courseId, courseCode, ciclo, [courseId+ciclo], &syncId, updatedAt',
+      changeLog: '++id, courseId, courseCode, studentId, studentSyncId, at, kind, ciclo, &syncId, updatedAt',
+      rubrics: '++id, name, courseCode, createdAt, &syncId, updatedAt',
+      gradingResults: '++id, rubricId, at, courseCode, studentName, &syncId, updatedAt',
+      syncTombstones: '++id, tableName, syncId, deletedAt, [tableName+syncId]',
+    }).upgrade(async tx => {
+      SUPPRESS_TOMBSTONE++;
+      try {
+        const courses = await tx.table('courses').toArray();
+        const byCode = new Map<string, Course[]>();
+        for (const c of courses as Course[]) {
+          const arr = byCode.get(c.code) ?? [];
+          arr.push(c);
+          byCode.set(c.code, arr);
+        }
+        for (const [code, rows] of byCode) {
+          if (rows.length < 2) continue;
+          const keep = rows.reduce((a, b) => (a.id! < b.id! ? a : b));
+          const dropIds = rows.filter(c => c.id !== keep.id).map(c => c.id!);
+          for (const name of ['students', 'attendanceMarks', 'changeLog']) {
+            await tx.table(name)
+              .where('courseId').anyOf(dropIds)
+              .modify({ courseId: keep.id, courseCode: code });
+          }
+          await tx.table('courses').bulkDelete(dropIds);
+        }
+      } finally {
+        SUPPRESS_TOMBSTONE--;
+      }
+    });
+
+    // v10: con la base ya sin cursos duplicados, promovemos [year+code] a
+    // unique. Esto blinda todos los flujos futuros (import, pull, mano suelta
+    // en consola) contra reintroducir el bug de duplicados que enmascaraba el
+    // sync de FKs locales.
+    this.version(10).stores({
+      courses: '++id, code, grade, year, trimestre, &[year+code], &syncId, updatedAt',
+      students: '++id, courseId, courseCode, codAlum, nombre, order, &syncId, updatedAt',
+      todos: '++id, status, priority, dueDate, courseCode, &syncId, updatedAt',
+      events: '++id, date, courseCode, kind, &syncId, updatedAt',
+      schedule: '++id, dayType, block, courseCode, [dayType+block], &syncId, updatedAt',
+      calendarDays: '++id, &date, status, &syncId, updatedAt',
+      yearConfig: '++id, &year, &syncId, updatedAt',
+      attendanceMarks: '++id, courseId, courseCode, ciclo, [courseId+ciclo], &syncId, updatedAt',
+      changeLog: '++id, courseId, courseCode, studentId, studentSyncId, at, kind, ciclo, &syncId, updatedAt',
+      rubrics: '++id, name, courseCode, createdAt, &syncId, updatedAt',
+      gradingResults: '++id, rubricId, at, courseCode, studentName, &syncId, updatedAt',
+      syncTombstones: '++id, tableName, syncId, deletedAt, [tableName+syncId]',
+    });
   }
 }
 
 export const db = new PlanillaDB();
-
-/**
- * Bandera para saltar el hook 'deleting' cuando la eliminación viene del pull
- * (aplicando una tombstone remota) o de una reparación local. El motor sync la
- * levanta con `withoutTombstone(async () => { ... })` antes de borrar.
- */
-let SUPPRESS_TOMBSTONE = 0;
-export async function withoutTombstone<T>(fn: () => Promise<T>): Promise<T> {
-  SUPPRESS_TOMBSTONE++;
-  try {
-    return await fn();
-  } finally {
-    SUPPRESS_TOMBSTONE--;
-  }
-}
 
 /**
  * Instalar hooks de sync después de crear la instancia.

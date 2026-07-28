@@ -7,6 +7,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getCourseByCode } from '@/lib/db';
 import { PlanillaGrid } from '@/components/PlanillaGrid';
 import { ExportCalifica } from '@/components/ExportCalifica';
+import { ExportObservations } from '@/components/ExportObservations';
 import { CicloAttendance } from '@/components/CicloAttendance';
 import { CourseDashboard } from '@/components/CourseDashboard';
 import { ChangeLogView } from '@/components/ChangeLogView';
@@ -46,7 +47,10 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
             {course.code} <span className="text-neutral-500">· {course.director}</span>
           </h1>
         </div>
-        <ExportCalifica course={course} students={activos} trimestre={course.trimestre} />
+        <div className="flex items-start gap-2">
+          <ExportObservations course={course} students={activos} />
+          <ExportCalifica course={course} students={activos} trimestre={course.trimestre} />
+        </div>
       </div>
 
       <CourseDashboard course={course} />
