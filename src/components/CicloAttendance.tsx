@@ -9,6 +9,12 @@ import {
   confirmAttendance,
   unconfirmAttendance,
 } from '@/lib/db';
+import {
+  cycleMarkState, sessionMarkState, nextMarkState,
+  markLabel, markDescription,
+  type MarkKind, type MarkState,
+} from '@/lib/attendance';
+import { ExportAttendance } from './ExportAttendance';
 import type { Course, Student } from '@/types';
 
 interface Props {
@@ -18,8 +24,13 @@ interface Props {
 
 /**
  * Editor de F/R por ciclo.
- * - 8°–10°: dos checkboxes F/R por estudiante, un botón "Confirmar ciclo N".
- * - 11°: cuatro checkboxes F1/R1/F2/R2, dos botones "Confirmar S1" y "Confirmar S2".
+ * - 8°–10°: dos marcas F/R por estudiante, un botón "Confirmar ciclo N".
+ * - 11°: cuatro marcas F1/R1/F2/R2, dos botones "Confirmar S1" y "Confirmar S2".
+ *
+ * Cada marca es un botón de tres estados (sin marca → injustificada →
+ * justificada) en vez de un checkbox: Classroom Live distingue justificadas y
+ * un checkbox no da para tres. Se mantiene un control por celda para no perder
+ * densidad en cursos de 28 estudiantes.
  */
 export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
   const isEleven = course.grade === 11;
@@ -47,12 +58,12 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
   const markS2 = marks.find(m => m.session === 2);
 
   const stats = useMemo(() => {
-    let F = 0, R = 0, F1 = 0, R1 = 0, F2 = 0, R2 = 0;
+    let F = 0, Fj = 0, R = 0, Rj = 0, F1 = 0, R1 = 0, F2 = 0, R2 = 0;
     for (const s of activos) {
       const c = s.cycles.find(x => x.ciclo === ciclo);
       if (!c) continue;
-      if (c.F) F++;
-      if (c.R) R++;
+      if (c.F) { F++; if (c.Fj) Fj++; }
+      if (c.R) { R++; if (c.Rj) Rj++; }
       if (isEleven) {
         if (c.S1?.F) F1++;
         if (c.S1?.R) R1++;
@@ -60,7 +71,7 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
         if (c.S2?.R) R2++;
       }
     }
-    return { F, R, F1, R1, F2, R2 };
+    return { F, Fj, R, Rj, F1, R1, F2, R2 };
   }, [activos, ciclo, isEleven]);
 
   return (
@@ -80,28 +91,42 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
           {activos.length} activos
           {isEleven
             ? ` · S1: ${stats.F1}F/${stats.R1}R · S2: ${stats.F2}F/${stats.R2}R`
-            : ` · ${stats.F}F · ${stats.R}R`}
+            : ` · ${stats.F}F${stats.Fj ? ` (${stats.Fj}j)` : ''}`
+              + ` · ${stats.R}R${stats.Rj ? ` (${stats.Rj}j)` : ''}`}
         </span>
-        <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
+        <div className="ml-auto flex items-start gap-3 flex-wrap justify-end">
           {isEleven ? (
             <>
-              <ConfirmButton
-                label="S1" mark={markS1}
-                onConfirm={() => confirmAttendance(course.id!, ciclo, 1)}
-                onUndo={() => unconfirmAttendance(course.id!, ciclo, 1)}
-              />
-              <ConfirmButton
-                label="S2" mark={markS2}
-                onConfirm={() => confirmAttendance(course.id!, ciclo, 2)}
-                onUndo={() => unconfirmAttendance(course.id!, ciclo, 2)}
-              />
+              <div className="flex items-start gap-2">
+                <ConfirmButton
+                  label="S1" mark={markS1}
+                  onConfirm={() => confirmAttendance(course.id!, ciclo, 1)}
+                  onUndo={() => unconfirmAttendance(course.id!, ciclo, 1)}
+                />
+                <ExportAttendance
+                  course={course} students={activos} ciclo={ciclo} session={1}
+                />
+              </div>
+              <div className="flex items-start gap-2">
+                <ConfirmButton
+                  label="S2" mark={markS2}
+                  onConfirm={() => confirmAttendance(course.id!, ciclo, 2)}
+                  onUndo={() => unconfirmAttendance(course.id!, ciclo, 2)}
+                />
+                <ExportAttendance
+                  course={course} students={activos} ciclo={ciclo} session={2}
+                />
+              </div>
             </>
           ) : (
-            <ConfirmButton
-              label={`ciclo ${ciclo}`} mark={markCiclo}
-              onConfirm={() => confirmAttendance(course.id!, ciclo)}
-              onUndo={() => unconfirmAttendance(course.id!, ciclo)}
-            />
+            <>
+              <ConfirmButton
+                label={`ciclo ${ciclo}`} mark={markCiclo}
+                onConfirm={() => confirmAttendance(course.id!, ciclo)}
+                onUndo={() => unconfirmAttendance(course.id!, ciclo)}
+              />
+              <ExportAttendance course={course} students={activos} ciclo={ciclo} />
+            </>
           )}
         </div>
       </header>
@@ -135,41 +160,27 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
                   <td className="p-2 text-neutral-400">{i + 1}</td>
                   <td className="p-2 whitespace-nowrap">{s.nombre}</td>
                   {isEleven ? (
-                    <>
-                      <SessionCheck
-                        checked={c?.S1?.F ?? false}
-                        color="red"
-                        onChange={v => updateSessionAttendance(s.id!, ciclo, 1, 'F', v)}
-                      />
-                      <SessionCheck
-                        checked={c?.S1?.R ?? false}
-                        color="amber"
-                        onChange={v => updateSessionAttendance(s.id!, ciclo, 1, 'R', v)}
-                      />
-                      <SessionCheck
-                        checked={c?.S2?.F ?? false}
-                        color="red"
-                        onChange={v => updateSessionAttendance(s.id!, ciclo, 2, 'F', v)}
-                      />
-                      <SessionCheck
-                        checked={c?.S2?.R ?? false}
-                        color="amber"
-                        onChange={v => updateSessionAttendance(s.id!, ciclo, 2, 'R', v)}
-                      />
-                    </>
+                    ([1, 2] as const).flatMap(sess =>
+                      (['F', 'R'] as const).map(kind => (
+                        <MarkCell
+                          key={`${sess}${kind}`}
+                          kind={kind}
+                          state={sessionMarkState(sess === 1 ? c?.S1 : c?.S2, kind)}
+                          onCycle={next => updateSessionAttendance(s.id!, ciclo, sess, kind, next)}
+                          student={s.nombre}
+                        />
+                      )),
+                    )
                   ) : (
-                    <>
-                      <SessionCheck
-                        checked={c?.F ?? false}
-                        color="red"
-                        onChange={v => updateAttendance(s.id!, ciclo, 'F', v)}
+                    (['F', 'R'] as const).map(kind => (
+                      <MarkCell
+                        key={kind}
+                        kind={kind}
+                        state={cycleMarkState(c, kind)}
+                        onCycle={next => updateAttendance(s.id!, ciclo, kind, next)}
+                        student={s.nombre}
                       />
-                      <SessionCheck
-                        checked={c?.R ?? false}
-                        color="amber"
-                        onChange={v => updateAttendance(s.id!, ciclo, 'R', v)}
-                      />
-                    </>
+                    ))
                   )}
                 </tr>
               );
@@ -177,26 +188,67 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
           </tbody>
         </table>
       </div>
+
+      <div className="px-4 py-2 border-t bg-neutral-50 flex items-center gap-3 flex-wrap text-[11px] text-neutral-600">
+        <span>Click para ciclar:</span>
+        <LegendChip cls="bg-white border-neutral-200 text-neutral-300" label="·" text="sin marca" />
+        <LegendChip cls="bg-red-600 border-red-600 text-white" label="F" text="falla injustificada" />
+        <LegendChip cls="bg-red-50 border-red-400 text-red-700" label="FJ" text="falla justificada" />
+        <LegendChip cls="bg-amber-500 border-amber-500 text-white" label="R" text="retardo injustificado" />
+        <LegendChip cls="bg-amber-50 border-amber-400 text-amber-700" label="RJ" text="retardo justificado" />
+      </div>
     </div>
   );
 }
 
-function SessionCheck({
-  checked, color, onChange,
-}: {
-  checked: boolean;
-  color: 'red' | 'amber';
-  onChange: (v: boolean) => void;
-}) {
-  const cls = color === 'red' ? 'accent-red-600' : 'accent-amber-600';
+function LegendChip({ cls, label, text }: { cls: string; label: string; text: string }) {
   return (
-    <td className="p-2 text-center">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={e => onChange(e.target.checked)}
-        className={`w-4 h-4 ${cls}`}
-      />
+    <span className="inline-flex items-center gap-1">
+      <span className={`inline-flex items-center justify-center w-7 h-5 rounded border text-[10px] font-semibold ${cls}`}>
+        {label}
+      </span>
+      {text}
+    </span>
+  );
+}
+
+/**
+ * Marca de asistencia de tres estados. El relleno sólido señala injustificada
+ * (lo que cuenta en contra) y el contorno, justificada — así se distingue la
+ * gravedad de un vistazo sin leer la etiqueta.
+ */
+function MarkCell({
+  kind, state, onCycle, student,
+}: {
+  kind: MarkKind;
+  state: MarkState;
+  onCycle: (next: MarkState) => void | Promise<unknown>;
+  student: string;
+}) {
+  const palette: Record<MarkState, string> = kind === 'F'
+    ? {
+        none: 'bg-white border-neutral-200 text-neutral-300 hover:border-neutral-400',
+        injustificada: 'bg-red-600 border-red-600 text-white',
+        justificada: 'bg-red-50 border-red-400 text-red-700',
+      }
+    : {
+        none: 'bg-white border-neutral-200 text-neutral-300 hover:border-neutral-400',
+        injustificada: 'bg-amber-500 border-amber-500 text-white',
+        justificada: 'bg-amber-50 border-amber-400 text-amber-700',
+      };
+
+  return (
+    <td className="p-1 text-center">
+      <button
+        type="button"
+        onClick={() => onCycle(nextMarkState(state))}
+        aria-label={`${student} · ${markDescription(kind, state)}`}
+        title={`${markDescription(kind, state)} — click para cambiar`}
+        className={`w-9 h-7 rounded border text-[11px] font-semibold tabular-nums
+                    transition-colors ${palette[state]}`}
+      >
+        {markLabel(kind, state)}
+      </button>
     </td>
   );
 }

@@ -19,12 +19,18 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
     setBusy(true);
     setReport(null);
     try {
+      // El mapa del Califica-451 ya no es obligatorio: si los estudiantes tienen
+      // `codAlum` en la fila (importado del JSON del extractor de planilla-v2),
+      // el exportador se apoya en eso. Solo se exige cuando falta en ambos lados.
       const raw = localStorage.getItem('codAlumMap');
-      if (!raw) {
-        alert('Primero sube el consolidado de códigos en la página principal.');
+      const codAlumMap = new Map<string, string>(raw ? JSON.parse(raw) : []);
+      if (!raw && students.some(s => !s.codAlum)) {
+        alert(
+          'Faltan códigos: importa el JSON de Classroom Live (o el consolidado ' +
+          'Califica) en la página principal.',
+        );
         return;
       }
-      const codAlumMap = new Map<string, string>(JSON.parse(raw));
 
       const { blob, report } = await exportCalifica({ course, students, codAlumMap, trimestre });
       downloadBlob(blob, report.filename);

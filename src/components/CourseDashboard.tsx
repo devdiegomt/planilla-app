@@ -108,9 +108,15 @@ export function CourseDashboard({ course }: Props) {
             <div>
               <span className="text-neutral-500">Total F: </span>
               <span className="font-medium">{att.totalFallas}</span>
+              {att.totalFallasJust > 0 && (
+                <span className="text-neutral-500"> ({att.totalFallasJust} just.)</span>
+              )}
               <span className="text-neutral-500 mx-2">·</span>
               <span className="text-neutral-500">Total R: </span>
               <span className="font-medium">{att.totalRetardos}</span>
+              {att.totalRetardosJust > 0 && (
+                <span className="text-neutral-500"> ({att.totalRetardosJust} just.)</span>
+              )}
             </div>
             {att.ultimaConfirmacion && (
               <div className="text-xs text-neutral-500">
@@ -125,14 +131,22 @@ export function CourseDashboard({ course }: Props) {
 
         <Card title="Top fallas/retardos">
           {att.topFallas.length === 0 ? (
-            <p className="text-sm text-neutral-500">Sin fallas ni retardos registrados.</p>
+            <p className="text-sm text-neutral-500">Sin fallas ni retardos injustificados.</p>
           ) : (
             <ul className="text-sm space-y-1">
               {att.topFallas.map(t => (
-                <li key={t.nombre} className="flex justify-between">
+                <li key={t.nombre} className="flex justify-between gap-2">
                   <span className="truncate">{t.nombre}</span>
-                  <span className="text-xs text-neutral-500 tabular-nums shrink-0">
-                    {t.F}F · {t.R}R
+                  <span
+                    className="text-xs tabular-nums shrink-0"
+                    title="Injustificadas (entre paréntesis, las justificadas)"
+                  >
+                    <span className="text-red-700 font-medium">{t.F - t.Fj}F</span>
+                    <span className="text-neutral-400"> · </span>
+                    <span className="text-amber-700 font-medium">{t.R - t.Rj}R</span>
+                    {(t.Fj > 0 || t.Rj > 0) && (
+                      <span className="text-neutral-400"> (+{t.Fj + t.Rj}j)</span>
+                    )}
                   </span>
                 </li>
               ))}

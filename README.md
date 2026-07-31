@@ -78,7 +78,23 @@ Y abres `http://localhost:3000`.
 2. `supabase/migrations/002_tombstones.sql` (columna `deleted_at`)
 3. `supabase/migrations/003_push_subscriptions.sql` (tabla `push_subscriptions` para VAPID)
 
-**Push notifications** — el usuario habilita desde la home (sección "Notificaciones"). El cron diario en Vercel (`vercel.json` → `0 12 * * 1-5` = 7 AM COT lun-vie) hace GET a `/api/push/daily-reminders` con `Authorization: Bearer $CRON_SECRET` y envía a cada usuario con suscripción activa un recordatorio de sus clases del día + F/R pendientes.
+**Push notifications** — el usuario habilita desde la home (sección "Notificaciones"). El cron diario en Vercel (`vercel.json` → `0 12 * * 1-5` = 7 AM COT lun-vie) hace GET a `/api/push/daily-reminders` con `Authorization: Bearer $CRON_SECRET`.
+
+El recordatorio lo arma `composeReminder()` en `src/lib/reminder.ts` — lógica pura, sin Supabase ni red, para poder ejercitarla con escenarios controlados. El route solo hace el fetch y el fan-out a las suscripciones. El body incluye:
+
+```
+Día D3 · 4 clases hoy
+801, 902, 1003, 1101
+📌 2 entregas hoy: 801, 902
+⚠️ 3 pendientes (2 vencidos)
+📋 F/R sin registrar: 1003, 1101
+```
+
+Devuelve `null` (no notifica) en fin de semana, festivo, día cancelado, o día lectivo sin bloques en el horario.
+
+> **La fecha se ancla a UTC-5 explícitamente** (`todayInBogota()`), no a la zona del runtime. Vercel corre en UTC: `todayIso()` acertaría solo mientras el cron dispare después de las 05:00 UTC, y mover el horario correría todas las fechas un día.
+
+> **Las relaciones se matchean por `courseCode`, nunca por `courseId`.** `stripLocalMeta()` borra los ids autoincrementales de Dexie antes de subir a Supabase, así que del lado del cron ambos serían `undefined` — y `undefined === undefined` daba `true`, con lo que una sola marca de F/R hacía aparecer los 19 cursos como registrados.
 
 **Auth OTP** requiere SMTP custom en Supabase (el default rate-limita brutal). Config Resend en Authentication → Emails → SMTP Settings:
 - Host `smtp.resend.com`, Port `465`, Username `resend`, Password `re_...`
@@ -190,11 +206,69 @@ Ver `src/types/index.ts`. Cada `Student` guarda:
 
 ### v3.1 ✅ (Push notifications VAPID — suscripción + test manual)
 ### v3.2 ✅ (Cron diario en Vercel enviando recordatorio de clases + F/R pendientes)
+### v3.3 ✅ (Recordatorio enriquecido: entregas del día + pendientes vencidos; lógica extraída a `lib/reminder.ts`)
 
 ### Descartado
 - **Agente IA calificador con Claude** — quitado en 2026-07-26. La calificación se hace manualmente; la descarga de entregas se delega a [classroom-rpa](https://classroom-rpa.vercel.app).
 
+## Integración con planilla-v2 (Classroom Live)
+
+[planilla-v2](https://github.com/devdiegomt/planilla-v2) son userscripts de Tampermonkey que corren sobre Classroom Live, la plataforma del colegio. Dos piezas y esta app en el medio:
+
+| | produce | consume |
+|---|---|---|
+| `codalum-extractor` | JSON con COD_ALUM de los 19 cursos | — |
+| **planilla-app** | JSON de asistencia con fecha + bloque | JSON de COD_ALUM |
+| `asistencia-autofill` | marca F/R en la plataforma | JSON de asistencia |
+
+El ciclo está cerrado: extraer códigos → registrar F/R en la app → descargar el JSON → autofill con dry-run.
+
+La app es la pieza intermedia porque es la única que sabe **en qué fecha y bloque cae cada ciclo**: tú registras F/R por ciclo, la plataforma los quiere por fecha. Esa traducción la hace `courseSessionDates()` con el motor de días D1–D5.
+
+### ✅ Importar COD_ALUM (`ImportCodAlum` en la home)
+
+`parseCodAlumJson()` valida el archivo y `hydrateCodAlum()` escribe `codAlum` sobre las filas de `students`, con match por curso + nombre normalizado y fuzzy como respaldo para los typos.
+
+> **Por qué en la fila y no en `localStorage`:** el mapa del Califica-451 no sincronizaba entre dispositivos, se perdía al limpiar el navegador y obligaba a refuzzy-matchear en cada exportación. `Student.codAlum` viaja por el sync como cualquier otro campo. El exportador ahora prefiere la fila y deja el mapa como fallback.
+
+La importación es **idempotente**: reimportar el mismo JSON no reescribe ninguna fila, así que no ensucia el sync. El reporte cruza los dos rosters y saca a la luz ingresos nuevos (están en la plataforma, no en la app), probables retiros (al revés), códigos que cambiaron y nombres que difieren.
+
+### ✅ Exportar asistencia (`ExportAttendance`, en el header de cada ciclo)
+
+`buildAttendanceExport()` en `src/lib/attendanceExport.ts` — lógica pura. Mapeo:
+
+| autofill | origen en la app |
+|---|---|
+| `fecha` (DD/MM/AAAA) | `courseSessionDates()` resuelve ciclo → fecha |
+| `hora` | `ScheduleBlock.block` del curso ese día |
+| `curso` | `Course.code` |
+| `asignatura` | `GRADE_META[grade].materia` en mayúsculas |
+| `marcas[].cod_alum` | `Student.codAlum` |
+| `marcas[].tipo` | `autofillTipo()` sobre `F`/`Fj` |
+
+Reglas que no son obvias:
+
+- **La ventana es la del `course.trimestre`,** no la del día de hoy: exportar en agosto un ciclo del T2 debe seguir resolviendo fechas del T2.
+- **Una ausencia absorbe al retardo.** No se puede llegar tarde a una clase a la que no se asistió, y la plataforma acepta un solo `tipo` por estudiante.
+- **Solo se reportan los que tienen algo que reportar.** Quien no aparece en `marcas` se asume presente.
+- **Los retirados nunca se exportan.** Los activos sin `codAlum` se excluyen y se listan aparte en la UI: sin código no hay forma de identificarlos en la plataforma.
+- **11° genera dos archivos por ciclo** (`-S1`, `-S2`), en fechas y bloques distintos.
+
+> **La rotación no es semanal.** D1–D5 + FIJO(viernes) recurre cada 6 días hábiles, así que los D1 del T1 2026 caen 2-feb (lun), 10-feb (mar), 18-feb (mié), 26-feb (jue), 9-mar (lun)… El ciclo 5 de 801 no cae "cinco lunes después". Por eso la app tiene que ser la que resuelva la fecha, y por eso el botón muestra la fecha resuelta **antes** de descargar: el dry-run del autofill mostrará una fecha equivocada igual de convincente que una correcta.
+
+### ✅ Modelo de 4 estados de asistencia
+
+`src/lib/attendance.ts` es la única traducción entre cómo la app guarda una marca (dos banderas: `F` + `Fj`) y cómo la razonan la UI y Classroom Live (un estado de tres: sin marca / injustificada / justificada).
+
+> **Por qué banderas y no un enum:** `cycles` no es índice de Dexie, así que agregar campos opcionales **no necesita migración**, y `undefined` significa exactamente lo que la app asumía antes — injustificada. Un enum habría obligado a migrar cada fila y reescribir los ~12 sitios que ya leían `c.F`, sin ganar nada: el importador del xlsx tampoco trae justificaciones.
+
+- **Invariante:** apagar una marca limpia su justificación. `(F=false, Fj=true)` nunca se persiste.
+- **Consolidación en 11°:** el ciclo queda justificado solo si **todas** las sesiones marcadas lo están — una sin justificar basta para que cuente en contra.
+- **UI:** un botón por celda que cicla `·` → `F` → `FJ` → `·`. Relleno sólido = injustificada, contorno = justificada. Se conserva un control por celda para no perder densidad en cursos de 28.
+- **Estadísticas:** el ranking de "top fallas" pondera solo lo injustificado; mezclarlas escondía a los casos que sí hay que vigilar.
+
 ### v4.1+ (candidatos)
+- [ ] Exportar todos los cursos de un día en un ZIP (hoy es un archivo por ciclo)
 - [ ] Verificar dominio propio en Resend para envío multi-usuario
 - [ ] Resolución manual de conflictos de sync per-row
 - [ ] Segundo cron por la tarde (recordatorio "F/R sin registrar de hoy")

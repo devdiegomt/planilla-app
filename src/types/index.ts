@@ -1,10 +1,27 @@
 /** Tipos del dominio de la app. */
 
+/**
+ * Justificación de una marca de asistencia.
+ *
+ * Se modela como una bandera aparte y no como un enum que reemplace a `F`/`R`
+ * porque `cycles` no es un índice de Dexie: agregar campos opcionales al objeto
+ * no necesita migración, y `undefined` significa exactamente lo que la app
+ * asumía antes de existir este campo — injustificada. Así los sitios que ya
+ * leían `c.F` siguen valiendo sin tocarse.
+ *
+ * Invariante: `Fj` solo tiene sentido con `F === true`. Los helpers de
+ * `db.ts` limpian la justificación al apagar la marca.
+ */
+
 /** Datos de una sesión (solo aplica a 11°). */
 export interface SessionData {
   F: boolean;   // falla
   R: boolean;   // retardo
   N: number;    // nota de la sesión
+  /** Falla justificada. Ausente = injustificada. */
+  Fj?: boolean;
+  /** Retardo justificado. Ausente = injustificado. */
+  Rj?: boolean;
 }
 
 /** Datos de un ciclo por estudiante. */
@@ -12,6 +29,14 @@ export interface CycleData {
   ciclo: number;              // 1..9
   F: boolean;
   R: boolean;
+  /**
+   * Falla justificada. En 11° es la consolidación de las sesiones: solo es
+   * `true` si TODAS las sesiones con falla están justificadas — basta una sin
+   * justificar para que el ciclo cuente en contra.
+   */
+  Fj?: boolean;
+  /** Retardo justificado. Misma consolidación que `Fj` en 11°. */
+  Rj?: boolean;
   nota: number;               // nota agregada del ciclo (0-100)
   obs?: string | null;
   /** Solo en 11°: nota de sesión 1. */

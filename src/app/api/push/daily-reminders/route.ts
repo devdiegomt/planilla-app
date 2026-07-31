@@ -2,16 +2,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { sendPush, type SubscriptionRow } from '@/lib/webpushClient';
 import {
-  computeDayTypes,
-  todayIso,
-  classesForDayType,
-  courseSessionDates,
-  currentCicloForCourse,
-  sessionInCiclo,
-} from '@/lib/schedule';
+  composeReminder, todayInBogota,
+  type ReminderPayload, type ReminderInput,
+} from '@/lib/reminder';
 import type {
-  DayType, ScheduleBlock, CalendarDay, YearConfig, Course,
-  AttendanceMark,
+  ScheduleBlock, CalendarDay, YearConfig, Course,
+  AttendanceMark, Todo, CalendarEvent,
 } from '@/types';
 
 export const runtime = 'nodejs';
@@ -87,24 +83,20 @@ export async function GET(req: NextRequest) {
 
 // ---- Cálculo del recordatorio ----
 
-interface Payload {
-  title: string;
-  body: string;
-  url: string;
-  tag: string;
-}
-
 /**
- * Lee los sync_records del usuario y arma un recordatorio.
+ * Lee los sync_records del usuario y delega la composición a `composeReminder`.
  * Devuelve null si hoy no es día lectivo (no vale la pena notificar) o si
  * al usuario le falta configuración mínima.
  */
 async function buildReminderPayload(
   userId: string,
   admin: ReturnType<typeof getSupabaseAdmin>,
-): Promise<Payload | null> {
+): Promise<ReminderPayload | null> {
   // Leer solo las tablas que necesitamos
-  const tables = ['yearConfig', 'schedule', 'calendarDays', 'courses', 'attendanceMarks'];
+  const tables = [
+    'yearConfig', 'schedule', 'calendarDays', 'courses', 'attendanceMarks',
+    'todos', 'events',
+  ];
   const { data, error } = await admin
     .from('sync_records')
     .select('table_name, sync_id, data')
@@ -120,76 +112,15 @@ async function buildReminderPayload(
     rowsByTable.set(r.table_name, arr);
   }
 
-  const yearConfigRow = rowsByTable.get('yearConfig')?.[0] as YearConfig | undefined;
-  if (!yearConfigRow) return null;                    // sin config, no puede saber si es día lectivo
-
-  const schedule = (rowsByTable.get('schedule') ?? []) as unknown as ScheduleBlock[];
-  const calendarDays = (rowsByTable.get('calendarDays') ?? []) as unknown as CalendarDay[];
-  const courses = (rowsByTable.get('courses') ?? []) as unknown as Course[];
-  const attendanceMarks = (rowsByTable.get('attendanceMarks') ?? []) as unknown as AttendanceMark[];
-
-  const today = todayIso();
-  const seq = computeDayTypes(
-    yearConfigRow.startDate,
-    yearConfigRow.initialDayType,
-    today,
-    calendarDays,
-    true,
-  );
-  const status = seq.get(today);
-  if (!status || status === 'weekend' || status === 'skip') {
-    return null;                                       // hoy no toca clase
-  }
-
-  // Clases de hoy
-  const classesToday = classesForDayType(status as DayType, schedule);
-  if (classesToday.length === 0) return null;         // día lectivo pero sin bloques definidos
-
-  const courseCodesToday = classesToday.map(c => c.courseCode);
-  const uniqueCodes = [...new Set(courseCodesToday)];
-
-  // Contar ciclos pendientes de F/R hasta ayer
-  const trimStart = activeTrimStart(today, yearConfigRow) ?? yearConfigRow.startDate;
-  const trimSeq = new Map<string, ReturnType<typeof seq.get>>();
-  for (const [iso, s] of seq) {
-    if (iso >= trimStart && iso < today) trimSeq.set(iso, s);
-  }
-
-  let pendingCount = 0;
-  for (const course of courses) {
-    // Solo cursos que Diego dicta
-    if (!schedule.some(b => b.courseCode === course.code)) continue;
-    const sessionsPerCiclo = course.grade === 11 ? 2 : 1;
-    const sessionDates = courseSessionDates(course.code, trimSeq as Map<string, DayType | 'weekend' | 'skip'>, schedule);
-    const cicloAyer = currentCicloForCourse(sessionDates.at(-1) ?? '', sessionDates, 9, sessionsPerCiclo);
-    if (cicloAyer <= 0) continue;
-    const lastSessionDate = sessionDates.at(-1)!;
-    const sess = sessionInCiclo(lastSessionDate, sessionDates, sessionsPerCiclo);
-    const mark = attendanceMarks.find(m =>
-      m.courseId === course.id
-      && m.ciclo === cicloAyer
-      && (sess == null ? m.session == null : m.session === sess),
-    );
-    if (!mark) pendingCount++;
-  }
-
-  const dayLabel = status === 'FIJO' ? 'Día Fijo' : `Día ${status.slice(1)}`;
-  const title = `${dayLabel} · ${classesToday.length} clase${classesToday.length > 1 ? 's' : ''} hoy`;
-  const body = pendingCount > 0
-    ? `${uniqueCodes.join(', ')} · ${pendingCount} F/R pendiente${pendingCount > 1 ? 's' : ''} de días previos`
-    : `${uniqueCodes.join(', ')} · sin F/R pendientes`;
-
-  return {
-    title,
-    body,
-    url: '/',
-    tag: `daily-${today}`,
+  const input: ReminderInput = {
+    yearConfig: rowsByTable.get('yearConfig')?.[0] as YearConfig | undefined,
+    schedule: (rowsByTable.get('schedule') ?? []) as unknown as ScheduleBlock[],
+    calendarDays: (rowsByTable.get('calendarDays') ?? []) as unknown as CalendarDay[],
+    courses: (rowsByTable.get('courses') ?? []) as unknown as Course[],
+    attendanceMarks: (rowsByTable.get('attendanceMarks') ?? []) as unknown as AttendanceMark[],
+    todos: (rowsByTable.get('todos') ?? []) as unknown as Todo[],
+    events: (rowsByTable.get('events') ?? []) as unknown as CalendarEvent[],
   };
-}
 
-function activeTrimStart(dateIso: string, cfg: YearConfig): string | undefined {
-  const starts = [cfg.trim1Start, cfg.trim2Start, cfg.trim3Start]
-    .filter((d): d is string => !!d && d <= dateIso)
-    .sort();
-  return starts.at(-1);
+  return composeReminder(input, todayInBogota());
 }

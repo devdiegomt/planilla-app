@@ -5,7 +5,12 @@ import type {
   AttendanceMark, ChangeLog,
 } from '@/types';
 import { courseSyncId, studentSyncId } from './syncId';
-import { normalizeName } from './utils';
+import { normalizeName, findFuzzyMatch } from './utils';
+import type { ParsedCodAlum } from './codalum';
+import {
+  justFieldOf, cycleMarkState, sessionMarkState, consolidateSessions,
+  markDescription, type MarkKind, type MarkState,
+} from './attendance';
 
 /** Registro local de una eliminación pendiente de propagar al servidor. */
 export interface SyncTombstone {
@@ -511,15 +516,21 @@ export async function updateColumnObservation(
 export async function updateAttendance(
   studentId: number,
   cycle: number,
-  field: 'F' | 'R',
-  value: boolean
+  field: MarkKind,
+  state: MarkState,
 ) {
   const s = await db.students.get(studentId);
   if (!s) return;
   const c = s.cycles.find(c => c.ciclo === cycle);
   if (!c) return;
-  if (c[field] === value) return;
-  c[field] = value;
+  const jField = justFieldOf(field);
+  if (cycleMarkState(c, field) === state) return;
+
+  c[field] = state !== 'none';
+  // Apagar la marca limpia la justificación: (F=false, Fj=true) no significa
+  // nada y ensuciaría el export y las estadísticas.
+  c[jField] = state === 'justificada';
+
   await db.transaction('rw', db.students, db.changeLog, async () => {
     await db.students.update(studentId, { cycles: s.cycles });
     await db.changeLog.add({
@@ -531,7 +542,7 @@ export async function updateAttendance(
       at: new Date().toISOString(),
       kind: 'attendance',
       ciclo: cycle,
-      summary: `Ciclo ${cycle} · ${field} ${value ? 'on' : 'off'}`,
+      summary: `Ciclo ${cycle} · ${markDescription(field, state)}`,
     });
   });
 }
@@ -667,15 +678,16 @@ export async function unconfirmAttendance(
 }
 
 /**
- * Actualiza F/R de una sesión específica de 11°, recalcula el consolidado
- * del ciclo (F = S1.F || S2.F, idem R) y registra el cambio.
+ * Actualiza F/R de una sesión específica de 11° y recalcula el consolidado del
+ * ciclo. La consolidación de la justificación no es un OR como la de la marca:
+ * ver `consolidateSessions`.
  */
 export async function updateSessionAttendance(
   studentId: number,
   ciclo: number,
   session: 1 | 2,
-  field: 'F' | 'R',
-  value: boolean,
+  field: MarkKind,
+  state: MarkState,
 ) {
   const s = await db.students.get(studentId);
   if (!s) return;
@@ -684,10 +696,16 @@ export async function updateSessionAttendance(
   c.S1 ??= { F: false, R: false, N: 0 };
   c.S2 ??= { F: false, R: false, N: 0 };
   const target = session === 1 ? c.S1 : c.S2;
-  if (target[field] === value) return;
-  target[field] = value;
-  c.F = (c.S1.F || c.S2.F);
-  c.R = (c.S1.R || c.S2.R);
+  const jField = justFieldOf(field);
+  if (sessionMarkState(target, field) === state) return;
+
+  target[field] = state !== 'none';
+  target[jField] = state === 'justificada';
+
+  const rolled = consolidateSessions([c.S1, c.S2], field);
+  c[field] = rolled.on;
+  c[jField] = rolled.justified;
+
   await db.transaction('rw', db.students, db.changeLog, async () => {
     await db.students.update(studentId, { cycles: s.cycles });
     await db.changeLog.add({
@@ -699,7 +717,7 @@ export async function updateSessionAttendance(
       at: new Date().toISOString(),
       kind: 'attendance',
       ciclo,
-      summary: `Ciclo ${ciclo} · S${session} · ${field} ${value ? 'on' : 'off'}`,
+      summary: `Ciclo ${ciclo} · S${session} · ${markDescription(field, state)}`,
     });
   });
 }
@@ -795,6 +813,121 @@ export async function repairStudentCourses(
 }
 
 
+// ---- Hidratación de COD_ALUM desde planilla-v2 ----
+
+export interface CodAlumReport {
+  /** Cursos del JSON que existen en la app. */
+  coursesMatched: number;
+  /** Cursos del JSON que la app no tiene (¿otro año? ¿no los dictas?). */
+  coursesNotInApp: string[];
+  /** Estudiantes a los que se les escribió el código. */
+  hydrated: number;
+  /** Ya tenían el código correcto; no se tocaron. */
+  alreadyCorrect: number;
+  /** Match por typo: el nombre difiere entre la app y la plataforma. */
+  fuzzyMatched: { course: string; app: string; platform: string; cod: string }[];
+  /** El código cambió respecto al que ya tenía la fila (rematrícula, corrección). */
+  changed: { course: string; nombre: string; from: string; to: string }[];
+  /** Activos en la app sin contraparte en la plataforma → posibles retirados. */
+  notInPlatform: { course: string; nombre: string }[];
+  /** En la plataforma pero no en la app → ingresos nuevos por importar. */
+  notInApp: { course: string; nombre: string; cod: string }[];
+}
+
+/**
+ * Escribe el COD_ALUM del JSON del extractor sobre las filas de `students`.
+ *
+ * El match es por curso + nombre normalizado, con fuzzy como respaldo para los
+ * typos entre la Planilla del docente y el registro del colegio (el mismo
+ * problema que ya resolvía el exportador, pero ahora se corrige una sola vez y
+ * queda persistido en la fila en vez de recalcularse en cada exportación).
+ *
+ * Solo toca `codAlum`: nombres, notas, ciclos y observaciones no se pisan. Los
+ * retirados quedan fuera del match para no revivirlos ni contaminar el reporte.
+ */
+export async function hydrateCodAlum(parsed: ParsedCodAlum): Promise<CodAlumReport> {
+  const report: CodAlumReport = {
+    coursesMatched: 0, coursesNotInApp: [],
+    hydrated: 0, alreadyCorrect: 0,
+    fuzzyMatched: [], changed: [],
+    notInPlatform: [], notInApp: [],
+  };
+
+  for (const pc of parsed.courses) {
+    const course = await getCourseByCode(pc.cod_cur);
+    if (!course?.id) {
+      report.coursesNotInApp.push(pc.cod_cur);
+      continue;
+    }
+    report.coursesMatched++;
+
+    const students = (await db.students.where('courseId').equals(course.id).toArray())
+      .filter(s => !s.withdrawnAt);
+
+    // Índice de la app por nombre normalizado. Los homónimos dentro de un curso
+    // son raros pero posibles; se resuelven en orden de aparición.
+    const byName = new Map<string, typeof students>();
+    for (const s of students) {
+      const k = normalizeName(s.nombre);
+      const arr = byName.get(k) ?? [];
+      arr.push(s);
+      byName.set(k, arr);
+    }
+    const appNames = [...byName.keys()];
+    const consumed = new Set<number>();
+
+    for (const ps of pc.estudiantes) {
+      const pname = normalizeName(ps.nombre);
+      let bucket = byName.get(pname);
+      let viaFuzzy: string | null = null;
+
+      if (!bucket || bucket.every(s => consumed.has(s.id!))) {
+        const candidate = findFuzzyMatch(pname, appNames);
+        if (candidate) {
+          const alt = byName.get(candidate);
+          if (alt && alt.some(s => !consumed.has(s.id!))) {
+            bucket = alt;
+            viaFuzzy = candidate;
+          }
+        }
+      }
+
+      const hit = bucket?.find(s => !consumed.has(s.id!));
+      if (!hit) {
+        report.notInApp.push({ course: pc.cod_cur, nombre: ps.nombre, cod: ps.cod_alum });
+        continue;
+      }
+      consumed.add(hit.id!);
+
+      if (viaFuzzy) {
+        report.fuzzyMatched.push({
+          course: pc.cod_cur, app: hit.nombre, platform: ps.nombre, cod: ps.cod_alum,
+        });
+      }
+
+      if (hit.codAlum === ps.cod_alum) {
+        report.alreadyCorrect++;
+        continue;
+      }
+      if (hit.codAlum) {
+        report.changed.push({
+          course: pc.cod_cur, nombre: hit.nombre, from: hit.codAlum, to: ps.cod_alum,
+        });
+      }
+      await db.students.update(hit.id!, { codAlum: ps.cod_alum });
+      report.hydrated++;
+    }
+
+    for (const s of students) {
+      if (!consumed.has(s.id!)) {
+        report.notInPlatform.push({ course: pc.cod_cur, nombre: s.nombre });
+      }
+    }
+  }
+
+  return report;
+}
+
 /**
  * Clave de identidad de un estudiante dentro de un curso. Si el nombre ya
  * apareció, se le agrega un sufijo `#2`, `#3`… para que dos homónimos no
@@ -866,8 +999,10 @@ export async function dedupeStudents(): Promise<DedupeReport> {
         const target = cycles.find(c => c.ciclo === dc.ciclo);
         if (!target) continue;
         if (dc.nota > 0 && target.nota === 0) { target.nota = dc.nota; mergedFields++; }
-        if (dc.F && !target.F) { target.F = true; mergedFields++; }
-        if (dc.R && !target.R) { target.R = true; mergedFields++; }
+        // La justificación viaja con la marca: rescatarla aparte dejaría un
+        // (F=false, Fj=true) sin sentido en la fila ganadora.
+        if (dc.F && !target.F) { target.F = true; target.Fj = dc.Fj; mergedFields++; }
+        if (dc.R && !target.R) { target.R = true; target.Rj = dc.Rj; mergedFields++; }
       }
       for (const [k, v] of Object.entries(d.noteObservations ?? {})) {
         if (v && !obs[k]) { obs[k] = v; mergedFields++; }

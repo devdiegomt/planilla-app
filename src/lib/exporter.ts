@@ -74,7 +74,11 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
   students.forEach((student, i) => {
     const row = ws.getRow(14 + i);
     const nameNorm = normalizeName(student.nombre);
-    let codAlum = codAlumMap.get(nameNorm);
+    // El código de la fila manda: lo escribe `hydrateCodAlum` desde el JSON del
+    // extractor de planilla-v2, viaja por el sync y ya resolvió los typos una
+    // sola vez. El mapa del Califica-451 queda como respaldo para bases que
+    // todavía no han corrido esa importación.
+    let codAlum = student.codAlum || codAlumMap.get(nameNorm);
     if (!codAlum) {
       const fuzzy = findFuzzyMatch(nameNorm, allNames);
       if (fuzzy) {

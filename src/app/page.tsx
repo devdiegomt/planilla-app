@@ -1,5 +1,6 @@
 import { GlobalDashboard } from '@/components/GlobalDashboard';
 import { ImportPlanilla } from '@/components/ImportPlanilla';
+import { ImportCodAlum } from '@/components/ImportCodAlum';
 import { TodayClasses } from '@/components/TodayClasses';
 import { ExportEfas } from '@/components/ExportEfas';
 import { BackupRestore } from '@/components/BackupRestore';
@@ -39,9 +40,14 @@ export default function Home() {
         <ExportEfas />
       </section>
 
-      <section className="border rounded-lg p-4 bg-neutral-50">
-        <h2 className="font-medium mb-3">Importar datos</h2>
-        <ImportPlanilla />
+      <section className="border rounded-lg p-4 bg-neutral-50 space-y-5">
+        <div>
+          <h2 className="font-medium mb-3">Importar datos</h2>
+          <ImportPlanilla />
+        </div>
+        <div className="border-t pt-4">
+          <ImportCodAlum />
+        </div>
       </section>
 
       <section className="border rounded-lg p-4 bg-neutral-50">

@@ -109,9 +109,11 @@ export function computeCourseStats(students: Student[], grade: number): CourseSt
 export interface AttendanceStats {
   ciclosConfirmados: number;           // # ciclos con AttendanceMark
   ultimaConfirmacion: string | null;   // ISO datetime más reciente
-  totalFallas: number;
+  totalFallas: number;                 // todas, justificadas incluidas
+  totalFallasJust: number;             // subconjunto justificado
   totalRetardos: number;
-  topFallas: { nombre: string; F: number; R: number }[];
+  totalRetardosJust: number;
+  topFallas: { nombre: string; F: number; Fj: number; R: number; Rj: number }[];
 }
 
 export function computeAttendanceStats(
@@ -126,30 +128,35 @@ export function computeAttendanceStats(
     ? courseMarks.map(m => m.confirmedAt).sort().at(-1)!
     : null;
 
-  let totalFallas = 0;
-  let totalRetardos = 0;
-  const perStudent: { nombre: string; F: number; R: number }[] = [];
+  let totalFallas = 0, totalFallasJust = 0;
+  let totalRetardos = 0, totalRetardosJust = 0;
+  const perStudent: AttendanceStats['topFallas'] = [];
 
   for (const s of activos) {
-    let F = 0, R = 0;
+    let F = 0, Fj = 0, R = 0, Rj = 0;
     for (const c of s.cycles) {
-      if (c.F) F++;
-      if (c.R) R++;
+      if (c.F) { F++; if (c.Fj) Fj++; }
+      if (c.R) { R++; if (c.Rj) Rj++; }
     }
-    totalFallas += F;
-    totalRetardos += R;
-    if (F > 0 || R > 0) perStudent.push({ nombre: s.nombre, F, R });
+    totalFallas += F; totalFallasJust += Fj;
+    totalRetardos += R; totalRetardosJust += Rj;
+    if (F > 0 || R > 0) perStudent.push({ nombre: s.nombre, F, Fj, R, Rj });
   }
 
+  // El ranking pondera solo lo injustificado: quien falta con excusa no es un
+  // caso a vigilar, y mezclarlos escondía a los que sí lo son.
+  const weight = (x: AttendanceStats['topFallas'][number]) =>
+    (x.F - x.Fj) * 2 + (x.R - x.Rj);
   const topFallas = perStudent
-    .sort((a, b) => (b.F * 2 + b.R) - (a.F * 2 + a.R))
+    .filter(x => weight(x) > 0)
+    .sort((a, b) => weight(b) - weight(a))
     .slice(0, 5);
 
   return {
     ciclosConfirmados: courseMarks.length,
     ultimaConfirmacion,
-    totalFallas,
-    totalRetardos,
+    totalFallas, totalFallasJust,
+    totalRetardos, totalRetardosJust,
     topFallas,
   };
 }
