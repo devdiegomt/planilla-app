@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
-import Link from 'next/link';
 import { PwaSetup } from '@/components/PwaSetup';
 import { SessionProvider } from '@/components/SessionProvider';
+import { MainNav } from '@/components/MainNav';
 import { NavSession } from '@/components/NavSession';
 import { SyncStatus } from '@/components/SyncStatus';
 import './globals.css';
@@ -35,28 +35,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es">
       <body className="min-h-screen bg-white text-neutral-900 antialiased">
         <SessionProvider>
-          <nav className="border-b bg-white sticky top-0 z-10">
-            <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-4 text-sm">
-              <Link href="/" className="font-semibold">planilla-app</Link>
-              <Link href="/horario" className="text-neutral-600 hover:text-neutral-900">Horario</Link>
-              <Link href="/calendario" className="text-neutral-600 hover:text-neutral-900">Calendario</Link>
-              <Link href="/pendientes" className="text-neutral-600 hover:text-neutral-900">Pendientes</Link>
-              <Link href="/classroom" className="text-neutral-600 hover:text-neutral-900">Classroom</Link>
-              <a
-                href="https://classroom-rpa.vercel.app"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-neutral-600 hover:text-neutral-900"
-                title="Descargar entregas de un ciclo (abre classroom-rpa en pestaña nueva)"
-              >
-                Descargar entregas ↗
-              </a>
-              <div className="ml-auto flex items-center gap-2">
+          <header className="border-b bg-white sticky top-0 z-10">
+            <div className="max-w-5xl mx-auto px-3 sm:px-6 py-1 sm:py-3 flex items-center gap-2 sm:gap-4 text-sm">
+              <MainNav />
+              <div className="ml-auto flex items-center gap-2 shrink-0">
                 <SyncStatus />
                 <NavSession />
               </div>
             </div>
-          </nav>
+          </header>
           <PwaSetup />
           {children}
         </SessionProvider>
