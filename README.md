@@ -78,7 +78,18 @@ Y abres `http://localhost:3000`.
 2. `supabase/migrations/002_tombstones.sql` (columna `deleted_at`)
 3. `supabase/migrations/003_push_subscriptions.sql` (tabla `push_subscriptions` para VAPID)
 
-**Push notifications** — el usuario habilita desde la home (sección "Notificaciones"). El cron diario en Vercel (`vercel.json` → `0 12 * * 1-5` = 7 AM COT lun-vie) hace GET a `/api/push/daily-reminders` con `Authorization: Bearer $CRON_SECRET`.
+**Push notifications** — el usuario habilita desde la home (sección "Notificaciones"). Hay **dos crons** en `vercel.json`, ambos con `Authorization: Bearer $CRON_SECRET`:
+
+| cron | UTC | COT | ruta | qué manda |
+|---|---|---|---|---|
+| matutino | `0 12 * * 1-5` | 7 AM | `/api/push/daily-reminders` | agenda del día |
+| vespertino | `0 20 * * 1-5` | 3 PM | `/api/push/afternoon-reminders` | F/R de HOY sin registrar |
+
+`src/lib/pushCron.ts` tiene la maquinaria común (auth, suscripciones, fan-out, limpieza de expiradas); las rutas son de tres líneas y solo eligen el compositor.
+
+> **El vespertino calla cuando no hay nada pendiente.** Un aviso que también llega para decir "todo al día" se vuelve ruido y se aprende a ignorar. Solo suena si quedaron clases de hoy sin confirmar, y si es una sola enlaza directo a `/curso/{code}?ciclo=N`.
+
+> **Plan Hobby de Vercel: dos crons es el tope.** Si hiciera falta un tercero, habría que fusionar rutas con un parámetro o subir de plan.
 
 El recordatorio lo arma `composeReminder()` en `src/lib/reminder.ts` — lógica pura, sin Supabase ni red, para poder ejercitarla con escenarios controlados. El route solo hace el fetch y el fan-out a las suscripciones. El body incluye:
 
@@ -207,6 +218,7 @@ Ver `src/types/index.ts`. Cada `Student` guarda:
 ### v3.1 ✅ (Push notifications VAPID — suscripción + test manual)
 ### v3.2 ✅ (Cron diario en Vercel enviando recordatorio de clases + F/R pendientes)
 ### v3.3 ✅ (Recordatorio enriquecido: entregas del día + pendientes vencidos; lógica extraída a `lib/reminder.ts`)
+### v3.4 ✅ (Cron vespertino: F/R de hoy sin registrar, silencioso si no hay nada)
 
 ### Descartado
 - **Agente IA calificador con Claude** — quitado en 2026-07-26. La calificación se hace manualmente; la descarga de entregas se delega a [classroom-rpa](https://classroom-rpa.vercel.app).
@@ -284,7 +296,6 @@ De paso, la plantilla ya traía el **nombre real de cada logro**. Se guarda en `
 - [ ] Historial de los 4 periodos vía `ConsCalificaDocentesGen` (24)
 - [ ] Verificar dominio propio en Resend para envío multi-usuario
 - [ ] Resolución manual de conflictos de sync per-row
-- [ ] Segundo cron por la tarde (recordatorio "F/R sin registrar de hoy")
 
 ## Notas heredadas del análisis original
 

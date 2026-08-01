@@ -12,6 +12,7 @@ import {
   classesForDayType,
   courseSessionDates,
   currentCicloForCourse,
+  cicloForDate,
   sessionInCiclo,
 } from './schedule';
 import type {
@@ -152,6 +153,87 @@ export function composeReminder(
   );
 
   return { title, body: lines.join('\n'), url: '/', tag: `daily-${today}` };
+}
+
+/** Una clase de hoy cuyo F/R todavía no se ha confirmado. */
+interface PendingToday {
+  code: string;
+  ciclo: number;
+  session: 1 | 2 | null;
+}
+
+/**
+ * Recordatorio de la tarde: clases dictadas HOY cuyo F/R sigue sin registrar.
+ *
+ * Complementa al matutino, que avisa de lo pendiente de días previos — cuando
+ * ya no recuerdas quién faltó. Este llega el mismo día, mientras todavía puedes
+ * resolverlo de memoria.
+ *
+ * **Devuelve null si no hay nada pendiente.** Es deliberado: un aviso que
+ * también llega para decir "todo al día" se vuelve ruido y se aprende a
+ * ignorar. Solo suena cuando hay algo que hacer.
+ */
+export function composeAfternoonReminder(
+  input: ReminderInput,
+  today: string,
+): ReminderPayload | null {
+  const { yearConfig, schedule, calendarDays, courses, attendanceMarks } = input;
+  if (!yearConfig) return null;
+
+  const seq = computeDayTypes(
+    yearConfig.startDate, yearConfig.initialDayType, today, calendarDays, true,
+  );
+  const status = seq.get(today);
+  if (!status || status === 'weekend' || status === 'skip') return null;
+
+  const classesToday = classesForDayType(status as DayType, schedule);
+  if (classesToday.length === 0) return null;
+  const codesToday = new Set(classesToday.map(c => c.courseCode));
+
+  // A diferencia del matutino, la ventana INCLUYE hoy: la sesión que nos
+  // interesa es justamente la de esta mañana.
+  const trimStart = activeTrimStart(today, yearConfig) ?? yearConfig.startDate;
+  const trimSeq = new Map<string, DayType | 'weekend' | 'skip'>();
+  for (const [iso, s] of seq) {
+    if (iso >= trimStart && iso <= today) trimSeq.set(iso, s);
+  }
+
+  const pending: PendingToday[] = [];
+  for (const course of courses) {
+    if (!codesToday.has(course.code)) continue;          // no la dictó hoy
+    const sessionsPerCiclo = course.grade === 11 ? 2 : 1;
+    const sessionDates = courseSessionDates(course.code, trimSeq, schedule);
+    const ciclo = cicloForDate(today, sessionDates, 9, sessionsPerCiclo);
+    if (ciclo == null) continue;                          // fuera de los 9 ciclos
+    const session = sessionInCiclo(today, sessionDates, sessionsPerCiclo);
+    const mark = attendanceMarks.find(m =>
+      m.courseCode === course.code
+      && m.ciclo === ciclo
+      && (session == null ? m.session == null : m.session === session),
+    );
+    if (!mark) pending.push({ code: course.code, ciclo, session });
+  }
+
+  if (pending.length === 0) return null;                  // nada que recordar
+  pending.sort((a, b) => a.code.localeCompare(b.code));
+
+  const title = `F/R sin registrar · ${pending.length} clase${plural(pending.length)}`;
+  const lines = pending.map(p =>
+    `${p.code} · ciclo ${p.ciclo}${p.session ? ` · S${p.session}` : ''}`,
+  );
+
+  // Con una sola pendiente vale la pena llevar directo al editor; con varias,
+  // cualquier elección sería arbitraria y la home las lista todas.
+  const url = pending.length === 1
+    ? `/curso/${pending[0].code}?ciclo=${pending[0].ciclo}`
+    : '/';
+
+  return {
+    title,
+    body: lines.join('\n'),
+    url,
+    tag: `afternoon-${today}`,
+  };
 }
 
 function plural(n: number): string {
