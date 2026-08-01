@@ -13,6 +13,9 @@ import ExcelJS from 'exceljs';
 import type { Course, Student, ExportReport } from '@/types';
 import { CURSO_PALABRAS, GRADE_META, slotsFor, columnsFor } from './constants';
 import { normalizeName, findFuzzyMatch } from './utils';
+import {
+  readCalificaHeader, validateHeaderAgainstSlots, describeMismatches,
+} from './califica';
 
 interface ExportParams {
   course: Course;
@@ -47,15 +50,27 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
   await workbook.xlsx.load(templateBuffer);
   const ws = workbook.getWorksheet('RepCalifica') ?? workbook.worksheets[0];
 
-  // 1) Encabezado del curso
-  ws.getCell('B11').value =
+  // 0) Leer la cabecera real y comprobar que el orden de logros es el que la
+  //    app asume. Se escribe posicionalmente, así que un cambio de plan de
+  //    logros mandaría cada nota al logro equivocado sin ninguna señal.
+  const header = readCalificaHeader(ws);
+  const mismatches = validateHeaderAgainstSlots(header, gradeNum);
+  if (mismatches.length > 0) {
+    throw new Error(describeMismatches(mismatches, gradeNum));
+  }
+
+  const { cols, firstDataRow } = header;
+  const firstCol = cols.codPer;
+  const lastCol = header.firstGradeCol + nSlots - 1;
+
+  // 1) Encabezado del curso (dos filas por encima de la cabecera)
+  ws.getRow(header.headerRow - 2).getCell(firstCol).value =
     `Curso:  ${cursoPalabras}  (${cursoNum})          Materia:${meta.materia}`;
 
-  // 2) Guardar estilos de la fila plantilla (14) para replicar
-  const templateRow = ws.getRow(14);
-  const lastCol = 8 + nSlots;
+  // 2) Guardar estilos de la primera fila de datos para replicarlos
+  const templateRow = ws.getRow(firstDataRow);
   const styles: Partial<ExcelJS.Style>[] = [];
-  for (let c = 2; c <= lastCol; c++) {
+  for (let c = firstCol; c <= lastCol; c++) {
     const cell = templateRow.getCell(c);
     styles.push({
       font: { ...cell.font },
@@ -72,7 +87,7 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
   const allNames = Array.from(codAlumMap.keys());
 
   students.forEach((student, i) => {
-    const row = ws.getRow(14 + i);
+    const row = ws.getRow(firstDataRow + i);
     const nameNorm = normalizeName(student.nombre);
     // El código de la fila manda: lo escribe `hydrateCodAlum` desde el JSON del
     // extractor de planilla-v2, viaja por el sync y ya resolvió los typos una
@@ -102,7 +117,7 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
     ];
 
     values.forEach((val, j) => {
-      const cell = row.getCell(2 + j);
+      const cell = row.getCell(firstCol + j);
       cell.value = val;
       const style = styles[j];
       if (style.font)      cell.font      = style.font as ExcelJS.Font;
@@ -115,10 +130,10 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
   });
 
   // 4) Limpiar filas sobrantes (por si la plantilla tenía más estudiantes)
-  const lastNewRow = 14 + students.length - 1;
+  const lastNewRow = firstDataRow + students.length - 1;
   for (let r = lastNewRow + 1; r <= ws.rowCount; r++) {
     const row = ws.getRow(r);
-    for (let c = 2; c <= lastCol; c++) {
+    for (let c = firstCol; c <= lastCol; c++) {
       row.getCell(c).value = null;
     }
   }
@@ -139,6 +154,11 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
       estudiantesSinCodAlum: missingCods,
       typoMatches,
       filename,
+      // Los nombres reales de los logros salen de la plantilla; el consumidor
+      // los persiste en el curso para que la grilla deje de decir solo 'C4'.
+      achievements: header.achievements.map(a => ({
+        column: a.column, log: a.log, title: a.title,
+      })),
     },
   };
 }
@@ -170,9 +190,16 @@ export async function exportObservations(
     for (const k of c.slotKeys) colBySlot.set(k, { column: c.column, cats: c.cats });
   }
 
+  const titleByColumn = new Map(
+    (course.achievements ?? [])
+      .filter(a => a.column && a.title)
+      .map(a => [a.column, a.title]),
+  );
+
   interface ObsRow {
     nombre: string;
     column: string;
+    logro: string;
     cats: string;
     nota: number;
     obs: string;
@@ -193,6 +220,7 @@ export async function exportObservations(
       rows.push({
         nombre: s.nombre,
         column: col,
+        logro: titleByColumn.get(col) ?? '',
         cats: columnDef?.cats.join('·') ?? '',
         nota: Math.round(nota),
         obs: text.trim(),
@@ -212,6 +240,7 @@ export async function exportObservations(
   ws.columns = [
     { header: 'Estudiante', key: 'nombre', width: 34 },
     { header: 'Col',        key: 'column', width: 6  },
+    { header: 'Logro',      key: 'logro',  width: 42 },
     { header: 'Cat',        key: 'cats',   width: 8  },
     { header: 'Nota',       key: 'nota',   width: 6  },
     { header: 'Observación', key: 'obs',   width: 60 },

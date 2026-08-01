@@ -32,6 +32,12 @@ export function PlanillaGrid({ course }: Props) {
   const activos = students.filter(s => !s.withdrawnAt);
   const slots = slotsFor(course.grade);
   const columns = columnsFor(course.grade);
+  // Nombres reales de los logros, si ya se leyeron de la plantilla Califica.
+  const titleByColumn = new Map(
+    (course.achievements ?? [])
+      .filter(a => a.column && a.title)
+      .map(a => [a.column, a.title]),
+  );
 
   return (
     <div className="overflow-x-auto">
@@ -42,6 +48,10 @@ export function PlanillaGrid({ course }: Props) {
             <th className="p-2 sticky left-8 bg-neutral-50">Estudiante</th>
             {columns.map(col => {
               const isEv = col.cats.length === 1 && col.cats[0] === 'E';
+              const logro = titleByColumn.get(col.column);
+              const base = logro
+                ? `${col.column} · ${logro}\n${col.slotKeys.join(' + ')}`
+                : col.slotKeys.join(' + ');
               return (
                 <th
                   key={col.column}
@@ -50,8 +60,8 @@ export function PlanillaGrid({ course }: Props) {
                   }`}
                   title={
                     isEv
-                      ? `${col.slotKeys.join(' + ')} · Nota de evaluación: 100% de la categoría E (peso 20% de la DEF)`
-                      : col.slotKeys.join(' + ')
+                      ? `${base}\nNota de evaluación: 100% de la categoría E (peso 20% de la DEF)`
+                      : base
                   }
                 >
                   <div className={isEv ? 'font-bold text-amber-900' : ''}>
@@ -87,6 +97,7 @@ export function PlanillaGrid({ course }: Props) {
                       studentId={s.id!}
                       studentName={s.nombre}
                       column={col.column}
+                      achievement={titleByColumn.get(col.column)}
                       slotKeys={col.slotKeys}
                       value={value}
                       observation={observation}
@@ -120,11 +131,13 @@ export function PlanillaGrid({ course }: Props) {
  * Celda con input de nota + botón de observación (popover con textarea).
  */
 function NoteCell({
-  studentId, studentName, column, slotKeys, value, observation, isEv,
+  studentId, studentName, column, achievement, slotKeys, value, observation, isEv,
 }: {
   studentId: number;
   studentName: string;
   column: string;
+  /** Nombre real del logro, si la plantilla ya se leyó. */
+  achievement?: string;
   slotKeys: string[];
   value: number;
   observation: string;
@@ -204,13 +217,20 @@ function NoteCell({
           ref={popoverRef}
           className="absolute z-30 top-full left-1/2 -translate-x-1/2 mt-1 w-64 bg-white border border-neutral-300 rounded-md shadow-lg p-2 text-left"
         >
-          <div className="text-[10px] text-neutral-500 mb-1 flex items-baseline justify-between">
-            <span className="truncate max-w-[130px]" title={studentName}>
-              {studentName}
-            </span>
-            <span className="font-medium text-neutral-800 ml-2">
-              {column} · {value || '–'}
-            </span>
+          <div className="text-[10px] text-neutral-500 mb-1">
+            <div className="flex items-baseline justify-between">
+              <span className="truncate max-w-[130px]" title={studentName}>
+                {studentName}
+              </span>
+              <span className="font-medium text-neutral-800 ml-2">
+                {column} · {value || '–'}
+              </span>
+            </div>
+            {achievement && (
+              <div className="text-[10px] text-neutral-400 leading-tight mt-0.5" title={achievement}>
+                {achievement}
+              </div>
+            )}
           </div>
           <textarea
             ref={textareaRef}

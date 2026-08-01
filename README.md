@@ -256,6 +256,16 @@ Reglas que no son obvias:
 
 > **La rotación no es semanal.** D1–D5 + FIJO(viernes) recurre cada 6 días hábiles, así que los D1 del T1 2026 caen 2-feb (lun), 10-feb (mar), 18-feb (mié), 26-feb (jue), 9-mar (lun)… El ciclo 5 de 801 no cae "cinco lunes después". Por eso la app tiene que ser la que resuelva la fecha, y por eso el botón muestra la fecha resuelta **antes** de descargar: el dry-run del autofill mostrará una fecha equivocada igual de convincente que una correcta.
 
+### ✅ Validación de la cabecera Califica (`src/lib/califica.ts`)
+
+El exportador escribe las 10 u 11 notas **posicionalmente**. Antes nadie comprobaba que el orden de logros de la plantilla coincidiera con `SLOTS_8_10` / `SLOTS_11`: si el colegio cambiaba el plan de logros, cada nota caía en el logro equivocado sin ninguna señal. Y las descripciones traen el trimestre embebido (`T2`), así que la plantilla del T3 **será** distinta.
+
+Ahora `readCalificaHeader()` localiza la cabecera buscando `COD_ALUM` —no por número de fila— y ubica cada columna por su etiqueta. `validateHeaderAgainstSlots()` compara por posición la columna real (C4, C7…) y la categoría; si algo no cuadra, la exportación **aborta** con el detalle de qué esperaba y qué encontró.
+
+> El writer también dejó de usar posiciones fijas (fila 14, columna B): ahora todo sale de la cabecera detectada, así que un desplazamiento de la plantilla se detecta en vez de corromper el archivo.
+
+De paso, la plantilla ya traía el **nombre real de cada logro**. Se guarda en `Course.achievements` tras cada exportación y aparece en el tooltip de la grilla, en el popover de observaciones y como columna `Logro` del XLSX de observaciones — donde más se agradece, porque `C2` es *"INGENIERÍA DE PROMPTS"* en 11° pero *"BASIC CSS SELECTORS"* en 8°.
+
 ### ✅ Modelo de 4 estados de asistencia
 
 `src/lib/attendance.ts` es la única traducción entre cómo la app guarda una marca (dos banderas: `F` + `Fj`) y cómo la razonan la UI y Classroom Live (un estado de tres: sin marca / injustificada / justificada).
@@ -269,6 +279,9 @@ Reglas que no son obvias:
 
 ### v4.1+ (candidatos)
 - [ ] Exportar todos los cursos de un día en un ZIP (hoy es un archivo por ciclo)
+- [ ] Reconciliar notas contra la plataforma (requiere que `codalum-extractor` conserve las columnas de notas de `ReporteCalificaMatrizProfesor`)
+- [ ] Importar `CalendarioN2` (136) y `CircularesProf` (124) para dejar de teclear entregas y pendientes
+- [ ] Historial de los 4 periodos vía `ConsCalificaDocentesGen` (24)
 - [ ] Verificar dominio propio en Resend para envío multi-usuario
 - [ ] Resolución manual de conflictos de sync per-row
 - [ ] Segundo cron por la tarde (recordatorio "F/R sin registrar de hoy")

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { exportCalifica } from '@/lib/exporter';
+import { db } from '@/lib/db';
 import { downloadBlob } from '@/lib/utils';
 import type { Course, Student, ExportReport } from '@/types';
 
@@ -14,10 +15,12 @@ interface Props {
 export function ExportCalifica({ course, students, trimestre }: Props) {
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<ExportReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleExport() {
     setBusy(true);
     setReport(null);
+    setError(null);
     try {
       // El mapa del Califica-451 ya no es obligatorio: si los estudiantes tienen
       // `codAlum` en la fila (importado del JSON del extractor de planilla-v2),
@@ -25,9 +28,9 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
       const raw = localStorage.getItem('codAlumMap');
       const codAlumMap = new Map<string, string>(raw ? JSON.parse(raw) : []);
       if (!raw && students.some(s => !s.codAlum)) {
-        alert(
-          'Faltan códigos: importa el JSON de Classroom Live (o el consolidado ' +
-          'Califica) en la página principal.',
+        setError(
+          'Faltan códigos de estudiante. Importa el JSON de Classroom Live ' +
+          '(o el consolidado Califica) en la página principal.',
         );
         return;
       }
@@ -35,8 +38,17 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
       const { blob, report } = await exportCalifica({ course, students, codAlumMap, trimestre });
       downloadBlob(blob, report.filename);
       setReport(report);
+
+      // Los nombres de los logros solo existen en la plantilla. Guardarlos aquí
+      // evita tener que abrirla de nuevo para que la grilla los muestre.
+      if (course.id && report.achievements.length > 0) {
+        const prev = JSON.stringify(course.achievements ?? []);
+        if (prev !== JSON.stringify(report.achievements)) {
+          await db.courses.update(course.id, { achievements: report.achievements });
+        }
+      }
     } catch (err) {
-      alert(`Error: ${(err as Error).message}`);
+      setError((err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -51,6 +63,14 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
       >
         {busy ? 'Generando...' : `Generar Califica del curso ${course.code}`}
       </button>
+
+      {error && (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-300 rounded p-2 max-w-xl">
+          <p className="font-medium mb-1">❌ No se generó el archivo</p>
+          <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed">{error}</pre>
+        </div>
+      )}
+
       {report && (
         <div className="text-sm text-neutral-700">
           <p>✅ Generado: {report.filename} ({report.nEstudiantesEscritos} estudiantes)</p>

@@ -67,6 +67,16 @@ export interface Student {
   updatedAt?: string;                 // ISO datetime del último cambio local
 }
 
+/**
+ * Nombre real de un logro, leído de la plantilla Califica.
+ * La plataforma lo identifica con `log`; la app lo asocia a su columna (C4, C7…).
+ */
+export interface Achievement {
+  column: string;                     // 'C4'
+  log: string;                        // 'log_21'
+  title: string;                      // 'ORGANIZING CONTENT WITH BASIC LAYOUT'
+}
+
 /** Registro persistente de curso. */
 export interface Course {
   id?: number;
@@ -76,6 +86,11 @@ export interface Course {
   year: number;                       // 2026
   trimestre: number;                  // 1, 2, 3
   cyclesActive: boolean[];            // 9 items
+  /**
+   * Nombres de los logros del trimestre, leídos de la plantilla Califica en la
+   * última exportación. Ausente hasta que se exporte por primera vez.
+   */
+  achievements?: Achievement[];
   updatedAt: string;                  // ISO — timestamp del último cambio (usado por sync)
   syncId?: string;                    // UUID estable cross-device (sync)
 }
@@ -206,4 +221,6 @@ export interface ExportReport {
   estudiantesSinCodAlum: string[];
   typoMatches: { planilla: string; califica: string; cod: string }[];
   filename: string;
+  /** Logros leídos de la plantilla, ya validados contra el mapeo de la app. */
+  achievements: Achievement[];
 }
