@@ -44,8 +44,8 @@ export function PlanillaGrid({ course }: Props) {
       <table className="min-w-full text-sm">
         <thead>
           <tr className="border-b bg-neutral-50 text-left">
-            <th className="p-2 sticky left-0 bg-neutral-50">#</th>
-            <th className="p-2 sticky left-8 bg-neutral-50">Estudiante</th>
+            <th className="p-2 sticky left-0 z-10 bg-neutral-50">#</th>
+            <th className="p-2 sticky left-8 z-10 bg-neutral-50">Estudiante</th>
             {columns.map(col => {
               const isEv = col.cats.length === 1 && col.cats[0] === 'E';
               const logro = titleByColumn.get(col.column);
@@ -85,8 +85,12 @@ export function PlanillaGrid({ course }: Props) {
                            : 'text-red-700';
             return (
               <tr key={s.id} className="border-b hover:bg-neutral-50">
-                <td className="p-2 sticky left-0 bg-white text-neutral-500">{i + 1}</td>
-                <td className="p-2 sticky left-8 bg-white whitespace-nowrap">{s.nombre}</td>
+                {/* z-10: las celdas de nota llevan `relative` (para anclar el
+                    popover), así que sin z-index explícito ganaban el orden de
+                    pintado por ir después en el DOM y se deslizaban por encima
+                    del nombre en móvil. */}
+                <td className="p-2 sticky left-0 z-10 bg-white text-neutral-500">{i + 1}</td>
+                <td className="p-2 sticky left-8 z-10 bg-white whitespace-nowrap">{s.nombre}</td>
                 {columns.map(col => {
                   const value = s.subnotas[col.slotKeys[0]] ?? 0;
                   const observation = s.noteObservations?.[col.column] ?? '';

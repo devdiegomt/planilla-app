@@ -35,7 +35,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es">
       <body className="min-h-screen bg-white text-neutral-900 antialiased">
         <SessionProvider>
-          <header className="border-b bg-white sticky top-0 z-10">
+          {/* z-50: la barra es el chrome de la app y debe quedar por encima de
+              las columnas fijas de la planilla (z-10) y de sus popovers (z-30). */}
+          <header className="border-b bg-white sticky top-0 z-50">
             <div className="max-w-5xl mx-auto px-3 sm:px-6 py-1 sm:py-3 flex items-center gap-2 sm:gap-4 text-sm">
               <MainNav />
               <div className="ml-auto flex items-center gap-2 shrink-0">
