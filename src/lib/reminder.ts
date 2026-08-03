@@ -10,11 +10,11 @@ import {
   computeDayTypes,
   formatIso,
   classesForDayType,
-  courseSessionDates,
-  currentCicloForCourse,
-  cicloForDate,
-  sessionInCiclo,
 } from './schedule';
+import {
+  buildCycleContext, cycleOf,
+  type CycleContext, type CourseCycle,
+} from './cycles';
 import type {
   DayType, ScheduleBlock, CalendarDay, YearConfig, Course,
   AttendanceMark, Todo, CalendarEvent,
@@ -81,33 +81,18 @@ export function composeReminder(
 
   const uniqueCodes = [...new Set(classesToday.map(c => c.courseCode))];
 
-  // F/R sin registrar: se mira la sesión más reciente de cada curso hasta ayer.
-  const trimStart = activeTrimStart(today, yearConfig) ?? yearConfig.startDate;
-  const trimSeq = new Map<string, DayType | 'weekend' | 'skip'>();
-  for (const [iso, s] of seq) {
-    if (iso >= trimStart && iso < today) trimSeq.set(iso, s);
-  }
-
+  // F/R sin registrar: se mira la última clase de cada curso ANTES de hoy.
+  const ctx = buildCycleContext(seq, schedule, courses, yearConfig);
   const pendingCourses: string[] = [];
   for (const course of courses) {
     if (!schedule.some(b => b.courseCode === course.code)) continue;   // no lo dicta
-    const sessionsPerCiclo = course.grade === 11 ? 2 : 1;
-    const sessionDates = courseSessionDates(course.code, trimSeq, schedule);
-    const lastSessionDate = sessionDates.at(-1);
-    if (!lastSessionDate) continue;
-    const cicloAyer = currentCicloForCourse(lastSessionDate, sessionDates, 9, sessionsPerCiclo);
-    if (cicloAyer <= 0) continue;
-    const sess = sessionInCiclo(lastSessionDate, sessionDates, sessionsPerCiclo);
+    const ultima = lastClassBefore(ctx, course.code, today);
+    if (!ultima) continue;
     // El match va por `courseCode`, NO por `courseId`: los ids locales de Dexie
     // los borra `stripLocalMeta` antes de subir, así que aquí ambos lados serían
     // `undefined` y la comparación daría true para cualquier curso — una marca
     // de 801 dejaba los 19 cursos como registrados.
-    const mark = attendanceMarks.find(m =>
-      m.courseCode === course.code
-      && m.ciclo === cicloAyer
-      && (sess == null ? m.session == null : m.session === sess),
-    );
-    if (!mark) pendingCourses.push(course.code);
+    if (!hasMark(attendanceMarks, course.code, ultima)) pendingCourses.push(course.code);
   }
   pendingCourses.sort();
 
@@ -159,7 +144,8 @@ export function composeReminder(
 interface PendingToday {
   code: string;
   ciclo: number;
-  session: 1 | 2 | null;
+  /** Null cuando el ciclo tiene una sola clase de ese curso. */
+  session: number | null;
 }
 
 /**
@@ -198,20 +184,18 @@ export function composeAfternoonReminder(
     if (iso >= trimStart && iso <= today) trimSeq.set(iso, s);
   }
 
+  const ctx = buildCycleContext(seq, schedule, courses, yearConfig);
   const pending: PendingToday[] = [];
   for (const course of courses) {
     if (!codesToday.has(course.code)) continue;          // no la dictó hoy
-    const sessionsPerCiclo = course.grade === 11 ? 2 : 1;
-    const sessionDates = courseSessionDates(course.code, trimSeq, schedule);
-    const ciclo = cicloForDate(today, sessionDates, 9, sessionsPerCiclo);
-    if (ciclo == null) continue;                          // fuera de los 9 ciclos
-    const session = sessionInCiclo(today, sessionDates, sessionsPerCiclo);
-    const mark = attendanceMarks.find(m =>
-      m.courseCode === course.code
-      && m.ciclo === ciclo
-      && (session == null ? m.session == null : m.session === session),
-    );
-    if (!mark) pending.push({ code: course.code, ciclo, session });
+    const hoy = cycleOf(ctx, course.code, today);
+    if (!hoy) continue;                                   // fuera de los 9 ciclos
+    if (!hasMark(attendanceMarks, course.code, hoy)) {
+      pending.push({
+        code: course.code, ciclo: hoy.ciclo,
+        session: hoy.sessionsInCiclo > 1 ? hoy.session : null,
+      });
+    }
   }
 
   if (pending.length === 0) return null;                  // nada que recordar
@@ -234,6 +218,41 @@ export function composeAfternoonReminder(
     url,
     tag: `afternoon-${today}`,
   };
+}
+
+/**
+ * Última clase de un curso estrictamente antes de `iso`, con su ciclo y sesión.
+ * Null si el curso todavía no ha tenido clase en el trimestre.
+ */
+function lastClassBefore(
+  ctx: CycleContext, courseCode: string, iso: string,
+): CourseCycle | null {
+  const porCiclo = ctx.byCourseCiclo.get(courseCode);
+  if (!porCiclo) return null;
+  let mejor: string | null = null;
+  for (const fechas of porCiclo.values()) {
+    for (const f of fechas) {
+      if (f < iso && (mejor === null || f > mejor)) mejor = f;
+    }
+  }
+  return mejor ? cycleOf(ctx, courseCode, mejor) : null;
+}
+
+/**
+ * ¿Está confirmada la asistencia de esa clase?
+ *
+ * La marca lleva `session` solo cuando el ciclo tiene más de una clase de ese
+ * curso; con una sola, la marca es del ciclo entero y no trae sesión.
+ */
+function hasMark(
+  marks: AttendanceMark[], courseCode: string, c: CourseCycle,
+): boolean {
+  const sess = c.sessionsInCiclo > 1 ? c.session : null;
+  return marks.some(m =>
+    m.courseCode === courseCode
+    && m.ciclo === c.ciclo
+    && (sess === null ? m.session == null : m.session === sess),
+  );
 }
 
 function plural(n: number): string {

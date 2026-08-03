@@ -271,6 +271,16 @@ Reglas que no son obvias:
 
 > **La rotación no es semanal.** D1–D5 + FIJO(viernes) recurre cada 6 días hábiles, así que los D1 del T1 2026 caen 2-feb (lun), 10-feb (mar), 18-feb (mié), 26-feb (jue), 9-mar (lun)… El ciclo 5 de 801 no cae "cinco lunes después". Por eso la app tiene que ser la que resuelva la fecha, y por eso el botón muestra la fecha resuelta **antes** de descargar: el dry-run del autofill mostrará una fecha equivocada igual de convincente que una correcta.
 
+### ✅ Ciclo por día en el calendario (`src/lib/cycles.ts`)
+
+Cada casilla muestra, además del tipo de día, en qué ciclo van los cursos que se dictan ese día. El popover trae el desglose curso por curso.
+
+> **El ciclo no es global, es por curso.** Se cuenta sobre las sesiones que ese curso tuvo dentro del trimestre, así que dos cursos en tipos de día distintos avanzan a ritmos distintos y una cancelación que pega en un tipo de día no afecta a los demás. No existe "el ciclo de la semana".
+
+> **11° va a media velocidad.** Consume dos sesiones por ciclo, así que dos clases seguidas del mismo curso caen en el mismo ciclo (S1 y S2) — de ahí que dos viernes seguidos sean el mismo ciclo para los 11° del viernes. Por eso la casilla lo reporta aparte (`C4 · 11° C2`) en vez de fundirlo en un rango: el desfase crece todo el trimestre y un `C5–9` es cierto pero no dice nada.
+
+**Semanas sin clase:** hay un marcador de rango en `/calendario` que marca de una todos los días hábiles entre dos fechas. No es comodidad — si las vacaciones no están marcadas, `computeDayTypes` las cuenta como lectivas y la numeración de ciclos queda corrida de ahí en adelante.
+
 ### ✅ Validación de la cabecera Califica (`src/lib/califica.ts`)
 
 El exportador escribe las 10 u 11 notas **posicionalmente**. Antes nadie comprobaba que el orden de logros de la plantilla coincidiera con `SLOTS_8_10` / `SLOTS_11`: si el colegio cambiaba el plan de logros, cada nota caía en el logro equivocado sin ninguna señal. Y las descripciones traen el trimestre embebido (`T2`), así que la plantilla del T3 **será** distinta.

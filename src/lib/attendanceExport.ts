@@ -11,9 +11,9 @@
  */
 
 import {
-  computeDayTypes, formatIso, parseIso, todayIso,
-  courseSessionDates, classesForDayType,
+  computeDayTypes, todayIso, classesForDayType,
 } from './schedule';
+import { buildCycleContext, sessionDatesOf } from './cycles';
 import { autofillTipo, cycleMarkState, sessionMarkState, type AutofillTipo } from './attendance';
 import { GRADE_META } from './constants';
 import type {
@@ -53,7 +53,12 @@ export interface AttendanceExportInput {
   calendarDays: CalendarDay[];
   yearConfig: YearConfig;
   ciclo: number;                      // 1..9
-  session?: 1 | 2;                    // requerido en 11°
+  /**
+   * Requerido cuando el curso tiene más de una clase en ese ciclo: siempre en
+   * 11° (dos tipos de día), y en los cursos del viernes cuando al ciclo le
+   * caen dos viernes.
+   */
+  session?: 1 | 2;
 }
 
 export interface AttendanceExportResult {
@@ -74,25 +79,6 @@ export interface AttendanceExportResult {
 /** Error de negocio: se muestra al usuario, no es un bug. */
 export class AttendanceExportError extends Error {}
 
-/**
- * Ventana del trimestre al que pertenece el curso.
- *
- * Se usa `course.trimestre` y no "el trimestre de hoy": los datos del curso son
- * de SU trimestre, y exportar en agosto un ciclo del trimestre 2 debe seguir
- * resolviendo las fechas de ese trimestre.
- */
-function trimWindow(cfg: YearConfig, trimestre: number): { start: string; end: string } {
-  const starts = [cfg.trim1Start, cfg.trim2Start, cfg.trim3Start];
-  const start = starts[trimestre - 1] || cfg.startDate;
-  // El fin es el arranque del siguiente trimestre definido; si no hay (último),
-  // se toma un horizonte amplio — 9 ciclos nunca pasan de ~5 meses.
-  const nextDefined = starts.slice(trimestre).find((d): d is string => !!d);
-  if (nextDefined) return { start, end: nextDefined };
-  const d = parseIso(start);
-  d.setUTCDate(d.getUTCDate() + 200);
-  return { start, end: formatIso(d) };
-}
-
 /** 'YYYY-MM-DD' → 'DD/MM/AAAA', el formato que espera la plataforma. */
 export function toFechaDDMMYYYY(iso: string): string {
   const [y, m, d] = iso.split('-');
@@ -110,12 +96,6 @@ export function buildAttendanceExport(
 ): AttendanceExportResult {
   const { course, students, schedule, calendarDays, yearConfig, ciclo, session } = input;
 
-  const isEleven = course.grade === 11;
-  const sessionsPerCiclo = isEleven ? 2 : 1;
-  if (isEleven && session == null) {
-    throw new AttendanceExportError('En 11° hay que indicar la sesión (S1 o S2).');
-  }
-
   const courseBlocks = schedule.filter(b => b.courseCode === course.code);
   if (courseBlocks.length === 0) {
     throw new AttendanceExportError(
@@ -123,30 +103,36 @@ export function buildAttendanceExport(
     );
   }
 
-  const { start, end } = trimWindow(yearConfig, course.trimestre);
+  // Horizonte amplio: 9 ciclos nunca pasan de ~5 meses, y el contexto ya
+  // recorta por trimestre internamente.
   const seq = computeDayTypes(
-    yearConfig.startDate, yearConfig.initialDayType, end, calendarDays, true,
+    yearConfig.startDate, yearConfig.initialDayType,
+    `${yearConfig.year}-12-31`, calendarDays, true,
   );
-  // Recortar al trimestre: `courseSessionDates` numera las sesiones desde el
-  // primer día del rango que reciba, así que el rango define qué es "ciclo 1".
-  const trimSeq = new Map<string, ReturnType<typeof seq.get>>();
-  for (const [iso, s] of seq) {
-    if (iso >= start && iso <= end) trimSeq.set(iso, s);
+  const ctx = buildCycleContext(seq, schedule, [course], yearConfig);
+
+  // Cuántas clases tiene ESTE curso en ESTE ciclo: puede ser 1, o 2 cuando el
+  // ciclo trae dos viernes o el curso ocupa dos tipos de día (11°).
+  const fechas = sessionDatesOf(ctx, course.code, ciclo);
+  if (fechas.length === 0) {
+    throw new AttendanceExportError(
+      `El ciclo ${ciclo} no tiene ninguna clase de ${course.code} en el trimestre ` +
+      `${course.trimestre}. Revisa el inicio del trimestre y las semanas sin clase ` +
+      'en /calendario.',
+    );
   }
-
-  const sessionDates = courseSessionDates(
-    course.code,
-    trimSeq as Map<string, DayType | 'weekend' | 'skip'>,
-    schedule,
-  );
-
-  const idx = (ciclo - 1) * sessionsPerCiclo + ((session ?? 1) - 1);
-  const fechaIso = sessionDates[idx];
+  if (fechas.length > 1 && session == null) {
+    throw new AttendanceExportError(
+      `${course.code} tiene ${fechas.length} clases en el ciclo ${ciclo} ` +
+      `(${fechas.join(' y ')}). Indica cuál sesión quieres exportar.`,
+    );
+  }
+  const idxSesion = (session ?? 1) - 1;
+  const fechaIso = fechas[idxSesion];
   if (!fechaIso) {
     throw new AttendanceExportError(
-      `El ciclo ${ciclo}${session ? ` · S${session}` : ''} no tiene fecha en el trimestre ` +
-      `${course.trimestre}: solo hay ${sessionDates.length} sesiones de ${course.code}. ` +
-      `Revisa el inicio del trimestre y los festivos en /calendario.`,
+      `${course.code} solo tiene ${fechas.length} clase(s) en el ciclo ${ciclo}; ` +
+      `no existe la sesión ${session}.`,
     );
   }
 
@@ -171,12 +157,13 @@ export function buildAttendanceExport(
     const c = s.cycles.find(x => x.ciclo === ciclo);
     if (!c) continue;
 
-    const fState = isEleven
-      ? sessionMarkState(session === 1 ? c.S1 : c.S2, 'F')
-      : cycleMarkState(c, 'F');
-    const rState = isEleven
-      ? sessionMarkState(session === 1 ? c.S1 : c.S2, 'R')
-      : cycleMarkState(c, 'R');
+    // Con una sola clase en el ciclo el F/R vive en el ciclo; con dos, cada
+    // clase tiene su propia marca (S1/S2) porque la plataforma las registra
+    // por fecha.
+    const porSesion = fechas.length > 1;
+    const sd = porSesion ? (idxSesion === 0 ? c.S1 : c.S2) : undefined;
+    const fState = porSesion ? sessionMarkState(sd, 'F') : cycleMarkState(c, 'F');
+    const rState = porSesion ? sessionMarkState(sd, 'R') : cycleMarkState(c, 'R');
 
     // Una ausencia absorbe al retardo: no se puede llegar tarde a una clase a
     // la que no se asistió, y la plataforma acepta un solo tipo por estudiante.
@@ -195,7 +182,7 @@ export function buildAttendanceExport(
     marcas,
   };
 
-  const sufijo = session ? `-S${session}` : '';
+  const sufijo = fechas.length > 1 ? `-S${session ?? 1}` : '';
   return {
     payload,
     filename: `asistencia-${course.code}-C${ciclo}${sufijo}-${fechaIso}.json`,

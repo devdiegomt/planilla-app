@@ -14,6 +14,8 @@ import {
   markLabel, markDescription,
   type MarkKind, type MarkState,
 } from '@/lib/attendance';
+import { computeDayTypes } from '@/lib/schedule';
+import { buildCycleContext, sessionDatesOf } from '@/lib/cycles';
 import { ExportAttendance } from './ExportAttendance';
 import type { Course, Student } from '@/types';
 
@@ -24,8 +26,13 @@ interface Props {
 
 /**
  * Editor de F/R por ciclo.
- * - 8°–10°: dos marcas F/R por estudiante, un botón "Confirmar ciclo N".
- * - 11°: cuatro marcas F1/R1/F2/R2, dos botones "Confirmar S1" y "Confirmar S2".
+ *
+ * Si el ciclo trae UNA clase del curso: dos marcas F/R y un botón "Confirmar
+ * ciclo N". Si trae DOS: cuatro marcas F1/R1/F2/R2 y un confirmar por sesión,
+ * porque el colegio registra la asistencia de cada fecha por separado.
+ *
+ * Eso pasa siempre en 11° (ocupa dos tipos de día) y también en los cursos del
+ * viernes cuando al ciclo le caen dos viernes — no se decide por el grado.
  *
  * Cada marca es un botón de tres estados (sin marca → injustificada →
  * justificada) en vez de un checkbox: Classroom Live distingue justificadas y
@@ -33,8 +40,28 @@ interface Props {
  * densidad en cursos de 28 estudiantes.
  */
 export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
-  const isEleven = course.grade === 11;
   const [ciclo, setCiclo] = useState(clamp(initialCiclo, 1, 9));
+
+  const yearCfg = useLiveQuery(() => db.yearConfig.where('year').equals(course.year).first(), [course.year]);
+  const customDays = useLiveQuery(() => db.calendarDays.toArray(), []) ?? [];
+  const schedule = useLiveQuery(() => db.schedule.toArray(), []) ?? [];
+
+  /*
+   * Cuántas clases tiene ESTE curso en ESTE ciclo. Antes se asumía "dos si es
+   * 11°, una si no", pero un curso del viernes también puede tener dos cuando
+   * al ciclo le caen dos viernes — y entonces el colegio registra la asistencia
+   * de cada fecha por separado.
+   */
+  const sessionDates = useMemo(() => {
+    if (!yearCfg || schedule.length === 0) return [];
+    const seq = computeDayTypes(
+      yearCfg.startDate, yearCfg.initialDayType, `${yearCfg.year}-12-31`, customDays, true,
+    );
+    const ctx = buildCycleContext(seq, schedule, [course], yearCfg);
+    return sessionDatesOf(ctx, course.code, ciclo);
+  }, [yearCfg, schedule, customDays, course, ciclo]);
+
+  const porSesion = sessionDates.length > 1;
 
   useEffect(() => setCiclo(clamp(initialCiclo, 1, 9)), [initialCiclo]);
 
@@ -64,7 +91,7 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
       if (!c) continue;
       if (c.F) { F++; if (c.Fj) Fj++; }
       if (c.R) { R++; if (c.Rj) Rj++; }
-      if (isEleven) {
+      if (porSesion) {
         if (c.S1?.F) F1++;
         if (c.S1?.R) R1++;
         if (c.S2?.F) F2++;
@@ -72,7 +99,7 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
       }
     }
     return { F, Fj, R, Rj, F1, R1, F2, R2 };
-  }, [activos, ciclo, isEleven]);
+  }, [activos, ciclo, porSesion]);
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -89,13 +116,13 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
         </select>
         <span className="text-xs text-neutral-500">
           {activos.length} activos
-          {isEleven
+          {porSesion
             ? ` · S1: ${stats.F1}F/${stats.R1}R · S2: ${stats.F2}F/${stats.R2}R`
             : ` · ${stats.F}F${stats.Fj ? ` (${stats.Fj}j)` : ''}`
               + ` · ${stats.R}R${stats.Rj ? ` (${stats.Rj}j)` : ''}`}
         </span>
         <div className="ml-auto flex items-start gap-3 flex-wrap justify-end">
-          {isEleven ? (
+          {porSesion ? (
             <>
               <div className="flex items-start gap-2">
                 <ConfirmButton
@@ -137,7 +164,7 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
             <tr>
               <th className="p-2 text-left w-8">#</th>
               <th className="p-2 text-left">Estudiante</th>
-              {isEleven ? (
+              {porSesion ? (
                 <>
                   <th className="p-2 text-center w-14">F1</th>
                   <th className="p-2 text-center w-14">R1</th>
@@ -159,7 +186,7 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
                 <tr key={s.id} className="border-b hover:bg-neutral-50">
                   <td className="p-2 text-neutral-400">{i + 1}</td>
                   <td className="p-2 whitespace-nowrap">{s.nombre}</td>
-                  {isEleven ? (
+                  {porSesion ? (
                     ([1, 2] as const).flatMap(sess =>
                       (['F', 'R'] as const).map(kind => (
                         <MarkCell

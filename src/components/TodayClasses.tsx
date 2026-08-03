@@ -9,11 +9,9 @@ import {
   dayTypeLabel,
   todayIso,
   classesForDayType,
-  courseSessionDates,
-  currentCicloForCourse,
-  sessionInCiclo,
   type DateStatus,
 } from '@/lib/schedule';
+import { buildCycleContext, cycleOf, type CycleContext } from '@/lib/cycles';
 import type {
   DayType, ScheduleBlock, Course, Student, AttendanceMark, YearConfig,
 } from '@/types';
@@ -64,6 +62,7 @@ export function TodayClasses() {
     students,
     marks,
     trimStart: activeTrimStart(today, yearCfg) ?? yearCfg.startDate,
+    cycles: buildCycleContext(seq, schedule, courses, yearCfg),
   };
 
   const todayClasses = statusToClasses(todayStatus, schedule);
@@ -100,12 +99,14 @@ interface CicloCtx {
   students: Student[];
   marks: AttendanceMark[];
   trimStart: string;
+  cycles?: CycleContext;
 }
 
 interface ClassInfo {
   block: ScheduleBlock;
   ciclo: number | null;
-  session: 1 | 2 | null;              // solo 11°
+  /** Null si el ciclo trae una sola clase de ese curso. */
+  session: number | null;
   confirmed: boolean;
   fallas: number;
   retardos: number;
@@ -122,17 +123,14 @@ function classInfo(block: ScheduleBlock, dateIso: string, ctx: CicloCtx): ClassI
   if (!course) {
     return { block, ciclo: null, session: null, confirmed: false, fallas: 0, retardos: 0, activos: 0 };
   }
-  const trimSeq = new Map<string, DateStatus>();
-  for (const [iso, s] of ctx.sequence) {
-    if (iso >= ctx.trimStart) trimSeq.set(iso, s);
-  }
-  const sessionDates = courseSessionDates(block.courseCode, trimSeq, ctx.schedule);
-  const sessionsPerCiclo = course.grade === 11 ? 2 : 1;
-  const ciclo = currentCicloForCourse(dateIso, sessionDates, 9, sessionsPerCiclo);
-  const session = sessionInCiclo(dateIso, sessionDates, sessionsPerCiclo);
-  // Para 11° "confirmed" = existe mark para (ciclo, session). Para 8°-10° = mark(ciclo).
+  // El ciclo sale de la rotación (ver lib/cycles): no se cuenta por curso.
+  const cc = ctx.cycles ? cycleOf(ctx.cycles, block.courseCode, dateIso) : null;
+  const ciclo = cc?.ciclo ?? 0;
+  // La sesión solo distingue cuando el ciclo trae más de una clase del curso:
+  // siempre en 11°, y en los cursos del viernes cuando al ciclo le caen dos.
+  const session = cc && cc.sessionsInCiclo > 1 ? cc.session : null;
   const mark = ctx.marks.find(m =>
-    m.courseId === course.id
+    m.courseCode === course.code
     && m.ciclo === ciclo
     && (session == null ? m.session == null : m.session === session)
   );

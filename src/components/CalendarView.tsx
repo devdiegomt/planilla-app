@@ -14,10 +14,14 @@ import {
   computeDayTypes,
   dayTypeLabel,
   formatIso,
+  parseIso,
   todayIso,
   type DateStatus,
 } from '@/lib/schedule';
 import { holidaysForYear } from '@/lib/holidays-co';
+import {
+  buildCycleMap, cycleBadge, cycleLabel, type CourseCycle,
+} from '@/lib/cycles';
 import { eventDotColor } from './EventsList';
 import type { DayType, CalendarEvent } from '@/types';
 
@@ -26,6 +30,8 @@ const DEFAULT_YEAR = new Date().getFullYear();
 export function CalendarView() {
   const yearCfg = useLiveQuery(() => db.yearConfig.where('year').equals(DEFAULT_YEAR).first());
   const customDays = useLiveQuery(() => db.calendarDays.toArray()) ?? [];
+  const schedule = useLiveQuery(() => db.schedule.toArray()) ?? [];
+  const courses = useLiveQuery(() => db.courses.toArray()) ?? [];
   const events = useLiveQuery(() => db.events.toArray()) ?? [];
   const eventsByDate = useMemo(() => {
     const m = new Map<string, CalendarEvent[]>();
@@ -61,6 +67,13 @@ export function CalendarView() {
     return m;
   }, [visibleMonth.year]);
 
+  // El ciclo se cuenta por curso sobre las sesiones del trimestre, así que se
+  // arma de una pasada para todo el rango en vez de por casilla.
+  const cycleMap = useMemo(
+    () => (yearCfg ? buildCycleMap(sequence, schedule, courses, yearCfg) : new Map()),
+    [sequence, schedule, courses, yearCfg],
+  );
+
   const grid = useMemo(() => buildMonthGrid(visibleMonth.year, visibleMonth.month), [visibleMonth]);
   const monthLabel = new Date(Date.UTC(visibleMonth.year, visibleMonth.month, 1))
     .toLocaleDateString('es-CO', { month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -75,6 +88,8 @@ export function CalendarView() {
         trim2Start={yearCfg?.trim2Start ?? ''}
         trim3Start={yearCfg?.trim3Start ?? ''}
       />
+
+      <NoClassRange />
 
       <div className="flex items-center justify-between">
         <button
@@ -113,6 +128,7 @@ export function CalendarView() {
               customStatus={custom?.status}
               customOverride={custom?.overrideDayType ?? null}
               events={eventsByDate.get(cell.iso) ?? []}
+              cycles={cycleMap.get(cell.iso) ?? []}
             />
           );
         })}
@@ -121,8 +137,97 @@ export function CalendarView() {
   );
 }
 
+/** Días hábiles (lun-vie) dentro de un rango inclusivo. */
+function weekdaysBetween(fromIso: string, toIso: string): string[] {
+  const out: string[] = [];
+  const cursor = parseIso(fromIso);
+  const end = parseIso(toIso);
+  while (cursor <= end) {
+    const wd = cursor.getUTCDay();
+    if (wd !== 0 && wd !== 6) out.push(formatIso(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+}
+
+/**
+ * Marcar (o desmarcar) una semana entera sin clase.
+ *
+ * No es una comodidad: si las vacaciones no están marcadas, `computeDayTypes`
+ * las cuenta como lectivas y toda la numeración de ciclos queda corrida a
+ * partir de ahí. Hacerlo día por día son cinco pop-ups por semana, y eso
+ * termina en que no se marca.
+ */
+function NoClassRange() {
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const rango = desde && hasta && desde <= hasta ? weekdaysBetween(desde, hasta) : [];
+
+  async function aplicar(marcar: boolean) {
+    if (rango.length === 0) return;
+    const verbo = marcar ? 'marcar como sin clase' : 'quitar la marca de';
+    if (!confirm(`Vas a ${verbo} ${rango.length} día(s) hábil(es), del ${desde} al ${hasta}. ¿Seguir?`)) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      for (const iso of rango) {
+        if (marcar) await upsertCalendarDay({ date: iso, status: 'cancelado', overrideDayType: null });
+        else await clearCalendarDay(iso);
+      }
+      setMsg(`✅ ${rango.length} día(s) ${marcar ? 'marcados sin clase' : 'restaurados'}. Los ciclos se recalcularon.`);
+    } catch (e) {
+      setMsg(`❌ ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="border rounded-lg p-3 bg-neutral-50 space-y-2">
+      <div className="text-sm font-medium">Semana sin clase</div>
+      <p className="text-xs text-neutral-600">
+        Vacaciones o jornadas institucionales. Los días marcados no consumen ciclo:
+        si no los marcas, la numeración queda corrida de ahí en adelante.
+      </p>
+      <div className="flex items-end gap-2 flex-wrap">
+        <label className="text-xs">
+          <span className="block text-neutral-500 mb-0.5">Desde</span>
+          <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
+                 className="border rounded px-2 py-1 text-sm" />
+        </label>
+        <label className="text-xs">
+          <span className="block text-neutral-500 mb-0.5">Hasta</span>
+          <input type="date" value={hasta} onChange={e => setHasta(e.target.value)}
+                 className="border rounded px-2 py-1 text-sm" />
+        </label>
+        <button
+          onClick={() => aplicar(true)}
+          disabled={busy || rango.length === 0}
+          className="px-3 py-1.5 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
+        >
+          Marcar {rango.length > 0 ? `${rango.length} día${rango.length === 1 ? '' : 's'}` : ''}
+        </button>
+        <button
+          onClick={() => aplicar(false)}
+          disabled={busy || rango.length === 0}
+          className="px-3 py-1.5 rounded-md border text-sm hover:bg-white disabled:opacity-40"
+        >
+          Quitar marca
+        </button>
+      </div>
+      {desde && hasta && desde > hasta && (
+        <p className="text-xs text-red-700">La fecha inicial es posterior a la final.</p>
+      )}
+      {msg && <p className="text-xs text-neutral-700">{msg}</p>}
+    </div>
+  );
+}
+
 function DayCell({
-  iso, day, status, holidayName, isToday, customStatus, customOverride, events,
+  iso, day, status, holidayName, isToday, customStatus, customOverride, events, cycles,
 }: {
   iso: string;
   day: number;
@@ -132,8 +237,10 @@ function DayCell({
   customStatus?: 'lectivo' | 'festivo' | 'cancelado';
   customOverride: DayType | null;
   events: CalendarEvent[];
+  cycles: CourseCycle[];
 }) {
   const [open, setOpen] = useState(false);
+  const badge = cycleBadge(cycles);
 
   const bg =
     status === 'weekend' ? 'bg-neutral-50 text-neutral-400' :
@@ -172,6 +279,19 @@ function DayCell({
         <div className="text-[10px] mt-0.5">
           {status && status !== 'weekend' ? dayTypeLabel(status) : ''}
         </div>
+        {badge && (
+          <div
+            className="text-[10px] leading-tight mt-0.5"
+            title={cycles.map(c => `${c.courseCode} · ${cycleLabel(c)}`).join('\n')}
+          >
+            <span className="font-semibold text-neutral-900 bg-white/70 rounded px-1">
+              {badge}
+            </span>
+            {cycles.some(c => c.sessionsInCiclo > 1 && c.session > 1) && (
+              <span className="ml-1 text-neutral-600" title="Segunda clase de este ciclo">2ª</span>
+            )}
+          </div>
+        )}
         {holidayName && (
           <div className="text-[9px] truncate mt-0.5" title={holidayName}>
             {holidayName}
@@ -193,6 +313,23 @@ function DayCell({
       {open && (
         <div className="absolute z-20 top-full left-0 mt-1 bg-white border rounded-md shadow-lg p-2 text-xs w-40 space-y-1">
           <div className="font-medium text-neutral-700 pb-1 border-b mb-1">{iso}</div>
+
+          {cycles.length > 0 && (
+            <div className="pb-1 mb-1 border-b">
+              <div className="text-[10px] text-neutral-500 px-2 pb-0.5">Ciclo por curso:</div>
+              <div className="max-h-28 overflow-auto">
+                {cycles.map(c => (
+                  <div key={c.courseCode} className="flex justify-between px-2 py-0.5 text-[10px]">
+                    <span>{c.courseCode}</span>
+                    <span className="tabular-nums font-medium text-neutral-800">
+                      {cycleLabel(c)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <button onClick={() => setStatus('cancelado')} className="w-full text-left px-2 py-1 hover:bg-neutral-100 rounded">
             Marcar cancelado
           </button>
