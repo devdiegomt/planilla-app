@@ -5,7 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { downloadBlob } from '@/lib/utils';
 import {
-  buildAttendanceExport, AttendanceExportError,
+  buildAttendanceExport, toFechaDDMMYYYY, AttendanceExportError,
   type AttendanceExportResult,
 } from '@/lib/attendanceExport';
 import type { Course, Student } from '@/types';
@@ -21,10 +21,10 @@ interface Props {
 /**
  * Descarga el JSON de asistencia del ciclo para `asistencia-autofill`.
  *
- * El resumen previo (fecha, bloque, marcas) importa: el autofill tiene dry-run,
- * pero si el archivo trae la fecha equivocada el dry-run la mostrará igual de
- * convincente. Ver la fecha resuelta antes de descargar es la única defensa
- * contra un trimestre mal configurado.
+ * El archivo no lleva fecha: el autofill usa la de la plataforma, que es hoy.
+ * Por eso el resumen previo avisa cuando la sesión del ciclo **no** es hoy —
+ * ahí el archivo registraría la asistencia en el día equivocado y hay que
+ * ajustar la fecha a mano en Classroom Live antes de correrlo.
  */
 export function ExportAttendance({ course, students, ciclo, session }: Props) {
   const [result, setResult] = useState<AttendanceExportResult | null>(null);
@@ -76,11 +76,22 @@ export function ExportAttendance({ course, students, ciclo, session }: Props) {
 
       {result && (
         <span className="text-[10px] text-neutral-600 text-right leading-tight">
-          {result.payload.fecha} · {result.dayType} · bloque {result.payload.hora}
+          {result.dayType} · bloque {result.payload.hora}
           {' · '}
           <span className={result.payload.marcas.length ? 'font-medium' : ''}>
             {result.payload.marcas.length} marca{result.payload.marcas.length === 1 ? '' : 's'}
           </span>
+          {result.isToday ? (
+            <span className="block text-neutral-500">
+              Sesión de hoy ({toFechaDDMMYYYY(result.fechaIso)})
+            </span>
+          ) : (
+            <span className="block text-red-700 font-medium max-w-[260px]">
+              ⚠ Esta sesión fue el {toFechaDDMMYYYY(result.fechaIso)}, no hoy.
+              El archivo no lleva fecha, así que el autofill la registraría hoy.
+              Ajusta la fecha en Classroom Live antes de correrlo.
+            </span>
+          )}
           {result.sinCodAlum.length > 0 && (
             <span className="block text-amber-700">
               ⚠ {result.sinCodAlum.length} sin COD_ALUM: {result.sinCodAlum.slice(0, 2).join(', ')}

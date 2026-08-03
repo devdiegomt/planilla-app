@@ -251,12 +251,15 @@ La importación es **idempotente**: reimportar el mismo JSON no reescribe ningun
 
 | autofill | origen en la app |
 |---|---|
-| `fecha` (DD/MM/AAAA) | `courseSessionDates()` resuelve ciclo → fecha |
 | `hora` | `ScheduleBlock.block` del curso ese día |
 | `curso` | `Course.code` |
 | `asignatura` | `GRADE_META[grade].materia` en mayúsculas |
 | `marcas[].cod_alum` | `Student.codAlum` |
 | `marcas[].tipo` | `autofillTipo()` sobre `F`/`Fj` |
+
+> **El payload no lleva `fecha`, a propósito.** El campo es opcional en el autofill y omitirlo es lo seguro: la plataforma ya trae la de hoy. Una fecha arrastrada en el JSON dejaría la asistencia en otro día sin que nada lo delate.
+>
+> A cambio, **el archivo solo sirve el mismo día de la clase**. Por eso la app sigue resolviendo la fecha de la sesión, ya no como dato sino como comprobación: si el ciclo que exportas no cae hoy, el botón avisa en rojo con la fecha real y te dice que ajustes la fecha en Classroom Live antes de correr el autofill.
 
 Reglas que no son obvias:
 

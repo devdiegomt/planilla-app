@@ -11,7 +11,7 @@
  */
 
 import {
-  computeDayTypes, formatIso, parseIso,
+  computeDayTypes, formatIso, parseIso, todayIso,
   courseSessionDates, classesForDayType,
 } from './schedule';
 import { autofillTipo, cycleMarkState, sessionMarkState, type AutofillTipo } from './attendance';
@@ -26,9 +26,20 @@ export interface AutofillMarca {
   tipo: AutofillTipo;
 }
 
-/** El archivo completo, tal como lo espera el userscript. */
+/**
+ * El archivo completo, tal como lo espera el userscript.
+ *
+ * **Sin `fecha` a propósito.** El campo es opcional en `asistencia-autofill` y
+ * omitirlo es lo seguro: la plataforma ya trae la fecha de hoy, que es la
+ * correcta cuando registrás la clase del día. Una fecha arrastrada en el JSON
+ * dejaría la asistencia en otro día sin que nada lo delate.
+ *
+ * A cambio, el archivo solo sirve **el mismo día de la clase**. Por eso la app
+ * sigue resolviendo la fecha de la sesión: ya no como dato del payload, sino
+ * como comprobación de que el ciclo que estás exportando es el de hoy
+ * (`AttendanceExportResult.isToday`).
+ */
 export interface AutofillPayload {
-  fecha: string;                      // 'DD/MM/AAAA'
   hora: number;                       // bloque dentro del día
   curso: string;                      // '801'
   asignatura: string;                 // en mayúsculas
@@ -50,8 +61,13 @@ export interface AttendanceExportResult {
   filename: string;
   /** Activos con marca pero sin COD_ALUM: no se pueden reportar. */
   sinCodAlum: string[];
-  /** Fecha en ISO, para mostrarla legible en la UI. */
+  /** Fecha real de la sesión. No viaja en el payload; sirve para verificar. */
   fechaIso: string;
+  /**
+   * `false` si la sesión de este ciclo no es hoy. El autofill usaría la fecha
+   * de la plataforma (hoy) y la asistencia quedaría en el día equivocado.
+   */
+  isToday: boolean;
   dayType: DayType;
 }
 
@@ -173,7 +189,6 @@ export function buildAttendanceExport(
 
   const materia = GRADE_META[course.grade]?.materia ?? '';
   const payload: AutofillPayload = {
-    fecha: toFechaDDMMYYYY(fechaIso),
     hora,
     curso: course.code,
     asignatura: materia.toUpperCase(),
@@ -186,6 +201,7 @@ export function buildAttendanceExport(
     filename: `asistencia-${course.code}-C${ciclo}${sufijo}-${fechaIso}.json`,
     sinCodAlum,
     fechaIso,
+    isToday: fechaIso === todayIso(),
     dayType,
   };
 }
