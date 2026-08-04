@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
@@ -241,6 +241,27 @@ function DayCell({
 }) {
   const [open, setOpen] = useState(false);
   const badge = cycleBadge(cycles);
+  const popRef = useRef<HTMLDivElement | null>(null);
+
+  /*
+   * El panel se abre encima del calendario y no tenía forma de cerrarse: había
+   * que elegir una opción —cancelado, festivo, forzar día— aunque solo se
+   * quisiera consultar el ciclo. Se cierra por la X, haciendo clic afuera o con
+   * Esc; el clic afuera es el que más se usa sin pensarlo.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (popRef.current && !popRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   const bg =
     status === 'weekend' ? 'bg-neutral-50 text-neutral-400' :
@@ -269,7 +290,9 @@ function DayCell({
   };
 
   return (
-    <div className="relative">
+    /* El ref va en el contenedor, no en el panel: si el botón del día quedara
+       "fuera", su mousedown cerraría y el click siguiente lo volvería a abrir. */
+    <div className="relative" ref={popRef}>
       <button
         onClick={() => setOpen(o => !o)}
         className={`w-full aspect-square rounded-md text-left p-1.5 border border-transparent hover:border-neutral-300 ${bg} ${ring}`}
@@ -312,7 +335,19 @@ function DayCell({
 
       {open && (
         <div className="absolute z-20 top-full left-0 mt-1 bg-white border rounded-md shadow-lg p-2 text-xs w-40 space-y-1">
-          <div className="font-medium text-neutral-700 pb-1 border-b mb-1">{iso}</div>
+          <div className="font-medium text-neutral-700 pb-1 border-b mb-1 flex items-center justify-between gap-2">
+            <span>{iso}</span>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Cerrar"
+              title="Cerrar (Esc)"
+              className="shrink-0 w-5 h-5 flex items-center justify-center rounded
+                         text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100"
+            >
+              ✕
+            </button>
+          </div>
 
           {cycles.length > 0 && (
             <div className="pb-1 mb-1 border-b">

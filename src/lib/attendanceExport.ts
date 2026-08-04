@@ -79,6 +79,74 @@ export interface AttendanceExportResult {
 /** Error de negocio: se muestra al usuario, no es un bug. */
 export class AttendanceExportError extends Error {}
 
+export interface DayExportInput {
+  dateIso: string;
+  courses: Course[];
+  /** Todos los estudiantes; se reparten por `courseCode`. */
+  students: Student[];
+  schedule: ScheduleBlock[];
+  calendarDays: CalendarDay[];
+  yearConfig: YearConfig;
+}
+
+export interface DayExportItem {
+  courseCode: string;
+  ciclo: number;
+  /** Null cuando el ciclo trae una sola clase de ese curso. */
+  session: number | null;
+  result?: AttendanceExportResult;
+  /** Motivo por el que ese curso no se pudo exportar. */
+  error?: string;
+}
+
+/**
+ * Arma la asistencia de TODAS las clases de un día, una por curso.
+ *
+ * Existe porque el autofill procesa un curso y una hora por corrida: bajar los
+ * archivos uno por uno obliga a entrar a la página de cada curso y elegir el
+ * ciclo a mano, con el riesgo de equivocarse justo en los ciclos que traen dos
+ * clases. Aquí el ciclo y la sesión salen de la fecha, no de la memoria.
+ *
+ * Un curso que falle no tumba a los demás: se reporta su motivo y los otros se
+ * generan igual.
+ */
+export function buildDayAttendanceExports(input: DayExportInput): DayExportItem[] {
+  const { dateIso, courses, students, schedule, calendarDays, yearConfig } = input;
+
+  const seq = computeDayTypes(
+    yearConfig.startDate, yearConfig.initialDayType,
+    `${yearConfig.year}-12-31`, calendarDays, true,
+  );
+  const ctx = buildCycleContext(seq, schedule, courses, yearConfig);
+
+  const delDia = ctx.byDate.get(dateIso) ?? [];
+  const out: DayExportItem[] = [];
+
+  for (const cc of delDia) {
+    const course = courses.find(c => c.code === cc.courseCode);
+    if (!course) continue;
+    // Solo se manda la sesión cuando el ciclo tiene más de una clase del curso;
+    // si no, `buildAttendanceExport` la rechazaría por inexistente.
+    const session = cc.sessionsInCiclo > 1 ? (cc.session as 1 | 2) : undefined;
+    const base = { courseCode: cc.courseCode, ciclo: cc.ciclo, session: session ?? null };
+    try {
+      out.push({
+        ...base,
+        result: buildAttendanceExport({
+          course,
+          students: students.filter(s => s.courseCode === course.code),
+          schedule, calendarDays, yearConfig,
+          ciclo: cc.ciclo, session,
+        }),
+      });
+    } catch (e) {
+      out.push({ ...base, error: (e as Error).message });
+    }
+  }
+
+  return out.sort((a, b) => a.courseCode.localeCompare(b.courseCode));
+}
+
 /** 'YYYY-MM-DD' → 'DD/MM/AAAA', el formato que espera la plataforma. */
 export function toFechaDDMMYYYY(iso: string): string {
   const [y, m, d] = iso.split('-');

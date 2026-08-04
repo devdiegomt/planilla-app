@@ -3,6 +3,7 @@ import { ImportPlanilla } from '@/components/ImportPlanilla';
 import { ImportCodAlum } from '@/components/ImportCodAlum';
 import { TodayClasses } from '@/components/TodayClasses';
 import { ExportEfas } from '@/components/ExportEfas';
+import { ExportDayAttendance } from '@/components/ExportDayAttendance';
 import { BackupRestore } from '@/components/BackupRestore';
 import { RepairPanel } from '@/components/RepairPanel';
 import { PwaInstall } from '@/components/PwaInstall';
@@ -35,9 +36,15 @@ export default function Home() {
         <GlobalDashboard />
       </section>
 
-      <section className="border rounded-lg p-4 bg-neutral-50">
-        <h2 className="font-medium mb-3">Reportes</h2>
-        <ExportEfas />
+      <section className="border rounded-lg p-4 bg-neutral-50 space-y-5">
+        <div>
+          <h2 className="font-medium mb-3">Asistencia para Classroom Live</h2>
+          <ExportDayAttendance />
+        </div>
+        <div className="border-t pt-4">
+          <h2 className="font-medium mb-3">Reportes</h2>
+          <ExportEfas />
+        </div>
       </section>
 
       <section className="border rounded-lg p-4 bg-neutral-50 space-y-5">
