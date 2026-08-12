@@ -39,6 +39,13 @@ export function PlanillaGrid({ course }: Props) {
       .map(a => [a.column, a.title]),
   );
 
+  // Cuántas casillas siguen en 0. Es el número que responde "¿qué me falta?"
+  // sin tener que barrer la grilla con la vista.
+  const pendientes = activos.reduce(
+    (n, s) => n + columns.filter(col => (s.subnotas[col.slotKeys[0]] ?? 0) === 0).length,
+    0,
+  );
+
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full text-sm">
@@ -117,16 +124,31 @@ export function PlanillaGrid({ course }: Props) {
           })}
         </tbody>
       </table>
-      <p className="mt-2 text-xs text-neutral-500">
-        {columns.length} columnas ({slots.length} slots internos) · {activos.length} activos ·
-        Definitiva con algoritmo de la plataforma (ignore-zeros).
-        <span className="ml-2 text-amber-800">
-          ★ C7 (EV) es toda la categoría E — un cambio ahí mueve la DEF ~4 pts.
-        </span>
-        <span className="ml-2 text-neutral-500">
-          · Click en 📝 para observación · fondo rojo = nota &lt; {NOTA_APROBACION}
-        </span>
-      </p>
+      <div className="mt-2 space-y-1 text-xs text-neutral-500">
+        <p className="flex items-center gap-3 flex-wrap">
+          <span className={pendientes > 0 ? 'text-amber-700 font-medium' : 'text-green-700 font-medium'}>
+            {pendientes > 0
+              ? `${pendientes} nota${pendientes === 1 ? '' : 's'} sin calificar`
+              : '✓ Planilla completa'}
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-6 h-4 rounded border border-dashed border-amber-400 bg-amber-100" />
+            sin calificar
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-6 h-4 rounded border border-red-400 bg-red-100" />
+            &lt; {NOTA_APROBACION}
+          </span>
+          <span>Click en 📝 para observación</span>
+        </p>
+        <p>
+          {columns.length} columnas ({slots.length} slots internos) · {activos.length} activos ·
+          Definitiva con algoritmo de la plataforma (ignore-zeros).
+          <span className="ml-2 text-amber-800">
+            ★ C7 (EV) es toda la categoría E — un cambio ahí mueve la DEF ~4 pts.
+          </span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -180,12 +202,26 @@ function NoteCell({
     setOpen(false);
   };
 
-  // Fondo rojo del input si la nota reprueba (0 se considera "sin calificar")
   const isFailing = value > 0 && value < NOTA_APROBACION;
+  // En el algoritmo de la plataforma (ignore-zeros) un 0 no cuenta: significa
+  // "sin calificar", no "sacó cero". Por eso se marca como pendiente, no como
+  // reprobado.
+  const isPending = value === 0;
 
   const cellBg = isEv ? 'bg-amber-50 border-x-2 border-amber-400' : '';
+  /*
+   * `amber-100` y no `amber-50`: la celda de la columna EV ya viene en
+   * `amber-50`, así que ese tono dejaba el input sin contraste de relleno justo
+   * en la columna que más pesa. Con amber-100 se separa tanto del blanco de las
+   * columnas normales como del ámbar de la EV.
+   *
+   * El borde punteado refuerza la lectura de "casilla vacía" y sobrevive
+   * aunque el fondo cambie.
+   */
   const inputColor = isFailing
     ? 'bg-red-100 border-red-400 text-red-900 font-semibold'
+    : isPending
+    ? 'bg-amber-100 border-amber-400 border-dashed text-amber-700'
     : isEv
     ? 'border-amber-500 font-semibold'
     : '';
