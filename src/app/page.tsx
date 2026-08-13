@@ -5,6 +5,7 @@ import { TodayClasses } from '@/components/TodayClasses';
 import { ExportEfas } from '@/components/ExportEfas';
 import { ExportDayAttendance } from '@/components/ExportDayAttendance';
 import { BackupRestore } from '@/components/BackupRestore';
+import { CloseTrimester } from '@/components/CloseTrimester';
 import { RepairPanel } from '@/components/RepairPanel';
 import { PwaInstall } from '@/components/PwaInstall';
 import { PushSetup } from '@/components/PushSetup';
@@ -60,6 +61,11 @@ export default function Home() {
       <section className="border rounded-lg p-4 bg-neutral-50">
         <h2 className="font-medium mb-3">Backup local</h2>
         <BackupRestore />
+      </section>
+
+      <section className="border rounded-lg p-4 bg-neutral-50">
+        <h2 className="font-medium mb-3">Cierre de trimestre</h2>
+        <CloseTrimester />
       </section>
 
       <section className="border rounded-lg p-4 bg-neutral-50">

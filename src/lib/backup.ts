@@ -11,6 +11,9 @@ const TABLES = [
   'courses', 'students', 'todos', 'events',
   'schedule', 'calendarDays', 'yearConfig', 'attendanceMarks',
   'changeLog',
+  // El histórico de trimestres cerrados es lo único que queda de las notas de
+  // un trimestre anterior: dejarlo fuera del respaldo lo volvería irrecuperable.
+  'trimesterSnapshots',
 ] as const;
 
 export interface Backup {

@@ -29,6 +29,7 @@ export const SYNCABLE_TABLES = [
   'courses',
   'students', 'todos', 'events', 'schedule',
   'calendarDays', 'yearConfig', 'attendanceMarks', 'changeLog',
+  'trimesterSnapshots',
 ] as const;
 
 export type SyncableTable = typeof SYNCABLE_TABLES[number];

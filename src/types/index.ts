@@ -203,6 +203,36 @@ export interface ChangeLog {
   updatedAt?: string;
 }
 
+/**
+ * Foto de un estudiante al cerrar un trimestre.
+ *
+ * El modelo vivo solo tiene un trimestre a la vez: `subnotas` es un mapa plano
+ * de slots y `cycles` son nueve ciclos sin más. Al cerrar se archiva aquí y la
+ * planilla queda en blanco para el siguiente.
+ *
+ * La referencia al estudiante es `studentSyncId` y no el id local de Dexie,
+ * que no significa nada fuera de la base que lo generó. El nombre y el código
+ * van denormalizados para poder leer el histórico aunque el estudiante ya no
+ * esté matriculado.
+ */
+export interface TrimesterSnapshot {
+  id?: number;
+  studentSyncId: string;
+  courseCode: string;
+  year: number;
+  trimestre: number;
+  nombre: string;
+  codAlum: string;
+  subnotas: Record<string, number>;
+  cycles: CycleData[];
+  noteObservations?: Record<string, string>;
+  /** Definitiva calculada al cerrar, para no depender de la fórmula futura. */
+  definitiva: number;
+  closedAt: string;                   // ISO datetime
+  syncId?: string;
+  updatedAt?: string;
+}
+
 /** Resultado del cálculo de definitiva por estudiante. */
 export interface DefResult {
   K: number;

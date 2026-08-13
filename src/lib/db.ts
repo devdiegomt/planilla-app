@@ -2,8 +2,10 @@ import Dexie, { Table } from 'dexie';
 import type {
   Course, Student, Todo, CalendarEvent,
   ScheduleBlock, CalendarDay, YearConfig,
-  AttendanceMark, ChangeLog,
+  AttendanceMark, ChangeLog, TrimesterSnapshot,
 } from '@/types';
+import { calcDef } from './formula';
+import { slotsFor } from './constants';
 import { courseSyncId, studentSyncId } from './syncId';
 import { normalizeName, findFuzzyMatch } from './utils';
 import type { ParsedCodAlum } from './codalum';
@@ -46,6 +48,7 @@ class PlanillaDB extends Dexie {
   yearConfig!: Table<YearConfig, number>;
   attendanceMarks!: Table<AttendanceMark, number>;
   changeLog!: Table<ChangeLog, number>;
+  trimesterSnapshots!: Table<TrimesterSnapshot, number>;
   syncTombstones!: Table<SyncTombstone, number>;
 
   constructor() {
@@ -270,6 +273,30 @@ class PlanillaDB extends Dexie {
       gradingResults: '++id, rubricId, at, courseCode, studentName, &syncId, updatedAt',
       syncTombstones: '++id, tableName, syncId, deletedAt, [tableName+syncId]',
     });
+
+    // v11: histórico de trimestres cerrados.
+    //
+    // La planilla viva solo cabe un trimestre, así que cerrar uno implicaba
+    // perder sus notas. Aquí se archivan antes de dejar la grilla en blanco.
+    // El índice compuesto permite leer "todo lo del curso X en el trimestre N"
+    // sin recorrer la tabla.
+    this.version(11).stores({
+      courses: '++id, code, grade, year, trimestre, &[year+code], &syncId, updatedAt',
+      students: '++id, courseId, courseCode, codAlum, nombre, order, &syncId, updatedAt',
+      todos: '++id, status, priority, dueDate, courseCode, &syncId, updatedAt',
+      events: '++id, date, courseCode, kind, &syncId, updatedAt',
+      schedule: '++id, dayType, block, courseCode, [dayType+block], &syncId, updatedAt',
+      calendarDays: '++id, &date, status, &syncId, updatedAt',
+      yearConfig: '++id, &year, &syncId, updatedAt',
+      attendanceMarks: '++id, courseId, courseCode, ciclo, [courseId+ciclo], &syncId, updatedAt',
+      changeLog: '++id, courseId, courseCode, studentId, studentSyncId, at, kind, ciclo, &syncId, updatedAt',
+      rubrics: '++id, name, courseCode, createdAt, &syncId, updatedAt',
+      gradingResults: '++id, rubricId, at, courseCode, studentName, &syncId, updatedAt',
+      syncTombstones: '++id, tableName, syncId, deletedAt, [tableName+syncId]',
+      trimesterSnapshots:
+        '++id, studentSyncId, courseCode, year, trimestre, [year+trimestre], '
+        + '[courseCode+trimestre], &syncId, updatedAt',
+    });
   }
 }
 
@@ -285,6 +312,7 @@ if (typeof window !== 'undefined') {
   const SYNCABLE = [
     'courses', 'students', 'todos', 'events', 'schedule',
     'calendarDays', 'yearConfig', 'attendanceMarks', 'changeLog',
+    'trimesterSnapshots',
   ];
   for (const name of SYNCABLE) {
     const table = db.table(name);
@@ -720,6 +748,150 @@ export async function updateSessionAttendance(
       summary: `Ciclo ${ciclo} · S${session} · ${markDescription(field, state)}`,
     });
   });
+}
+
+// ---- Cierre de trimestre ----
+
+export const ULTIMO_TRIMESTRE = 3;
+
+export interface ClosePreview {
+  trimestre: number;
+  cursos: { code: string; activos: number; conNotas: number }[];
+  totalActivos: number;
+  /** Estudiantes con al menos una nota o marca de asistencia. */
+  totalConDatos: number;
+  /** Cursos que no están en el trimestre mayoritario. */
+  trimestresMezclados: number[];
+}
+
+/** ¿Tiene este estudiante algo que valga la pena archivar? */
+function tieneDatos(s: Student): boolean {
+  if (Object.values(s.subnotas ?? {}).some(v => v > 0)) return true;
+  if (Object.keys(s.noteObservations ?? {}).length > 0) return true;
+  return (s.cycles ?? []).some(c => c.F || c.R || c.nota > 0);
+}
+
+/**
+ * Qué pasaría al cerrar, sin tocar nada. La UI lo muestra antes de confirmar:
+ * el cierre deja la planilla en blanco y conviene ver el alcance primero.
+ */
+export async function previewCloseTrimester(): Promise<ClosePreview> {
+  const courses = await db.courses.toArray();
+  const trimestres = courses.map(c => c.trimestre);
+  const trimestre = trimestres.length
+    ? trimestres.sort((a, b) =>
+        trimestres.filter(t => t === b).length - trimestres.filter(t => t === a).length)[0]
+    : 1;
+
+  const filas: ClosePreview['cursos'] = [];
+  let totalActivos = 0, totalConDatos = 0;
+  for (const c of courses) {
+    const activos = (await db.students.where('courseId').equals(c.id!).toArray())
+      .filter(s => !s.withdrawnAt);
+    const conNotas = activos.filter(tieneDatos).length;
+    filas.push({ code: c.code, activos: activos.length, conNotas });
+    totalActivos += activos.length;
+    totalConDatos += conNotas;
+  }
+  filas.sort((a, b) => a.code.localeCompare(b.code));
+
+  return {
+    trimestre,
+    cursos: filas,
+    totalActivos,
+    totalConDatos,
+    trimestresMezclados: [...new Set(trimestres)].filter(t => t !== trimestre).sort(),
+  };
+}
+
+export interface CloseReport {
+  trimestreCerrado: number;
+  trimestreNuevo: number;
+  cursosActualizados: number;
+  estudiantesArchivados: number;
+  marcasBorradas: number;
+}
+
+/**
+ * Cierra el trimestre en curso: archiva la planilla de cada estudiante y la
+ * deja en blanco para el siguiente.
+ *
+ * Se archiva ANTES de limpiar y todo va en una sola transacción: si algo falla
+ * a mitad, no queda un estado donde las notas ya se borraron pero el archivo no
+ * se escribió.
+ *
+ * También se borran las marcas de asistencia del curso. Si no, el ciclo 1 del
+ * trimestre nuevo aparecería como ya confirmado, heredado del anterior.
+ *
+ * NO se toca: estudiantes, códigos, horario, calendario ni el changeLog — ese
+ * es el rastro de auditoría y lleva fecha, así que sigue siendo legible.
+ */
+export async function closeTrimester(): Promise<CloseReport> {
+  const preview = await previewCloseTrimester();
+  const desde = preview.trimestre;
+  if (desde >= ULTIMO_TRIMESTRE) {
+    throw new Error(
+      `El trimestre ${desde} es el último del año. Para arrancar un año nuevo, ` +
+      'importa la planilla del año siguiente en vez de cerrar trimestre.',
+    );
+  }
+  const hasta = desde + 1;
+  const closedAt = new Date().toISOString();
+
+  const report: CloseReport = {
+    trimestreCerrado: desde, trimestreNuevo: hasta,
+    cursosActualizados: 0, estudiantesArchivados: 0, marcasBorradas: 0,
+  };
+
+  await db.transaction(
+    'rw',
+    db.courses, db.students, db.trimesterSnapshots, db.attendanceMarks, db.syncTombstones,
+    async () => {
+      for (const course of await db.courses.toArray()) {
+        const slots = slotsFor(course.grade);
+        const alumnos = await db.students.where('courseId').equals(course.id!).toArray();
+
+        for (const s of alumnos) {
+          if (s.withdrawnAt || !tieneDatos(s)) continue;
+          await db.trimesterSnapshots.add({
+            studentSyncId: s.syncId ?? '',
+            courseCode: course.code,
+            year: course.year,
+            trimestre: course.trimestre,
+            nombre: s.nombre,
+            codAlum: s.codAlum,
+            subnotas: { ...s.subnotas },
+            cycles: structuredClone(s.cycles),
+            noteObservations: { ...(s.noteObservations ?? {}) },
+            definitiva: calcDef(s.subnotas, slots, 'platform').definitiva,
+            closedAt,
+          });
+          report.estudiantesArchivados++;
+        }
+
+        // Limpiar la planilla de TODOS los del curso, retirados incluidos: si
+        // vuelve alguno, no debe heredar las notas del trimestre anterior.
+        for (const s of alumnos) {
+          await db.students.update(s.id!, {
+            subnotas: Object.fromEntries(slots.map(sl => [sl.key, 0])),
+            cycles: (s.cycles ?? []).map(c => ({
+              ciclo: c.ciclo, F: false, R: false, nota: 0, obs: null,
+            })),
+            noteObservations: {},
+          });
+        }
+
+        const marcas = await db.attendanceMarks.where('courseId').equals(course.id!).toArray();
+        await db.attendanceMarks.bulkDelete(marcas.map(m => m.id!));
+        report.marcasBorradas += marcas.length;
+
+        await db.courses.update(course.id!, { trimestre: hasta });
+        report.cursosActualizados++;
+      }
+    },
+  );
+
+  return report;
 }
 
 // ---- Diagnóstico y reparación ----
