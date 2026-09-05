@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
@@ -8,6 +8,7 @@ import {
   updateSessionAttendance,
   confirmAttendance,
   unconfirmAttendance,
+  updateAttendanceObservation,
 } from '@/lib/db';
 import {
   cycleMarkState, sessionMarkState, nextMarkState,
@@ -177,6 +178,9 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
                   <th className="p-2 text-center w-16">R</th>
                 </>
               )}
+              <th className="p-2 text-center w-10" title="Razón de la falla o el retardo">
+                Razón
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -209,6 +213,16 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
                       />
                     ))
                   )}
+                  <ReasonCell
+                    student={s.nombre}
+                    ciclo={ciclo}
+                    porSesion={porSesion}
+                    obsCiclo={c?.obs ?? ''}
+                    obsS1={c?.S1?.obs ?? ''}
+                    obsS2={c?.S2?.obs ?? ''}
+                    onSave={(sess, texto) =>
+                      updateAttendanceObservation(s.id!, ciclo, sess, texto)}
+                  />
                 </tr>
               );
             })}
@@ -236,6 +250,128 @@ function LegendChip({ cls, label, text }: { cls: string; label: string; text: st
       </span>
       {text}
     </span>
+  );
+}
+
+/**
+ * Razón de la falla o el retardo, en un popover.
+ *
+ * Sirve tanto para dejar el motivo ("cita médica", "se fue a enfermería") como
+ * para anotar en vivo lo que todavía no se resuelve ("aún no llega"). Cuando el
+ * ciclo trae dos clases se piden por separado: son días distintos.
+ */
+function ReasonCell({
+  student, ciclo, porSesion, obsCiclo, obsS1, obsS2, onSave,
+}: {
+  student: string;
+  ciclo: number;
+  porSesion: boolean;
+  obsCiclo: string;
+  obsS1: string;
+  obsS2: string;
+  onSave: (session: 1 | 2 | null, texto: string) => void | Promise<unknown>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [d0, setD0] = useState(obsCiclo);
+  const [d1, setD1] = useState(obsS1);
+  const [d2, setD2] = useState(obsS2);
+  const ref = useRef<HTMLTableCellElement | null>(null);
+
+  const hay = porSesion ? !!(obsS1 || obsS2) : !!obsCiclo;
+  const resumen = porSesion
+    ? [obsS1 && `S1: ${obsS1}`, obsS2 && `S2: ${obsS2}`].filter(Boolean).join('\n')
+    : obsCiclo;
+
+  // Sincronizar los borradores cuando cambia el dato externo (sync, otro ciclo).
+  useEffect(() => {
+    if (!open) { setD0(obsCiclo); setD1(obsS1); setD2(obsS2); }
+  }, [open, obsCiclo, obsS1, obsS2]);
+
+  /*
+   * Las dos sesiones se guardan EN SERIE, no en paralelo. Cada escritura hace
+   * un lee-muta-escribe sobre la misma fila del estudiante: dispararlas juntas
+   * hacía que la segunda leyera antes de que la primera hubiera guardado, y la
+   * razón de S1 se perdía en silencio.
+   */
+  const guardarYCerrar = async () => {
+    setOpen(false);
+    if (porSesion) {
+      if (d1 !== obsS1) await onSave(1, d1);
+      if (d2 !== obsS2) await onSave(2, d2);
+    } else if (d0 !== obsCiclo) {
+      await onSave(null, d0);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const fuera = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) guardarYCerrar();
+    };
+    document.addEventListener('mousedown', fuera);
+    return () => document.removeEventListener('mousedown', fuera);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, d0, d1, d2]);
+
+  const campo = (label: string, val: string, set: (v: string) => void) => (
+    <label className="block">
+      {porSesion && <span className="text-[10px] text-neutral-500">{label}</span>}
+      <textarea
+        value={val}
+        onChange={e => set(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Escape') { setD0(obsCiclo); setD1(obsS1); setD2(obsS2); setOpen(false); }
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) guardarYCerrar();
+        }}
+        rows={2}
+        placeholder="Aún no llega, cita médica, se fue a enfermería…"
+        className="w-full text-xs border rounded p-1.5 resize-y min-h-[44px]"
+      />
+    </label>
+  );
+
+  return (
+    <td className="p-1 text-center relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-label={`Razón · ${student}`}
+        title={hay ? resumen : 'Anotar razón'}
+        className={`text-[11px] leading-none px-1 py-1 rounded hover:bg-neutral-100 ${
+          hay ? 'text-blue-700' : 'text-neutral-300'
+        }`}
+      >
+        {hay ? '💬' : '＋'}
+      </button>
+
+      {open && (
+        <div className="absolute z-30 top-full right-0 mt-1 w-60 bg-white border border-neutral-300
+                        rounded-md shadow-lg p-2 text-left space-y-1.5">
+          <div className="text-[10px] text-neutral-500 flex justify-between">
+            <span className="truncate max-w-[150px]" title={student}>{student}</span>
+            <span className="font-medium text-neutral-800">Ciclo {ciclo}</span>
+          </div>
+          {porSesion ? (
+            <>
+              {campo('Sesión 1', d1, setD1)}
+              {campo('Sesión 2', d2, setD2)}
+            </>
+          ) : (
+            campo('', d0, setD0)
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-neutral-400">Ctrl+Enter guarda</span>
+            <button
+              type="button"
+              onClick={guardarYCerrar}
+              className="text-[11px] px-2 py-0.5 rounded bg-neutral-900 text-white"
+            >
+              Guardar
+            </button>
+          </div>
+        </div>
+      )}
+    </td>
   );
 }
 

@@ -78,11 +78,22 @@ function HomeIcon() {
   );
 }
 
+function MailIcon() {
+  return (
+    <svg className={ICON} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  );
+}
+
 const LINKS = [
   { href: '/horario',    label: 'Horario',    Icon: ClockIcon },
   { href: '/calendario', label: 'Calendario', Icon: CalendarIcon },
   { href: '/pendientes', label: 'Pendientes', Icon: ChecklistIcon },
   { href: '/classroom',  label: 'Classroom',  Icon: CapIcon },
+  { href: '/correos',    label: 'Correos',    Icon: MailIcon },
 ];
 
 export function MainNav() {

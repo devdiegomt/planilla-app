@@ -14,6 +14,9 @@ const TABLES = [
   // El histórico de trimestres cerrados es lo único que queda de las notas de
   // un trimestre anterior: dejarlo fuera del respaldo lo volvería irrecuperable.
   'trimesterSnapshots',
+  // El registro de correos evita reescribirle al mismo estudiante: sin él en el
+  // respaldo, restaurar dejaria a todos como si nunca se les hubiera escrito.
+  'emailLog',
 ] as const;
 
 export interface Backup {

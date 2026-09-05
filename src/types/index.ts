@@ -22,6 +22,8 @@ export interface SessionData {
   Fj?: boolean;
   /** Retardo justificado. Ausente = injustificado. */
   Rj?: boolean;
+  /** Razón de la falla o el retardo de ESTA sesión. */
+  obs?: string | null;
 }
 
 /** Datos de un ciclo por estudiante. */
@@ -38,6 +40,10 @@ export interface CycleData {
   /** Retardo justificado. Misma consolidación que `Fj` en 11°. */
   Rj?: boolean;
   nota: number;               // nota agregada del ciclo (0-100)
+  /**
+   * Razón de la falla o el retardo del ciclo. Cuando el ciclo trae dos clases
+   * del curso, la razón vive en `S1.obs` / `S2.obs` porque son días distintos.
+   */
   obs?: string | null;
   /** Solo en 11°: nota de sesión 1. */
   S1?: SessionData;
@@ -63,6 +69,11 @@ export interface Student {
   cycles: CycleData[];                // 9 items
   subnotas: Record<string, number>;   // 10 (o 11 para 11°) claves
   noteObservations?: Record<string, string>;  // {C4: "razón...", C7: "..."} — por columna real
+  /**
+   * Correo del estudiante (el canal para hablar con los acudientes).
+   * Sale del roster de Google Classroom; ausente hasta que se importe.
+   */
+  email?: string;
   syncId?: string;                    // UUID estable cross-device (sync)
   updatedAt?: string;                 // ISO datetime del último cambio local
 }
@@ -229,6 +240,30 @@ export interface TrimesterSnapshot {
   /** Definitiva calculada al cerrar, para no depender de la fórmula futura. */
   definitiva: number;
   closedAt: string;                   // ISO datetime
+  syncId?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Correo de seguimiento ya generado para un estudiante.
+ *
+ * Guarda los conteos del momento, no solo la fecha: así se sabe si desde
+ * entonces **reincidió**. Sin ese corte habría que elegir entre volver a
+ * listarlo cada semana por los mismos tres retardos, o no volver a listarlo
+ * nunca aunque acumule más.
+ */
+export interface EmailLog {
+  id?: number;
+  studentSyncId: string;
+  courseCode: string;
+  year: number;
+  trimestre: number;
+  nombre: string;                     // denormalizado, para leer sin join
+  /** Conteos al generar, contra los que se compara la reincidencia. */
+  notas30: number;
+  retardos: number;
+  fallas: number;
+  at: string;                         // ISO datetime
   syncId?: string;
   updatedAt?: string;
 }

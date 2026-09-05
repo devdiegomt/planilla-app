@@ -2,7 +2,7 @@ import Dexie, { Table } from 'dexie';
 import type {
   Course, Student, Todo, CalendarEvent,
   ScheduleBlock, CalendarDay, YearConfig,
-  AttendanceMark, ChangeLog, TrimesterSnapshot,
+  AttendanceMark, ChangeLog, TrimesterSnapshot, EmailLog,
 } from '@/types';
 import { calcDef } from './formula';
 import { slotsFor } from './constants';
@@ -49,6 +49,7 @@ class PlanillaDB extends Dexie {
   attendanceMarks!: Table<AttendanceMark, number>;
   changeLog!: Table<ChangeLog, number>;
   trimesterSnapshots!: Table<TrimesterSnapshot, number>;
+  emailLog!: Table<EmailLog, number>;
   syncTombstones!: Table<SyncTombstone, number>;
 
   constructor() {
@@ -297,6 +298,28 @@ class PlanillaDB extends Dexie {
         '++id, studentSyncId, courseCode, year, trimestre, [year+trimestre], '
         + '[courseCode+trimestre], &syncId, updatedAt',
     });
+
+    // v12: registro de correos de seguimiento ya generados.
+    this.version(12).stores({
+      courses: '++id, code, grade, year, trimestre, &[year+code], &syncId, updatedAt',
+      students: '++id, courseId, courseCode, codAlum, nombre, order, &syncId, updatedAt',
+      todos: '++id, status, priority, dueDate, courseCode, &syncId, updatedAt',
+      events: '++id, date, courseCode, kind, &syncId, updatedAt',
+      schedule: '++id, dayType, block, courseCode, [dayType+block], &syncId, updatedAt',
+      calendarDays: '++id, &date, status, &syncId, updatedAt',
+      yearConfig: '++id, &year, &syncId, updatedAt',
+      attendanceMarks: '++id, courseId, courseCode, ciclo, [courseId+ciclo], &syncId, updatedAt',
+      changeLog: '++id, courseId, courseCode, studentId, studentSyncId, at, kind, ciclo, &syncId, updatedAt',
+      rubrics: '++id, name, courseCode, createdAt, &syncId, updatedAt',
+      gradingResults: '++id, rubricId, at, courseCode, studentName, &syncId, updatedAt',
+      syncTombstones: '++id, tableName, syncId, deletedAt, [tableName+syncId]',
+      trimesterSnapshots:
+        '++id, studentSyncId, courseCode, year, trimestre, [year+trimestre], '
+        + '[courseCode+trimestre], &syncId, updatedAt',
+      emailLog:
+        '++id, studentSyncId, courseCode, trimestre, at, '
+        + '[courseCode+trimestre], &syncId, updatedAt',
+    });
   }
 }
 
@@ -312,7 +335,7 @@ if (typeof window !== 'undefined') {
   const SYNCABLE = [
     'courses', 'students', 'todos', 'events', 'schedule',
     'calendarDays', 'yearConfig', 'attendanceMarks', 'changeLog',
-    'trimesterSnapshots',
+    'trimesterSnapshots', 'emailLog',
   ];
   for (const name of SYNCABLE) {
     const table = db.table(name);
@@ -746,6 +769,58 @@ export async function updateSessionAttendance(
       kind: 'attendance',
       ciclo,
       summary: `Ciclo ${ciclo} · S${session} · ${markDescription(field, state)}`,
+    });
+  });
+}
+
+/**
+ * Guarda la razón de la falla o el retardo.
+ *
+ * `session` null = la razón es del ciclo (una sola clase). Con dos clases en el
+ * ciclo la razón va en su sesión, porque son días distintos y "llegó tarde" de
+ * uno no explica al otro.
+ *
+ * Texto vacío borra la razón, igual que en las observaciones de nota.
+ */
+export async function updateAttendanceObservation(
+  studentId: number,
+  ciclo: number,
+  session: 1 | 2 | null,
+  text: string,
+) {
+  const s = await db.students.get(studentId);
+  if (!s) return;
+  const c = s.cycles.find(x => x.ciclo === ciclo);
+  if (!c) return;
+
+  const next = text.trim() || null;
+  let prev: string | null;
+  if (session == null) {
+    prev = c.obs ?? null;
+    if (prev === next) return;
+    c.obs = next;
+  } else {
+    c.S1 ??= { F: false, R: false, N: 0 };
+    c.S2 ??= { F: false, R: false, N: 0 };
+    const target = session === 1 ? c.S1 : c.S2;
+    prev = target.obs ?? null;
+    if (prev === next) return;
+    target.obs = next;
+  }
+
+  const que = !prev ? '(agregada)' : !next ? '(borrada)' : '(editada)';
+  await db.transaction('rw', db.students, db.changeLog, async () => {
+    await db.students.update(studentId, { cycles: s.cycles });
+    await db.changeLog.add({
+      courseId: s.courseId,
+      courseCode: s.courseCode,
+      studentId,
+      studentSyncId: s.syncId,
+      studentName: s.nombre,
+      at: new Date().toISOString(),
+      kind: 'attendance',
+      ciclo,
+      summary: `Ciclo ${ciclo}${session ? ` · S${session}` : ''} · Razón ${que}`,
     });
   });
 }

@@ -7,6 +7,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getCourseByCode } from '@/lib/db';
 import { PlanillaGrid } from '@/components/PlanillaGrid';
 import { ExportCalifica } from '@/components/ExportCalifica';
+import { CourseNav } from '@/components/CourseNav';
 import { ExportObservations } from '@/components/ExportObservations';
 import { CicloAttendance } from '@/components/CicloAttendance';
 import { CourseDashboard } from '@/components/CourseDashboard';
@@ -43,9 +44,12 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
       <div className="flex items-center justify-between">
         <div>
           <Link href="/" className="text-sm text-neutral-500 hover:underline">← Cursos</Link>
-          <h1 className="text-xl font-semibold mt-1">
-            {course.code} <span className="text-neutral-500">· {course.director}</span>
-          </h1>
+          <div className="flex items-center gap-3 mt-1">
+            <CourseNav code={course.code} ciclo={cicloParam} />
+            <h1 className="text-xl font-semibold">
+              {course.code} <span className="text-neutral-500">· {course.director}</span>
+            </h1>
+          </div>
         </div>
         <div className="flex items-start gap-2">
           <ExportObservations course={course} students={activos} />
