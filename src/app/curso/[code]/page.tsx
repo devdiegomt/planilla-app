@@ -19,7 +19,10 @@ import type { Student } from '@/types';
 export default function CoursePage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
   const searchParams = useSearchParams();
-  const cicloParam = parseInt(searchParams.get('ciclo') ?? '') || 1;
+  // Sin `?ciclo` se deja indefinido a propósito: CicloAttendance cae entonces
+  // en el ciclo en curso. Forzar 1 aquí hacía marcar la asistencia de hoy
+  // sobre el primer ciclo del trimestre.
+  const cicloParam = parseInt(searchParams.get('ciclo') ?? '') || undefined;
 
   const course = useLiveQuery(() => getCourseByCode(code), [code]);
   const students = useLiveQuery<Student[]>(

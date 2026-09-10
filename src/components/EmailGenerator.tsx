@@ -5,9 +5,10 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { CURSOS_ORDER } from '@/lib/constants';
 import {
-  buildEmailCandidates, renderEmail, UMBRALES_POR_DEFECTO,
+  buildEmailCandidates, renderEmail, vozSugerida, UMBRALES_POR_DEFECTO,
   PLANTILLA_POR_DEFECTO, ASUNTO_POR_DEFECTO,
-  type EmailThresholds, type EmailCandidate,
+  PLANTILLA_ESTUDIANTE, ASUNTO_ESTUDIANTE,
+  type EmailThresholds, type EmailCandidate, type Voz,
 } from '@/lib/emails';
 import type { Student } from '@/types';
 
@@ -20,6 +21,8 @@ const K_UMBRALES = 'emails:umbrales';
 const K_PLANTILLA = 'emails:plantilla';
 const K_ASUNTO = 'emails:asunto';
 const K_DOCENTE = 'emails:docente';
+const K_PLANTILLA_EST = 'emails:plantillaEstudiante';
+const K_ASUNTO_EST = 'emails:asuntoEstudiante';
 
 function leer<T>(clave: string, porDefecto: T): T {
   if (typeof window === 'undefined') return porDefecto;
@@ -56,6 +59,10 @@ export function EmailGenerator() {
   const [docente, setDocente] = useState(() => leer(K_DOCENTE, ''));
   const [plantilla, setPlantilla] = useState(() => leer(K_PLANTILLA, PLANTILLA_POR_DEFECTO));
   const [asunto, setAsunto] = useState(() => leer(K_ASUNTO, ASUNTO_POR_DEFECTO));
+  const [plantillaEst, setPlantillaEst] = useState(() => leer(K_PLANTILLA_EST, PLANTILLA_ESTUDIANTE));
+  const [asuntoEst, setAsuntoEst] = useState(() => leer(K_ASUNTO_EST, ASUNTO_ESTUDIANTE));
+  // Voz elegida a mano; sin entrada se usa la sugerida por los motivos.
+  const [vozManual, setVozManual] = useState<Record<string, Voz>>({});
   const [verPlantilla, setVerPlantilla] = useState(false);
   const [verTodos, setVerTodos] = useState(false);
   const [copiado, setCopiado] = useState<string | null>(null);
@@ -66,6 +73,17 @@ export function EmailGenerator() {
   );
   const visibles = verTodos ? candidatos : candidatos.filter(c => c.reincidio);
 
+  const vozDe = (c: EmailCandidate): Voz => vozManual[c.studentSyncId] ?? vozSugerida(c);
+  const renderizar = (c: EmailCandidate) => {
+    const v = vozDe(c);
+    return renderEmail(
+      c, course!, docente,
+      v === 'estudiante' ? plantillaEst : plantilla,
+      v === 'estudiante' ? asuntoEst : asunto,
+      v,
+    );
+  };
+
   const setUmbral = (k: keyof EmailThresholds, v: number) => {
     const next = { ...umbrales, [k]: Math.max(1, v || 1) };
     setUmbrales(next); guardar(K_UMBRALES, next);
@@ -73,7 +91,7 @@ export function EmailGenerator() {
 
   async function copiar(c: EmailCandidate) {
     if (!course) return;
-    const { asunto: a, cuerpo } = renderEmail(c, course, docente, plantilla, asunto);
+    const { asunto: a, cuerpo } = renderizar(c);
     await navigator.clipboard.writeText(`${a}\n\n${cuerpo}`);
     setCopiado(c.studentSyncId);
     setTimeout(() => setCopiado(null), 1500);
@@ -179,10 +197,31 @@ export function EmailGenerator() {
             {'{secciones}'} lo arma la app según lo que aplique a cada estudiante.
             Estos ajustes se guardan solo en este dispositivo.
           </p>
+          <div className="border-t pt-2 space-y-2">
+            <p className="text-[11px] font-medium text-neutral-600">
+              Plantilla dirigida al estudiante (tuteo)
+            </p>
+            <label className="block text-xs">
+              <span className="text-neutral-500">Asunto</span>
+              <input
+                value={asuntoEst}
+                onChange={e => { setAsuntoEst(e.target.value); guardar(K_ASUNTO_EST, e.target.value); }}
+                className="border rounded px-2 py-1 text-sm w-full mt-0.5"
+              />
+            </label>
+            <textarea
+              value={plantillaEst}
+              onChange={e => { setPlantillaEst(e.target.value); guardar(K_PLANTILLA_EST, e.target.value); }}
+              rows={8}
+              className="border rounded p-2 text-xs w-full font-mono"
+            />
+          </div>
           <button
             onClick={() => {
               setPlantilla(PLANTILLA_POR_DEFECTO); guardar(K_PLANTILLA, PLANTILLA_POR_DEFECTO);
               setAsunto(ASUNTO_POR_DEFECTO); guardar(K_ASUNTO, ASUNTO_POR_DEFECTO);
+              setPlantillaEst(PLANTILLA_ESTUDIANTE); guardar(K_PLANTILLA_EST, PLANTILLA_ESTUDIANTE);
+              setAsuntoEst(ASUNTO_ESTUDIANTE); guardar(K_ASUNTO_EST, ASUNTO_ESTUDIANTE);
             }}
             className="text-xs text-neutral-600 underline"
           >
@@ -200,9 +239,8 @@ export function EmailGenerator() {
 
       <div className="space-y-3">
         {visibles.map(c => {
-          const { cuerpo } = course
-            ? renderEmail(c, course, docente, plantilla, asunto)
-            : { cuerpo: '' };
+          const { cuerpo } = course ? renderizar(c) : { cuerpo: '' };
+          const voz = vozDe(c);
           return (
             <div key={c.studentSyncId} className="border rounded-lg overflow-hidden">
               <div className="px-3 py-2 bg-neutral-50 border-b flex items-center gap-2 flex-wrap">
@@ -231,7 +269,16 @@ export function EmailGenerator() {
                     {new Date(c.previo.at).toLocaleDateString('es-CO', { dateStyle: 'medium' })}
                   </span>
                 )}
-                <div className="ml-auto flex gap-2">
+                <div className="ml-auto flex gap-2 items-center">
+                  <select
+                    value={voz}
+                    onChange={e => setVozManual(m => ({ ...m, [c.studentSyncId]: e.target.value as Voz }))}
+                    title="A quién va dirigido el texto"
+                    className="border rounded px-1.5 py-1 text-xs bg-white"
+                  >
+                    <option value="estudiante">Al estudiante (tú)</option>
+                    <option value="acudiente">Al acudiente (usted)</option>
+                  </select>
                   <button
                     onClick={() => copiar(c)}
                     className="px-2 py-1 rounded bg-neutral-900 text-white text-xs"

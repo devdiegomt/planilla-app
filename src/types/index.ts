@@ -24,6 +24,8 @@ export interface SessionData {
   Rj?: boolean;
   /** Razón de la falla o el retardo de ESTA sesión. */
   obs?: string | null;
+  /** Marcado por el docente al ver llegar al estudiante. Ver `CycleData.arrived`. */
+  arrived?: boolean;
 }
 
 /** Datos de un ciclo por estudiante. */
@@ -49,6 +51,14 @@ export interface CycleData {
   S1?: SessionData;
   /** Solo en 11°: nota de sesión 2. */
   S2?: SessionData;
+  /**
+   * "Ya llegó": chequeo de uso en vivo para ver de un vistazo quién falta por
+   * entrar al salón. NO se exporta a Classroom Live — es una ayuda del docente,
+   * no un registro oficial. Que no sea lo contrario de `F` es deliberado:
+   * al empezar la clase nadie está marcado, y eso no significa que todos
+   * hayan faltado.
+   */
+  arrived?: boolean;
 }
 
 /** Registro persistente de estudiante. */

@@ -114,6 +114,12 @@ export interface AttendanceStats {
   totalRetardos: number;
   totalRetardosJust: number;
   topFallas: { nombre: string; F: number; Fj: number; R: number; Rj: number }[];
+  /**
+   * Ranking aparte para retardos. Con un solo top ponderado (F×2 + R) los que
+   * acumulan retardos casi nunca asoman: una sola falla pesa más que dos
+   * retardos, y el caso de "llega tarde siempre" queda invisible.
+   */
+  topRetardos: { nombre: string; R: number; Rj: number }[];
 }
 
 export function computeAttendanceStats(
@@ -145,18 +151,22 @@ export function computeAttendanceStats(
 
   // El ranking pondera solo lo injustificado: quien falta con excusa no es un
   // caso a vigilar, y mezclarlos escondía a los que sí lo son.
-  const weight = (x: AttendanceStats['topFallas'][number]) =>
-    (x.F - x.Fj) * 2 + (x.R - x.Rj);
   const topFallas = perStudent
-    .filter(x => weight(x) > 0)
-    .sort((a, b) => weight(b) - weight(a))
+    .filter(x => x.F - x.Fj > 0)
+    .sort((a, b) => (b.F - b.Fj) - (a.F - a.Fj) || (b.R - b.Rj) - (a.R - a.Rj))
     .slice(0, 5);
+
+  const topRetardos = perStudent
+    .filter(x => x.R - x.Rj > 0)
+    .sort((a, b) => (b.R - b.Rj) - (a.R - a.Rj))
+    .slice(0, 5)
+    .map(x => ({ nombre: x.nombre, R: x.R, Rj: x.Rj }));
 
   return {
     ciclosConfirmados: courseMarks.length,
     ultimaConfirmacion,
     totalFallas, totalFallasJust,
     totalRetardos, totalRetardosJust,
-    topFallas,
+    topFallas, topRetardos,
   };
 }

@@ -9,14 +9,15 @@ import {
   confirmAttendance,
   unconfirmAttendance,
   updateAttendanceObservation,
+  toggleArrived,
 } from '@/lib/db';
 import {
   cycleMarkState, sessionMarkState, nextMarkState,
   markLabel, markDescription,
   type MarkKind, type MarkState,
 } from '@/lib/attendance';
-import { computeDayTypes } from '@/lib/schedule';
-import { buildCycleContext, sessionDatesOf } from '@/lib/cycles';
+import { computeDayTypes, todayIso } from '@/lib/schedule';
+import { buildCycleContext, sessionDatesOf, currentCiclo } from '@/lib/cycles';
 import { ExportAttendance } from './ExportAttendance';
 import type { Course, Student } from '@/types';
 
@@ -40,8 +41,11 @@ interface Props {
  * un checkbox no da para tres. Se mantiene un control por celda para no perder
  * densidad en cursos de 28 estudiantes.
  */
-export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
-  const [ciclo, setCiclo] = useState(clamp(initialCiclo, 1, 9));
+export function CicloAttendance({ course, initialCiclo }: Props) {
+  const [ciclo, setCiclo] = useState(() => clamp(initialCiclo ?? 1, 1, 9));
+  // Si la URL no fija ciclo, se salta al actual una sola vez, cuando el
+  // contexto de ciclos ya se pudo calcular.
+  const [autoAjustado, setAutoAjustado] = useState(initialCiclo != null);
 
   const yearCfg = useLiveQuery(() => db.yearConfig.where('year').equals(course.year).first(), [course.year]);
   const customDays = useLiveQuery(() => db.calendarDays.toArray(), []) ?? [];
@@ -53,18 +57,35 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
    * al ciclo le caen dos viernes — y entonces el colegio registra la asistencia
    * de cada fecha por separado.
    */
-  const sessionDates = useMemo(() => {
-    if (!yearCfg || schedule.length === 0) return [];
+  const ctx = useMemo(() => {
+    if (!yearCfg || schedule.length === 0) return null;
     const seq = computeDayTypes(
       yearCfg.startDate, yearCfg.initialDayType, `${yearCfg.year}-12-31`, customDays, true,
     );
-    const ctx = buildCycleContext(seq, schedule, [course], yearCfg);
-    return sessionDatesOf(ctx, course.code, ciclo);
-  }, [yearCfg, schedule, customDays, course, ciclo]);
+    return buildCycleContext(seq, schedule, [course], yearCfg);
+  }, [yearCfg, schedule, customDays, course]);
+
+  const sessionDates = useMemo(
+    () => (ctx ? sessionDatesOf(ctx, course.code, ciclo) : []),
+    [ctx, course.code, ciclo],
+  );
+
+  const cicloActual = useMemo(
+    () => (ctx ? currentCiclo(ctx, course.code, todayIso()) : null),
+    [ctx, course.code],
+  );
+
+  useEffect(() => {
+    if (autoAjustado || cicloActual == null) return;
+    setCiclo(clamp(cicloActual, 1, 9));
+    setAutoAjustado(true);
+  }, [autoAjustado, cicloActual]);
 
   const porSesion = sessionDates.length > 1;
 
-  useEffect(() => setCiclo(clamp(initialCiclo, 1, 9)), [initialCiclo]);
+  useEffect(() => {
+    if (initialCiclo != null) { setCiclo(clamp(initialCiclo, 1, 9)); setAutoAjustado(true); }
+  }, [initialCiclo]);
 
   const students = useLiveQuery(
     () => db.students.where('courseId').equals(course.id!).sortBy('order'),
@@ -99,7 +120,14 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
         if (c.S2?.R) R2++;
       }
     }
-    return { F, Fj, R, Rj, F1, R1, F2, R2 };
+    let llegaron = 0;
+    for (const s of activos) {
+      const c = s.cycles.find(x => x.ciclo === ciclo);
+      if (!c) continue;
+      // Con dos sesiones basta con la primera para "ya está en el salón".
+      if (porSesion ? (c.S1?.arrived || c.S2?.arrived) : c.arrived) llegaron++;
+    }
+    return { F, Fj, R, Rj, F1, R1, F2, R2, llegaron };
   }, [activos, ciclo, porSesion]);
 
   return (
@@ -117,6 +145,7 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
         </select>
         <span className="text-xs text-neutral-500">
           {activos.length} activos
+          {stats.llegaron > 0 && ` · ✅ ${stats.llegaron}/${activos.length} en el salón`}
           {porSesion
             ? ` · S1: ${stats.F1}F/${stats.R1}R · S2: ${stats.F2}F/${stats.R2}R`
             : ` · ${stats.F}F${stats.Fj ? ` (${stats.Fj}j)` : ''}`
@@ -178,6 +207,9 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
                   <th className="p-2 text-center w-16">R</th>
                 </>
               )}
+              <th className="p-2 text-center w-10" title="Ya llegó al salón (no se exporta)">
+                ✅
+              </th>
               <th className="p-2 text-center w-10" title="Razón de la falla o el retardo">
                 Razón
               </th>
@@ -213,6 +245,14 @@ export function CicloAttendance({ course, initialCiclo = 1 }: Props) {
                       />
                     ))
                   )}
+                  <ArrivedCell
+                    student={s.nombre}
+                    porSesion={porSesion}
+                    arrived={porSesion
+                      ? [!!c?.S1?.arrived, !!c?.S2?.arrived]
+                      : [!!c?.arrived]}
+                    onToggle={(sess, v) => toggleArrived(s.id!, ciclo, sess, v)}
+                  />
                   <ReasonCell
                     student={s.nombre}
                     ciclo={ciclo}
@@ -250,6 +290,51 @@ function LegendChip({ cls, label, text }: { cls: string; label: string; text: st
       </span>
       {text}
     </span>
+  );
+}
+
+/**
+ * "Ya llegó": chequeo en vivo para ver quién falta por entrar.
+ *
+ * No se exporta y no toca F/R a propósito. Son cosas distintas: al empezar la
+ * clase nadie está marcado como llegado, y eso no quiere decir que todos hayan
+ * faltado. Marcar la llegada es lo que haces mientras entran; la falla es lo
+ * que registras al final.
+ */
+function ArrivedCell({
+  student, porSesion, arrived, onToggle,
+}: {
+  student: string;
+  porSesion: boolean;
+  arrived: boolean[];
+  onToggle: (session: 1 | 2 | null, value: boolean) => void | Promise<unknown>;
+}) {
+  const boton = (idx: number, sess: 1 | 2 | null) => {
+    const on = arrived[idx];
+    return (
+      <button
+        key={idx}
+        type="button"
+        onClick={() => onToggle(sess, !on)}
+        aria-pressed={on}
+        aria-label={`${student}${sess ? ` sesión ${sess}` : ''} · ${on ? 'ya llegó' : 'sin marcar'}`}
+        title={on ? 'Ya llegó — click para desmarcar' : 'Marcar que ya llegó'}
+        className={`w-7 h-7 rounded border text-[13px] leading-none transition-colors ${
+          on
+            ? 'bg-green-50 border-green-400'
+            : 'bg-white border-neutral-200 text-transparent hover:border-neutral-400'
+        }`}
+      >
+        ✅
+      </button>
+    );
+  };
+  return (
+    <td className="p-1 text-center">
+      <div className="inline-flex gap-0.5">
+        {porSesion ? [boton(0, 1), boton(1, 2)] : boton(0, null)}
+      </div>
+    </td>
   );
 }
 

@@ -129,9 +129,9 @@ export function CourseDashboard({ course }: Props) {
           </div>
         </Card>
 
-        <Card title="Top fallas/retardos">
+        <Card title="Top fallas (injustificadas)">
           {att.topFallas.length === 0 ? (
-            <p className="text-sm text-neutral-500">Sin fallas ni retardos injustificados.</p>
+            <p className="text-sm text-neutral-500">Sin fallas injustificadas.</p>
           ) : (
             <ul className="text-sm space-y-1">
               {att.topFallas.map(t => (
@@ -147,6 +147,29 @@ export function CourseDashboard({ course }: Props) {
                     {(t.Fj > 0 || t.Rj > 0) && (
                       <span className="text-neutral-400"> (+{t.Fj + t.Rj}j)</span>
                     )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card title="Top retardos (injustificados)">
+          {att.topRetardos.length === 0 ? (
+            <p className="text-sm text-neutral-500">Sin retardos injustificados.</p>
+          ) : (
+            <ul className="text-sm space-y-1">
+              {att.topRetardos.map(t => (
+                <li key={t.nombre} className="flex justify-between gap-2">
+                  <span className="truncate">{t.nombre}</span>
+                  <span
+                    className="text-xs tabular-nums shrink-0"
+                    title="Injustificados (entre paréntesis, los justificados)"
+                  >
+                    <span className="text-amber-700 font-medium">{t.R - t.Rj}R</span>
+                    {t.Rj > 0 && <span className="text-neutral-400"> (+{t.Rj}j)</span>}
                   </span>
                 </li>
               ))}

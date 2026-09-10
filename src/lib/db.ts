@@ -825,6 +825,35 @@ export async function updateAttendanceObservation(
   });
 }
 
+/**
+ * Alterna el "ya llegó" de un estudiante.
+ *
+ * No pasa por changeLog: es una marca de trabajo del momento, no un dato
+ * académico, y llenaría el historial de ruido.
+ */
+export async function toggleArrived(
+  studentId: number,
+  ciclo: number,
+  session: 1 | 2 | null,
+  value: boolean,
+) {
+  const s = await db.students.get(studentId);
+  if (!s) return;
+  const c = s.cycles.find(x => x.ciclo === ciclo);
+  if (!c) return;
+  if (session == null) {
+    if (!!c.arrived === value) return;
+    c.arrived = value;
+  } else {
+    c.S1 ??= { F: false, R: false, N: 0 };
+    c.S2 ??= { F: false, R: false, N: 0 };
+    const t = session === 1 ? c.S1 : c.S2;
+    if (!!t.arrived === value) return;
+    t.arrived = value;
+  }
+  await db.students.update(studentId, { cycles: s.cycles });
+}
+
 // ---- Cierre de trimestre ----
 
 export const ULTIMO_TRIMESTRE = 3;

@@ -213,6 +213,31 @@ export function sessionDatesOf(ctx: CycleContext, courseCode: string, ciclo: num
   return ctx.byCourseCiclo.get(courseCode)?.get(ciclo) ?? [];
 }
 
+/**
+ * Ciclo "en curso" de un curso: el de hoy si hoy tiene clase, y si no el de la
+ * última clase dictada.
+ *
+ * Existe porque el editor de F/R arrancaba siempre en el ciclo 1. Entrando por
+ * la lista de cursos —sin `?ciclo` en la URL— eso hacía marcar la asistencia de
+ * hoy sobre el ciclo 1, y la confirmación nunca coincidía con la clase real.
+ */
+export function currentCiclo(
+  ctx: CycleContext, courseCode: string, today: string,
+): number | null {
+  const porCiclo = ctx.byCourseCiclo.get(courseCode);
+  if (!porCiclo) return null;
+  let mejorFecha: string | null = null;
+  let mejorCiclo: number | null = null;
+  for (const [ciclo, fechas] of porCiclo) {
+    for (const f of fechas) {
+      if (f <= today && (mejorFecha === null || f > mejorFecha)) {
+        mejorFecha = f; mejorCiclo = ciclo;
+      }
+    }
+  }
+  return mejorCiclo;
+}
+
 /** Ciclo y sesión de un curso en una fecha concreta. */
 export function cycleOf(
   ctx: CycleContext, courseCode: string, iso: string,

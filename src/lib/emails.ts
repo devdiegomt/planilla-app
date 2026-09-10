@@ -161,6 +161,32 @@ export function buildEmailCandidates(
   return out.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }
 
+/**
+ * A quién se le habla. Cambia el pronombre y el tono, no los datos.
+ *
+ * El de no entrega va al estudiante porque la acción es suya —adelantar el
+ * trabajo—, mientras que reincidencia de retardos o inasistencia es
+ * información para la casa.
+ */
+export type Voz = 'estudiante' | 'acudiente';
+
+/** Voz sugerida: al estudiante si lo único que pasa es que no entregó. */
+export function vozSugerida(c: EmailCandidate): Voz {
+  return c.motivos.length === 1 && c.motivos[0] === 'academico'
+    ? 'estudiante' : 'acudiente';
+}
+
+export const PLANTILLA_ESTUDIANTE = `Hola {estudiante},
+
+Te escribo por tu desempeño en Informática durante el trimestre {trimestre}.
+
+{secciones}
+Aún estás a tiempo de recuperar tu nota. Si tienes dudas sobre qué hacer o hasta cuándo, escríbeme o búscame en clase.
+
+{docente}`;
+
+export const ASUNTO_ESTUDIANTE = '{curso} · Informática — Tienes trabajos pendientes';
+
 /** Plantilla por defecto. `{secciones}` la arma el generador. */
 export const PLANTILLA_POR_DEFECTO = `Cordial saludo.
 
@@ -179,8 +205,9 @@ function listaCiclos(os: Ocurrencia[]): string {
   return unicos.map(c => `ciclo ${c}`).join(', ');
 }
 
-/** Arma las secciones que apliquen, en orden fijo. */
-function componerSecciones(c: EmailCandidate): string {
+/** Arma las secciones que apliquen, en orden fijo y en la voz pedida. */
+function componerSecciones(c: EmailCandidate, voz: Voz): string {
+  const tu = voz === 'estudiante';
   const partes: string[] = [];
 
   if (c.motivos.includes('academico')) {
@@ -189,10 +216,11 @@ function componerSecciones(c: EmailCandidate): string {
       const razon = n.obs ? `\n    Observación: ${n.obs}` : '';
       return `  • ${nombre}: ${n.nota}${razon}`;
     });
-    partes.push(
-      `Actividades con la nota mínima (${NOTA_MIN}), que corresponden a trabajos `
-      + `no entregados o sin sustentar:\n${items.join('\n')}`,
-    );
+    partes.push(tu
+      ? `Estas actividades están en la nota mínima (${NOTA_MIN}) porque no las has `
+        + `entregado o no las has sustentado:\n${items.join('\n')}`
+      : `Actividades con la nota mínima (${NOTA_MIN}), que corresponden a trabajos `
+        + `no entregados o sin sustentar:\n${items.join('\n')}`);
   }
 
   if (c.motivos.includes('retardos')) {
@@ -200,17 +228,19 @@ function componerSecciones(c: EmailCandidate): string {
       const donde = `ciclo ${o.ciclo}${o.session ? ` (sesión ${o.session})` : ''}`;
       return `  • ${donde}${o.obs ? ` — ${o.obs}` : ''}`;
     });
-    partes.push(
-      `Retardos injustificados registrados (${c.retardos.length}):\n${items.join('\n')}`,
-    );
+    partes.push(tu
+      ? `Tienes ${c.retardos.length} retardos injustificados:\n${items.join('\n')}`
+      : `Retardos injustificados registrados (${c.retardos.length}):\n${items.join('\n')}`);
   }
 
   if (c.motivos.includes('inasistencia')) {
-    partes.push(
-      `Clases a las que no asistió: ${listaCiclos(c.fallas)}.\n`
-      + 'Para ponerse al día, la guía de cada ciclo está publicada en Classroom, '
-      + 'en la sección RESOURCES.',
-    );
+    partes.push(tu
+      ? `No asististe a: ${listaCiclos(c.fallas)}.\n`
+        + 'Para ponerte al día, la guía de cada ciclo está publicada en Classroom, '
+        + 'en la sección RESOURCES.'
+      : `Clases a las que no asistió: ${listaCiclos(c.fallas)}.\n`
+        + 'Para ponerse al día, la guía de cada ciclo está publicada en Classroom, '
+        + 'en la sección RESOURCES.');
   }
 
   return partes.join('\n\n') + '\n';
@@ -227,13 +257,14 @@ export function renderEmail(
   docente: string,
   plantilla = PLANTILLA_POR_DEFECTO,
   asuntoTpl = ASUNTO_POR_DEFECTO,
+  voz: Voz = 'acudiente',
 ): CorreoRenderizado {
   const vars: Record<string, string> = {
     estudiante: c.nombre,
     curso: course.code,
     trimestre: String(course.trimestre),
     docente: docente || '(tu nombre)',
-    secciones: componerSecciones(c),
+    secciones: componerSecciones(c, voz),
   };
   const sustituir = (t: string) =>
     t.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
