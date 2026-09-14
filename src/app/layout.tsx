@@ -4,6 +4,7 @@ import { SessionProvider } from '@/components/SessionProvider';
 import { MainNav } from '@/components/MainNav';
 import { NavSession } from '@/components/NavSession';
 import { SyncStatus } from '@/components/SyncStatus';
+import { BOOT_GUARD_SCRIPT } from '@/lib/recovery';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -33,6 +34,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
+      <head>
+        {/* Inline para no depender de los archivos de la app: si esos no cargan,
+            React y las pantallas de error tampoco. Next igual pone sus scripts
+            antes que este; por eso la guardia trae un vigía que no depende del
+            orden (ver lib/recovery.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: BOOT_GUARD_SCRIPT }} />
+      </head>
       <body className="min-h-screen bg-white text-neutral-900 antialiased">
         <SessionProvider>
           {/* z-50: la barra es el chrome de la app y debe quedar por encima de
