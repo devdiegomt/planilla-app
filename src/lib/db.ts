@@ -326,6 +326,51 @@ class PlanillaDB extends Dexie {
 export const db = new PlanillaDB();
 
 /**
+ * Avisos de la base local que antes terminaban en pantalla blanca.
+ *
+ * Se muestran con la guardia inline del layout (`window.__planillaShowError`),
+ * que no depende de React: si la base no abre, la app entera no renderiza.
+ */
+if (typeof window !== 'undefined') {
+  type Guardia = { __planillaShowError?: (titulo: string, detalle: string, mensaje?: string) => void };
+  const aviso = (titulo: string, detalle: string, mensaje?: string) =>
+    (window as unknown as Guardia).__planillaShowError?.(titulo, detalle, mensaje);
+
+  // Esta pestaña quiere actualizar el esquema, pero otra con la versión vieja
+  // tiene la base abierta y no la suelta.
+  db.on('blocked', () => aviso(
+    'Hay otra pestaña de planilla-app abierta',
+    'Actualización de la base bloqueada',
+    'Cierra las otras pestañas de la app para que esta pueda actualizar la base de datos.',
+  ));
+
+  // Esta pestaña es la vieja: otra ya abrió una versión nueva. Se cierra la
+  // conexión para no bloquearla y se pide recargar.
+  db.on('versionchange', () => {
+    db.close();
+    aviso(
+      'La app se actualizó en otra pestaña',
+      'versionchange',
+      'Recarga esta pestaña para seguir con la versión nueva. Tus datos están guardados.',
+    );
+    return false;
+  });
+
+  db.open().catch((err: unknown) => {
+    const e = err as { name?: string; message?: string };
+    aviso(
+      'La base de datos local no abrió',
+      `${e?.name ?? 'Error'}: ${e?.message ?? String(err)}`,
+      e?.name === 'VersionError'
+        // La base del navegador es más nueva que el código que cargó: es la
+        // firma exacta de una copia de la app vieja servida desde caché.
+        ? 'Este navegador está usando una copia desactualizada de la app. Repáralo para cargar la versión actual.'
+        : undefined,
+    );
+  });
+}
+
+/**
  * Instalar hooks de sync después de crear la instancia.
  * - creating/updating: auto-setean syncId y updatedAt
  * - deleting: enqueue una tombstone local (excepto si SUPPRESS_TOMBSTONE está activo)
