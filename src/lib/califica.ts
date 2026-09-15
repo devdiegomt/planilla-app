@@ -207,14 +207,20 @@ export interface PlatformCalifica {
   grade: number;
   curso: string;
   periodo: number;
+  codMat: string;
   achievements: AchievementColumn[];
+  /** Roster del curso con su COD_ALUM; filas con código malformado se omiten. */
+  estudiantes: { cod_alum: string; nombre: string }[];
+  /** Nombres omitidos por COD_ALUM inválido. */
+  omitidos: string[];
 }
 
 /**
  * Lee el Califica descargado de la plataforma (.xls o .xlsx).
  *
  * El grado y el periodo salen de la primera fila de estudiantes: la plataforma
- * no los pone en ningún otro lugar legible.
+ * no los pone en ningún otro lugar legible. El mismo archivo trae los
+ * encabezados del trimestre y el COD_ALUM de cada estudiante del curso.
  */
 export function readPlatformCalifica(buffer: ArrayBuffer): PlatformCalifica {
   const wb = XLSX.read(buffer, { type: 'array' });
@@ -229,11 +235,24 @@ export function readPlatformCalifica(buffer: ArrayBuffer): PlatformCalifica {
   if (!grade) {
     throw new Error('El archivo no trae estudiantes, así que no se puede saber de qué grado es.');
   }
+  const estudiantes: PlatformCalifica['estudiantes'] = [];
+  const omitidos: string[] = [];
+  for (let row = r; row <= rows.length; row++) {
+    const nombre = cell(row, header.cols.nombre).trim();
+    if (!nombre) break;                               // fin del roster
+    const cod = cell(row, header.cols.codAlum).trim();
+    if (/^\d{10}$/.test(cod)) estudiantes.push({ cod_alum: cod, nombre });
+    else omitidos.push(nombre);
+  }
+
   return {
     grade,
     curso: cell(r, header.cols.codCur).trim(),
     periodo: parseInt(cell(r, header.cols.codPer)),
+    codMat: cell(r, header.cols.codMat).trim(),
     achievements: header.achievements,
+    estudiantes,
+    omitidos,
   };
 }
 
