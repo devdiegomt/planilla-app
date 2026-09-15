@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { PwaSetup } from '@/components/PwaSetup';
 import { SessionProvider } from '@/components/SessionProvider';
 import { MainNav } from '@/components/MainNav';
+import { SettingsLink } from '@/components/SettingsLink';
 import { NavSession } from '@/components/NavSession';
 import { SyncStatus } from '@/components/SyncStatus';
 import { BOOT_GUARD_SCRIPT } from '@/lib/recovery';
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="max-w-5xl mx-auto px-3 sm:px-6 py-1 sm:py-3 flex items-center gap-2 sm:gap-4 text-sm">
               <MainNav />
               <div className="ml-auto flex items-center gap-2 shrink-0">
+                <SettingsLink />
                 <SyncStatus />
                 <NavSession />
               </div>
