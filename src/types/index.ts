@@ -96,6 +96,12 @@ export interface Achievement {
   column: string;                     // 'C4'
   log: string;                        // 'log_21'
   title: string;                      // 'ORGANIZING CONTENT WITH BASIC LAYOUT'
+  /**
+   * Encabezado completo tal como lo escribe la plataforma
+   * ('CONOCIMIENTO T3 - C4. CONDITIONAL STATEMENTS.'). Es lo que va en el
+   * Califica exportado; trae embebido el trimestre.
+   */
+  desc?: string;
 }
 
 /** Registro persistente de curso. */
