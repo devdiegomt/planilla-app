@@ -209,39 +209,44 @@ export interface PlatformCalifica {
   periodo: number;
   codMat: string;
   achievements: AchievementColumn[];
-  /** Roster del curso con su COD_ALUM; filas con código malformado se omiten. */
-  estudiantes: { cod_alum: string; nombre: string }[];
+  /**
+   * Roster del curso con su COD_ALUM y la fila (1-based) donde está en la hoja.
+   * Filas con código malformado se omiten.
+   */
+  estudiantes: { cod_alum: string; nombre: string; fila: number }[];
   /** Nombres omitidos por COD_ALUM inválido. */
   omitidos: string[];
+  /** Ubicación de la cabecera en la hoja, para escribir notas sobre ella. */
+  header: CalificaHeader;
 }
 
 /**
- * Lee el Califica descargado de la plataforma (.xls o .xlsx).
+ * Lee una hoja de Califica de la plataforma.
  *
  * El grado y el periodo salen de la primera fila de estudiantes: la plataforma
- * no los pone en ningún otro lugar legible. El mismo archivo trae los
+ * no los pone en ningún otro lugar legible. La hoja trae además los
  * encabezados del trimestre y el COD_ALUM de cada estudiante del curso.
  */
-export function readPlatformCalifica(buffer: ArrayBuffer): PlatformCalifica {
-  const wb = XLSX.read(buffer, { type: 'array' });
-  const ws = wb.Sheets['RepCalifica'] ?? wb.Sheets[wb.SheetNames[0]];
-  if (!ws) throw new Error('El archivo no tiene hojas.');
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' });
-  const cell: CellReader = (r, c) => String(rows[r - 1]?.[c - 1] ?? '');
+export function readPlatformSheet(ws: XLSX.WorkSheet): PlatformCalifica {
+  const cell: CellReader = (r, c) => {
+    const x = ws[XLSX.utils.encode_cell({ r: r - 1, c: c - 1 })] as XLSX.CellObject | undefined;
+    return x?.v == null ? '' : String(x.v);
+  };
+  const lastRow = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']).e.r + 1 : 0;
 
   const header = readHeaderWith(cell);
   const r = header.firstDataRow;
   const grade = parseInt(cell(r, header.cols.codGru));
   if (!grade) {
-    throw new Error('El archivo no trae estudiantes, así que no se puede saber de qué grado es.');
+    throw new Error('La hoja no trae estudiantes, así que no se puede saber de qué grado es.');
   }
   const estudiantes: PlatformCalifica['estudiantes'] = [];
   const omitidos: string[] = [];
-  for (let row = r; row <= rows.length; row++) {
+  for (let row = r; row <= lastRow; row++) {
     const nombre = cell(row, header.cols.nombre).trim();
     if (!nombre) break;                               // fin del roster
     const cod = cell(row, header.cols.codAlum).trim();
-    if (/^\d{10}$/.test(cod)) estudiantes.push({ cod_alum: cod, nombre });
+    if (/^\d{10}$/.test(cod)) estudiantes.push({ cod_alum: cod, nombre, fila: row });
     else omitidos.push(nombre);
   }
 
@@ -253,7 +258,42 @@ export function readPlatformCalifica(buffer: ArrayBuffer): PlatformCalifica {
     achievements: header.achievements,
     estudiantes,
     omitidos,
+    header,
   };
+}
+
+/** Lee el Califica de un curso (.xls o .xlsx): la hoja RepCalifica o la primera. */
+export function readPlatformCalifica(buffer: ArrayBuffer): PlatformCalifica {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const ws = wb.Sheets['RepCalifica'] ?? wb.Sheets[wb.SheetNames[0]];
+  if (!ws) throw new Error('El archivo no tiene hojas.');
+  return readPlatformSheet(ws);
+}
+
+export interface PlatformWorkbook {
+  wb: XLSX.WorkBook;
+  sheets: { name: string; data: PlatformCalifica }[];
+  /** Hojas que no se pudieron leer como Califica. */
+  errores: { name: string; message: string }[];
+}
+
+/**
+ * Lee el Califica de todos los cursos (pantalla "por profesor": una hoja por
+ * curso, llamadas Sheet1…Sheet19 y en desorden). Se conserva el libro para
+ * escribir las notas sobre él y devolver el mismo archivo.
+ */
+export function readPlatformWorkbook(buffer: ArrayBuffer): PlatformWorkbook {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const sheets: PlatformWorkbook['sheets'] = [];
+  const errores: PlatformWorkbook['errores'] = [];
+  for (const name of wb.SheetNames) {
+    try {
+      sheets.push({ name, data: readPlatformSheet(wb.Sheets[name]) });
+    } catch (e) {
+      errores.push({ name, message: (e as Error).message });
+    }
+  }
+  return { wb, sheets, errores };
 }
 
 /** Reconstruye las columnas de logros a partir de lo guardado en el curso. */

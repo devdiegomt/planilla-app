@@ -50,8 +50,8 @@ export function ImportCodAlum() {
           className="block w-full text-sm"
         />
         <p className="text-[11px] text-neutral-500 mt-1">
-          Escribe el COD_ALUM en cada estudiante. A diferencia del consolidado
-          Califica, el código queda en la fila y se sincroniza entre dispositivos.
+          Escribe el COD_ALUM en cada estudiante; el código queda en la fila y se
+          sincroniza entre dispositivos.
         </p>
       </div>
 

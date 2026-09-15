@@ -224,28 +224,3 @@ export async function importPlanilla(buffer: ArrayBuffer, trimestre = 2): Promis
 
   return result;
 }
-
-/**
- * Parsea el Califica-451 consolidado (una hoja por curso).
- * Devuelve un mapa {nombreNormalizado: codAlum} para hidratar los importados.
- */
-export async function importCodAlumMap(buffer: ArrayBuffer): Promise<Map<string, string>> {
-  const wb = XLSX.read(buffer, { type: 'array' });
-  const map = new Map<string, string>();
-  const { normalizeName } = await import('./utils');
-
-  for (const sheetName of wb.SheetNames) {
-    const sheet = wb.Sheets[sheetName];
-    const aoa = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null, raw: true });
-    // Los estudiantes empiezan en la fila 14 (índice 13). Col G (idx 6) = COD_ALUM, col H (idx 7) = nombre.
-    for (let r = 13; r < aoa.length; r++) {
-      const row = aoa[r] || [];
-      const cod = row[6];
-      const name = row[7];
-      if (cod && name && typeof name === 'string') {
-        map.set(normalizeName(name), String(cod).trim());
-      }
-    }
-  }
-  return map;
-}
