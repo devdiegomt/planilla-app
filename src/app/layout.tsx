@@ -3,6 +3,8 @@ import { PwaSetup } from '@/components/PwaSetup';
 import { SessionProvider } from '@/components/SessionProvider';
 import { MainNav } from '@/components/MainNav';
 import { SettingsLink } from '@/components/SettingsLink';
+import { NavMenu } from '@/components/NavMenu';
+import { BottomNav } from '@/components/BottomNav';
 import { NavSession } from '@/components/NavSession';
 import { SyncStatus } from '@/components/SyncStatus';
 import { BOOT_GUARD_SCRIPT } from '@/lib/recovery';
@@ -50,14 +52,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="max-w-5xl mx-auto px-3 sm:px-6 py-1 sm:py-3 flex items-center gap-2 sm:gap-4 text-sm">
               <MainNav />
               <div className="ml-auto flex items-center gap-2 shrink-0">
-                <SettingsLink />
                 <SyncStatus />
+                <SettingsLink />
                 <NavSession />
+                <NavMenu />
               </div>
             </div>
           </header>
           <PwaSetup />
-          {children}
+          {/* El aire de abajo es para que `BottomNav`, que va fijo, no tape la
+              última fila de la planilla. Incluye el área segura del gesto. */}
+          <div className="pb-[calc(3.5rem+env(safe-area-inset-bottom))] sm:pb-0">
+            {children}
+          </div>
+          <BottomNav />
         </SessionProvider>
       </body>
     </html>

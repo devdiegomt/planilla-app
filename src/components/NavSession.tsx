@@ -9,14 +9,14 @@ export function NavSession() {
   const [open, setOpen] = useState(false);
 
   if (loading) {
-    return <div className="text-xs text-neutral-400">…</div>;
+    return <div className="hidden sm:block text-xs text-neutral-400">…</div>;
   }
 
   if (!user) {
     return (
       <Link
         href="/auth"
-        className="text-xs px-2 py-1 rounded border hover:bg-neutral-50 text-neutral-700"
+        className="hidden sm:block text-xs px-2 py-1 rounded border hover:bg-neutral-50 text-neutral-700"
       >
         Iniciar sesión
       </Link>
@@ -25,8 +25,10 @@ export function NavSession() {
 
   const label = user.email ?? 'Cuenta';
 
+  // Solo escritorio: en móvil el usuario y la sesión viven en `NavMenu`, donde
+  // el correo no le roba el ancho a la navegación.
   return (
-    <div className="relative">
+    <div className="hidden sm:block relative">
       <button
         onClick={() => setOpen(o => !o)}
         className="text-xs px-2 py-1 rounded border hover:bg-neutral-50 text-neutral-700 max-w-[220px] truncate"
