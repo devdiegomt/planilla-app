@@ -14,7 +14,8 @@ import type { Course, Student, ExportReport } from '@/types';
 import { CURSO_PALABRAS, GRADE_META, slotsFor, columnsFor } from './constants';
 import { normalizeName, findFuzzyMatch } from './utils';
 import {
-  readCalificaHeader, validateHeaderAgainstSlots, describeMismatches,
+  readCalificaHeader, validateHeaderAgainstSlots, describeMismatches, columnsFromStored,
+  type AchievementColumn,
 } from './califica';
 
 interface ExportParams {
@@ -66,6 +67,14 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
   // 1) Encabezado del curso (dos filas por encima de la cabecera)
   ws.getRow(header.headerRow - 2).getCell(firstCol).value =
     `Curso:  ${cursoPalabras}  (${cursoNum})          Materia:${meta.materia}`;
+
+  // 1b) Encabezados de logros del trimestre: la plantilla es solo el molde.
+  const encabezados = elegirEncabezados(course, header.achievements, trimestre);
+  encabezados.forEach((a, i) => {
+    const col = header.firstGradeCol + i;
+    ws.getRow(header.headerRow - 1).getCell(col).value = a.desc;
+    ws.getRow(header.headerRow).getCell(col).value = a.log;
+  });
 
   // 2) Guardar estilos de la primera fila de datos para replicarlos
   const templateRow = ws.getRow(firstDataRow);
@@ -156,11 +165,43 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
       filename,
       // Los nombres reales de los logros salen de la plantilla; el consumidor
       // los persiste en el curso para que la grilla deje de decir solo 'C4'.
-      achievements: header.achievements.map(a => ({
-        column: a.column, log: a.log, title: a.title,
+      achievements: encabezados.map(a => ({
+        column: a.column, log: a.log, title: a.title, desc: a.desc,
       })),
     },
   };
+}
+
+/**
+ * Decide qué encabezados de logros van en el archivo.
+ *
+ * Primero los guardados en el curso (cargados del .xls de la plataforma); si no
+ * son del trimestre del curso, los de la plantilla estática, pero solo si esa
+ * sí lo es. Si ninguno corresponde se aborta: subir el Califica con los códigos
+ * `log_` de otro trimestre no es un detalle cosmético.
+ */
+function elegirEncabezados(
+  course: Course,
+  plantilla: AchievementColumn[],
+  trimestre: number,
+): AchievementColumn[] {
+  const delTrimestre = (list: AchievementColumn[]) =>
+    list.length > 0 && list.every(a => a.trimestre === trimestre);
+
+  const guardados = columnsFromStored(course.achievements ?? []);
+  if (delTrimestre(guardados)) {
+    const ms = validateHeaderAgainstSlots({ achievements: guardados }, course.grade);
+    if (ms.length > 0) throw new Error(describeMismatches(ms, course.grade));
+    return guardados;
+  }
+  if (delTrimestre(plantilla)) return plantilla;
+
+  const t = guardados.find(a => a.trimestre)?.trimestre ?? plantilla[0]?.trimestre;
+  throw new Error(
+    `Los encabezados de logros disponibles son del T${t ?? '?'} y el curso está en T${trimestre}.\n\n` +
+    `Descarga de la plataforma el Califica de cualquier curso de ${course.grade}° y cárgalo con ` +
+    '"Cargar encabezados del trimestre". Queda guardado para todos los cursos de ese grado.',
+  );
 }
 
 // ---- Observaciones de nota ----
