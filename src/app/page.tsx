@@ -5,13 +5,12 @@ import { ImportCalifica451 } from '@/components/ImportCalifica451';
 import { TodayClasses } from '@/components/TodayClasses';
 import { ExportEfas } from '@/components/ExportEfas';
 import { ExportDayAttendance } from '@/components/ExportDayAttendance';
-import { BackupRestore } from '@/components/BackupRestore';
-import { CloseTrimester } from '@/components/CloseTrimester';
-import { RepairPanel } from '@/components/RepairPanel';
-import { PwaInstall } from '@/components/PwaInstall';
-import { PushSetup } from '@/components/PushSetup';
 import { PendientesList } from '@/components/PendientesList';
 
+/**
+ * El home es el trabajo del día. Lo que se hace una vez al año, una vez por
+ * trimestre o solo cuando algo falla vive en /ajustes (engranaje de la barra).
+ */
 export default function Home() {
   return (
     <main className="max-w-5xl mx-auto p-6 space-y-8">
@@ -60,31 +59,6 @@ export default function Home() {
         <div className="border-t pt-4">
           <ImportCodAlum />
         </div>
-      </section>
-
-      <section className="border rounded-lg p-4 bg-neutral-50">
-        <h2 className="font-medium mb-3">Backup local</h2>
-        <BackupRestore />
-      </section>
-
-      <section className="border rounded-lg p-4 bg-neutral-50">
-        <h2 className="font-medium mb-3">Cierre de trimestre</h2>
-        <CloseTrimester />
-      </section>
-
-      <section className="border rounded-lg p-4 bg-neutral-50">
-        <h2 className="font-medium mb-3">Diagnóstico y reparación</h2>
-        <RepairPanel />
-      </section>
-
-      <section className="border rounded-lg p-4 bg-neutral-50">
-        <h2 className="font-medium mb-3">Instalar app</h2>
-        <PwaInstall />
-      </section>
-
-      <section className="border rounded-lg p-4 bg-neutral-50">
-        <h2 className="font-medium mb-3">Notificaciones</h2>
-        <PushSetup />
       </section>
     </main>
   );
