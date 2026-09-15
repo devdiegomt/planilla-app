@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { exportCalifica } from '@/lib/exporter';
 import {
   readPlatformCalifica, validateHeaderAgainstSlots, describeMismatches, parseAchievementDesc,
+  type PlatformCalifica,
 } from '@/lib/califica';
-import { db } from '@/lib/db';
+import { db, hydrateCodAlum, type CodAlumReport } from '@/lib/db';
 import { downloadBlob } from '@/lib/utils';
 import type { Course, Student, ExportReport, Achievement } from '@/types';
 
@@ -20,26 +21,33 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
   const [report, setReport] = useState<ExportReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [codigos, setCodigos] = useState<{ curso: string; r: CodAlumReport } | null>(null);
 
   // Trimestre de los encabezados guardados, para avisar antes de exportar.
   const primero = course.achievements?.[0]?.desc;
   const tEncabezados = primero ? parseAchievementDesc(primero)?.trimestre ?? null : null;
+  const sinCodigo = students.filter(s => !s.codAlum).length;
 
-  async function handleExport() {
-    setBusy(true);
+  function limpiar() {
     setReport(null);
     setError(null);
     setAviso(null);
+    setCodigos(null);
+  }
+
+  async function handleExport() {
+    setBusy(true);
+    limpiar();
     try {
       // El mapa del Califica-451 ya no es obligatorio: si los estudiantes tienen
-      // `codAlum` en la fila (importado del JSON del extractor de planilla-v2),
-      // el exportador se apoya en eso. Solo se exige cuando falta en ambos lados.
+      // `codAlum` en la fila, el exportador se apoya en eso. Solo se exige
+      // cuando falta en ambos lados.
       const raw = localStorage.getItem('codAlumMap');
       const codAlumMap = new Map<string, string>(raw ? JSON.parse(raw) : []);
-      if (!raw && students.some(s => !s.codAlum)) {
+      if (!raw && sinCodigo > 0) {
         setError(
-          'Faltan códigos de estudiante. Importa el JSON de Classroom Live ' +
-          '(o el consolidado Califica) en la página principal.',
+          `Faltan códigos de ${sinCodigo} estudiante(s). Carga aquí el Califica del curso ` +
+          'descargado de la plataforma ("Cargar Califica de la plataforma").',
         );
         return;
       }
@@ -64,54 +72,67 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
   }
 
   /**
-   * Toma los encabezados del Califica descargado de la plataforma y los guarda
-   * en todos los cursos del mismo grado: el plan de logros es por grado, así
-   * que basta un archivo por grado cada trimestre. Viaja por el sync.
+   * Un solo archivo, dos usos: el Califica que baja la plataforma trae el
+   * COD_ALUM de cada estudiante del curso y los encabezados del trimestre.
+   * Los códigos van a las filas del curso del archivo; los encabezados, a
+   * todos los cursos del grado. Ambos viajan por el sync.
    */
-  async function handleHeaders(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleCalifica(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     setBusy(true);
-    setReport(null);
-    setError(null);
-    setAviso(null);
+    limpiar();
     try {
       const p = readPlatformCalifica(await file.arrayBuffer());
       if (p.grade !== course.grade) {
         throw new Error(`El archivo es de ${p.grade}° (curso ${p.curso}) y este curso es de ${course.grade}°.`);
       }
-      const ms = validateHeaderAgainstSlots(p, course.grade);
-      if (ms.length > 0) throw new Error(describeMismatches(ms, course.grade));
-      const otroT = p.achievements.find(a => a.trimestre !== trimestre);
-      if (p.periodo !== trimestre || otroT) {
-        throw new Error(
-          `El archivo es del T${otroT?.trimestre ?? p.periodo} y el curso está en T${trimestre}. ` +
-          'Descarga el Califica del trimestre actual.',
-        );
-      }
 
-      const achievements: Achievement[] = p.achievements.map(a => ({
-        column: a.column, log: a.log, title: a.title, desc: a.desc,
-      }));
-      const mismos = await db.courses
-        .where('grade').equals(course.grade)
-        .filter(c => c.year === course.year)
-        .toArray();
-      await db.transaction('rw', db.courses, async () => {
-        for (const c of mismos) {
-          if (c.id) await db.courses.update(c.id, { achievements });
-        }
+      // Códigos primero: siguen sirviendo aunque el archivo sea de otro trimestre.
+      const r = await hydrateCodAlum({
+        generado: '',
+        courses: [{ cod_cur: p.curso, cod_gru: String(p.grade), cod_mat: p.codMat, estudiantes: p.estudiantes }],
+        warnings: [],
+        totalStudents: p.estudiantes.length,
       });
-      setAviso(
-        `Encabezados del T${trimestre} guardados en ${mismos.length} cursos de ${course.grade}°: ` +
-        mismos.map(c => c.code).sort().join(', ') + '.',
-      );
+      setCodigos({ curso: p.curso, r });
+
+      await guardarEncabezados(p);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function guardarEncabezados(p: PlatformCalifica) {
+    const ms = validateHeaderAgainstSlots(p, course.grade);
+    if (ms.length > 0) throw new Error(describeMismatches(ms, course.grade));
+    const otroT = p.achievements.find(a => a.trimestre !== trimestre);
+    if (p.periodo !== trimestre || otroT) {
+      throw new Error(
+        `Los encabezados del archivo son del T${otroT?.trimestre ?? p.periodo} y el curso está en ` +
+        `T${trimestre}; no se guardaron. Descarga el Califica del trimestre actual.`,
+      );
+    }
+
+    const achievements: Achievement[] = p.achievements.map(a => ({
+      column: a.column, log: a.log, title: a.title, desc: a.desc,
+    }));
+    const mismos = await db.courses
+      .where('grade').equals(course.grade)
+      .filter(c => c.year === course.year)
+      .toArray();
+    await db.transaction('rw', db.courses, async () => {
+      for (const c of mismos) {
+        if (c.id) await db.courses.update(c.id, { achievements });
+      }
+    });
+    setAviso(
+      `Encabezados del T${trimestre} guardados en los cursos de ${course.grade}°: ` +
+      mismos.map(c => c.code).sort().join(', ') + '.',
+    );
   }
 
   return (
@@ -121,21 +142,26 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
         disabled={busy}
         className="rounded-md bg-neutral-900 text-white px-4 py-2 text-sm font-medium hover:bg-neutral-700 disabled:opacity-50"
       >
-        {busy ? 'Generando...' : `Generar Califica del curso ${course.code}`}
+        {busy ? 'Procesando...' : `Generar Califica del curso ${course.code}`}
       </button>
 
       <div className="text-xs text-neutral-600">
         <label className={`cursor-pointer hover:underline ${busy ? 'pointer-events-none opacity-50' : ''}`}>
-          <input type="file" accept=".xls,.xlsx" className="hidden" onChange={handleHeaders} disabled={busy} />
-          Cargar encabezados del trimestre (.xls de la plataforma)
+          <input type="file" accept=".xls,.xlsx" className="hidden" onChange={handleCalifica} disabled={busy} />
+          Cargar Califica de la plataforma (.xls)
         </label>
         {tEncabezados === trimestre && (
-          <span className="ml-1 text-green-700">· T{trimestre} ✓</span>
+          <span className="ml-1 text-green-700">· encabezados T{trimestre} ✓</span>
         )}
         {tEncabezados !== null && tEncabezados !== trimestre && (
-          <span className="ml-1 text-amber-700">· guardados del T{tEncabezados}</span>
+          <span className="ml-1 text-amber-700">· encabezados del T{tEncabezados}</span>
+        )}
+        {sinCodigo > 0 && (
+          <span className="ml-1 text-amber-700">· {sinCodigo} sin código</span>
         )}
       </div>
+
+      {codigos && <ResumenCodigos curso={codigos.curso} r={codigos.r} actual={course.code} />}
 
       {aviso && (
         <p className="text-sm text-green-800 bg-green-50 border border-green-300 rounded p-2 max-w-xl">
@@ -173,6 +199,39 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ResumenCodigos({ curso, r, actual }: { curso: string; r: CodAlumReport; actual: string }) {
+  if (r.coursesNotInApp.length > 0) {
+    return (
+      <p className="text-sm text-amber-800 bg-amber-50 border border-amber-300 rounded p-2 max-w-xl">
+        El archivo es del curso {curso}, que no existe en la app; no se escribieron códigos.
+      </p>
+    );
+  }
+  const listas: { titulo: string; items: string[] }[] = [
+    { titulo: 'En la plataforma pero no en la app (¿ingresos nuevos?)', items: r.notInApp.map(x => `${x.nombre} (${x.cod})`) },
+    { titulo: 'En la app pero no en la plataforma (¿retirados?)', items: r.notInPlatform.map(x => x.nombre) },
+    { titulo: 'Nombres escritos distinto', items: r.fuzzyMatched.map(x => `${x.app} ↔ ${x.platform}`) },
+    { titulo: 'Códigos que cambiaron', items: r.changed.map(x => `${x.nombre}: ${x.from} → ${x.to}`) },
+  ].filter(l => l.items.length > 0);
+
+  return (
+    <div className="text-sm bg-neutral-50 border rounded p-2 max-w-xl space-y-1">
+      <p>
+        ✅ Códigos de {curso}{curso !== actual && <span className="text-amber-700"> (no es este curso)</span>}:{' '}
+        {r.hydrated} escritos · {r.alreadyCorrect} ya estaban
+      </p>
+      {listas.map(l => (
+        <div key={l.titulo} className="text-xs text-amber-800">
+          <p className="font-medium">{l.titulo} ({l.items.length})</p>
+          <ul className="list-disc list-inside">
+            {l.items.map((it, i) => <li key={i}>{it}</li>)}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }
