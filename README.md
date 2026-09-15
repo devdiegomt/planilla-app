@@ -8,7 +8,7 @@ Automatización del flujo docente para profesores de GLA — PWA local-first con
 
 **Gestión de planilla y Califica (v1):**
 1. **Importar** una `PLANILLA-NOTAS-*.xlsx` con los 19 cursos y sus notas. Detección automática del layout (8°–10° vs 11°) y guardado en IndexedDB.
-2. **Importar** un `Califica-XXX.xls/xlsx` consolidado del colegio (el "Califica-451") para hidratar los COD_ALUM.
+2. **Cargar el Califica del curso** descargado de la plataforma (desde la página del curso): escribe los COD_ALUM y guarda los encabezados del trimestre para el grado.
 3. **Editar** notas y F/R por estudiante desde una vista tipo planilla optimizada para móvil.
 4. **Ver la DEF con el algoritmo real de la plataforma** (ignore-zeros + half-up), no con el que trae tu Excel — sabes quién va aprobando de verdad.
 5. **Exportar** el Califica del curso preservando el formato del template, con lista viva de activos y corrección automática de typos.
@@ -116,8 +116,8 @@ Devuelve `null` (no notifica) en fin de semana, festivo, día cancelado, o día 
 
 **Para probar el flujo rápido:**
 1. Sube tu `PLANILLA-NOTAS-*.xlsx` en la sección "Importar datos"
-2. Sube tu `Califica-451-*.xls` en la misma sección
-3. Entra a cualquier curso → edita notas, marca F/R, exporta Califica
+2. Entra a cualquier curso → "Cargar Califica de la plataforma (.xls)" con el Califica de ese curso
+3. Edita notas, marca F/R, exporta Califica
 4. En `/classroom` conecta tu cuenta Google para ver cursos y entregas
 5. Para descargar entregas de un ciclo, usa el link "Descargar entregas" del nav → abre [classroom-rpa](https://classroom-rpa.vercel.app)
 

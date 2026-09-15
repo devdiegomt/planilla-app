@@ -1,6 +1,7 @@
 import { GlobalDashboard } from '@/components/GlobalDashboard';
 import { ImportPlanilla } from '@/components/ImportPlanilla';
 import { ImportCodAlum } from '@/components/ImportCodAlum';
+import { ImportCalifica451 } from '@/components/ImportCalifica451';
 import { TodayClasses } from '@/components/TodayClasses';
 import { ExportEfas } from '@/components/ExportEfas';
 import { ExportDayAttendance } from '@/components/ExportDayAttendance';
@@ -52,6 +53,9 @@ export default function Home() {
         <div>
           <h2 className="font-medium mb-3">Importar datos</h2>
           <ImportPlanilla />
+        </div>
+        <div className="border-t pt-4">
+          <ImportCalifica451 />
         </div>
         <div className="border-t pt-4">
           <ImportCodAlum />
