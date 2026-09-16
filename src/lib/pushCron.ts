@@ -24,32 +24,88 @@ const TABLES = [
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 
-/** Lee los sync_records del usuario y los deserializa a `ReminderInput`. */
-async function loadReminderInput(userId: string, admin: Admin): Promise<ReminderInput> {
-  const { data, error } = await admin
-    .from('sync_records')
-    .select('table_name, sync_id, data')
-    .eq('user_id', userId)
-    .in('table_name', TABLES)
-    .is('deleted_at', null);
-  if (error) throw new Error(`fetch sync_records: ${error.message}`);
+/**
+ * Cuántos usuarios se resuelven por consulta.
+ *
+ * Antes era una consulta por usuario dentro de un bucle serial: con 200
+ * docentes eran 200 idas y vueltas a Supabase dentro de una función que Vercel
+ * corta a los 60 s. En lotes, 200 docentes son 8 consultas.
+ *
+ * No se traen todos de una porque el lote también acota la memoria y da un
+ * punto natural donde mirar el reloj antes de seguir.
+ */
+const USUARIOS_POR_LOTE = 25;
 
-  const byTable = new Map<string, Record<string, unknown>[]>();
-  for (const r of data ?? []) {
-    const arr = byTable.get(r.table_name) ?? [];
-    arr.push(r.data as Record<string, unknown>);
-    byTable.set(r.table_name, arr);
+/** Filas por página. Supabase corta en 1000 por defecto. */
+const PAGINA = 1000;
+
+/**
+ * Margen bajo el `maxDuration` de 60 s de las rutas. Al agotarse, el cron corta
+ * por su cuenta y REPORTA cuántos quedaron sin procesar: antes Vercel mataba la
+ * función y los últimos de la lista se quedaban sin notificación sin que nada
+ * lo dijera.
+ */
+const PRESUPUESTO_MS = 50_000;
+
+type FilasPorTabla = Map<string, Record<string, unknown>[]>;
+
+function aReminderInput(porTabla: FilasPorTabla): ReminderInput {
+  return {
+    yearConfig: porTabla.get('yearConfig')?.[0] as YearConfig | undefined,
+    schedule: (porTabla.get('schedule') ?? []) as unknown as ScheduleBlock[],
+    calendarDays: (porTabla.get('calendarDays') ?? []) as unknown as CalendarDay[],
+    courses: (porTabla.get('courses') ?? []) as unknown as Course[],
+    attendanceMarks: (porTabla.get('attendanceMarks') ?? []) as unknown as AttendanceMark[],
+    todos: (porTabla.get('todos') ?? []) as unknown as Todo[],
+    events: (porTabla.get('events') ?? []) as unknown as CalendarEvent[],
+  };
+}
+
+/** Lee los sync_records de VARIOS usuarios en una sola consulta paginada. */
+async function loadReminderInputs(
+  userIds: string[],
+  admin: Admin,
+): Promise<Map<string, ReminderInput>> {
+  const porUsuario = new Map<string, FilasPorTabla>();
+
+  for (let from = 0; ; from += PAGINA) {
+    const { data, error } = await admin
+      .from('sync_records')
+      .select('user_id, table_name, data')
+      .in('user_id', userIds)
+      .in('table_name', TABLES)
+      .is('deleted_at', null)
+      // El orden es lo que hace estable el paginado por rango: sin él, dos
+      // páginas pueden traer la misma fila y perder otra.
+      .order('user_id', { ascending: true })
+      .order('table_name', { ascending: true })
+      .order('sync_id', { ascending: true })
+      .range(from, from + PAGINA - 1);
+    if (error) throw new Error(`fetch sync_records: ${error.message}`);
+
+    const page = data ?? [];
+    for (const r of page) {
+      const porTabla = porUsuario.get(r.user_id) ?? new Map();
+      const arr = porTabla.get(r.table_name) ?? [];
+      arr.push(r.data as Record<string, unknown>);
+      porTabla.set(r.table_name, arr);
+      porUsuario.set(r.user_id, porTabla);
+    }
+    if (page.length < PAGINA) break;
   }
 
-  return {
-    yearConfig: byTable.get('yearConfig')?.[0] as YearConfig | undefined,
-    schedule: (byTable.get('schedule') ?? []) as unknown as ScheduleBlock[],
-    calendarDays: (byTable.get('calendarDays') ?? []) as unknown as CalendarDay[],
-    courses: (byTable.get('courses') ?? []) as unknown as Course[],
-    attendanceMarks: (byTable.get('attendanceMarks') ?? []) as unknown as AttendanceMark[],
-    todos: (byTable.get('todos') ?? []) as unknown as Todo[],
-    events: (byTable.get('events') ?? []) as unknown as CalendarEvent[],
-  };
+  const out = new Map<string, ReminderInput>();
+  for (const id of userIds) {
+    out.set(id, aReminderInput(porUsuario.get(id) ?? new Map()));
+  }
+  return out;
+}
+
+/** Parte una lista en trozos de `n`. */
+function enLotes<T>(xs: T[], n: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
 }
 
 /**
@@ -98,35 +154,72 @@ export async function runReminderCron(
   }
 
   const today = todayInBogota();
+  const arranque = Date.now();
   const report = {
     usersProcessed: 0,
     usersSkipped: 0,
+    usersPending: 0,
+    truncated: false,
     notificationsSent: 0,
     notificationsFailed: 0,
     goneCleared: 0,
     errors: [] as string[],
   };
 
-  for (const [userId, subs] of subsByUser) {
-    try {
-      const payload = compose(await loadReminderInput(userId, admin), today);
-      if (!payload) {
-        report.usersSkipped++;
-        continue;
-      }
-      const results = await Promise.all(subs.map(s => sendPush(s, payload)));
-      report.usersProcessed++;
-      report.notificationsSent += results.filter(r => r.ok).length;
-      report.notificationsFailed += results.filter(r => !r.ok && !r.gone).length;
-      const goneIds = results.filter(r => r.gone).map(r => r.id);
-      if (goneIds.length > 0) {
-        await admin.from('push_subscriptions').delete().in('id', goneIds);
-        report.goneCleared += goneIds.length;
-      }
-    } catch (e) {
-      report.errors.push(`${userId}: ${(e as Error).message}`);
+  const userIds = [...subsByUser.keys()];
+  const lotes = enLotes(userIds, USUARIOS_POR_LOTE);
+
+  for (let i = 0; i < lotes.length; i++) {
+    // Cortar por cuenta propia y decirlo. Si en cambio se agota el maxDuration,
+    // Vercel mata la función y los últimos de la lista se quedan sin
+    // notificación sin que nada lo reporte.
+    if (Date.now() - arranque > PRESUPUESTO_MS) {
+      report.truncated = true;
+      report.usersPending = lotes.slice(i).reduce((n, l) => n + l.length, 0);
+      break;
     }
+
+    const lote = lotes[i];
+    let entradas: Map<string, ReminderInput>;
+    try {
+      entradas = await loadReminderInputs(lote, admin);
+    } catch (e) {
+      // Un lote que no carga no debe tumbar a los que siguen.
+      report.errors.push(`lote ${i}: ${(e as Error).message}`);
+      continue;
+    }
+
+    // Dentro del lote los usuarios son independientes: el envío va en paralelo.
+    // Antes todo era serial, incluida la espera de red de cada push.
+    await Promise.all(lote.map(async (userId) => {
+      const subs = subsByUser.get(userId) ?? [];
+      try {
+        const payload = compose(entradas.get(userId) ?? aReminderInput(new Map()), today);
+        if (!payload) {
+          report.usersSkipped++;
+          return;
+        }
+        const results = await Promise.all(subs.map(s => sendPush(s, payload)));
+        report.usersProcessed++;
+        report.notificationsSent += results.filter(r => r.ok).length;
+        report.notificationsFailed += results.filter(r => !r.ok && !r.gone).length;
+        const goneIds = results.filter(r => r.gone).map(r => r.id);
+        if (goneIds.length > 0) {
+          await admin.from('push_subscriptions').delete().in('id', goneIds);
+          report.goneCleared += goneIds.length;
+        }
+      } catch (e) {
+        report.errors.push(`${userId}: ${(e as Error).message}`);
+      }
+    }));
   }
 
-  return NextResponse.json({ ok: true, today, ...report, at: new Date().toISOString() });
+  return NextResponse.json({
+    ok: true,
+    today,
+    ...report,
+    usersTotal: userIds.length,
+    elapsedMs: Date.now() - arranque,
+    at: new Date().toISOString(),
+  });
 }
