@@ -15,6 +15,7 @@
 import * as XLSX from 'xlsx';
 import type { Course, Student, CycleData } from '@/types';
 import { SLOTS_8_10, SLOTS_11 } from './constants';
+import type { PlatformCalifica } from './califica';
 
 interface ImportResult {
   courses: (Course & { students: Omit<Student, 'id' | 'courseId' | 'courseCode'>[] })[];
@@ -226,4 +227,53 @@ export async function importPlanilla(buffer: ArrayBuffer, trimestre = 2): Promis
   }
 
   return result;
+}
+
+
+/**
+ * Arma un curso con sus estudiantes a partir de una hoja del Califica.
+ *
+ * Es el punto de partida para un docente que no tiene la Planilla del año —
+ * que son todos menos quien la exporta. Comparado con la Planilla, al Califica
+ * solo le faltan tres cosas: la asistencia histórica, las observaciones por
+ * ciclo y el director de grupo. Las dos primeras no le sirven a quien empieza
+ * (no hay historia que importar) y la tercera se añade después, a mano.
+ *
+ * A cambio trae algo que la Planilla NO trae: el COD_ALUM. Arrancar por acá se
+ * ahorra el paso de extraer los códigos con el userscript.
+ *
+ * `existing` es el curso que ya está en la base, si lo hay. Lo que el Califica
+ * no sabe se toma de ahí en vez de sobrescribirlo: reimportar el archivo cada
+ * trimestre no puede borrar el director ni mover el trimestre del curso.
+ */
+export function courseFromCalificaSheet(
+  data: PlatformCalifica,
+  existing: Course | undefined,
+  year = new Date().getFullYear(),
+): Course & { students: Omit<Student, 'id' | 'courseId' | 'courseCode'>[] } {
+  const students = data.estudiantes.map(e => ({
+    codAlum: e.cod_alum,
+    nombre: e.nombre.trim(),
+    order: e.fila,
+    // Sin historia: un docente que empieza no tiene ciclos que importar. Los
+    // de un curso que ya existe no se tocan (ver upsertCourseWithStudents).
+    cycles: Array.from({ length: 9 }, (_, i) => ({
+      ciclo: i + 1, F: false, R: false, nota: 0, obs: null,
+    })) as CycleData[],
+    subnotas: {} as Record<string, number>,
+    withdrawnAt: null,
+  }));
+
+  return {
+    code: data.curso,
+    grade: data.grade,
+    year,
+    // Lo que el Califica no sabe sale del curso que ya existe.
+    director: existing?.director ?? '',
+    trimestre: existing?.trimestre ?? data.periodo,
+    cyclesActive: existing?.cyclesActive ?? Array(9).fill(true),
+    achievements: existing?.achievements,
+    updatedAt: new Date().toISOString(),
+    students,
+  };
 }

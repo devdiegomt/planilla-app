@@ -5,6 +5,10 @@
  * real son cinco pasos en cuatro pantallas distintas y nada los enumeraba:
  * Diego los sabe de memoria, un colega no.
  *
+ * El primer paso es el Califica y no la Planilla del año: la Planilla la
+ * exporta un solo docente, mientras que el Califica lo baja cualquiera — y
+ * además trae los códigos, que la Planilla no.
+ *
  * La lógica vive acá y no en el componente para poder probarla sin navegador,
  * y porque de ella depende que la lista no le quede colgada a quien ya terminó.
  */
@@ -21,7 +25,7 @@ export interface SetupState {
 }
 
 export interface SetupStep {
-  id: 'planilla' | 'anio' | 'materias' | 'horario' | 'codigos';
+  id: 'califica' | 'anio' | 'materias' | 'horario' | 'codigos';
   titulo: string;
   /** Qué desbloquea. Sin esto la lista es una orden sin motivo. */
   porque: string;
@@ -35,9 +39,10 @@ export function setupSteps(s: SetupState): SetupStep[] {
   const hayCursos = s.cursos > 0;
   return [
     {
-      id: 'planilla',
-      titulo: 'Importa tu Planilla',
-      porque: 'De ahí salen tus cursos y tus estudiantes. Todo lo demás depende de esto.',
+      id: 'califica',
+      titulo: 'Importa tu Califica',
+      porque: 'El archivo que bajas de la plataforma. De ahí salen tus cursos, tus '
+        + 'estudiantes y sus códigos, todo de una. Lo demás depende de esto.',
       href: '/',
       done: hayCursos,
     },
@@ -54,7 +59,7 @@ export function setupSteps(s: SetupState): SetupStep[] {
       porque: 'El Califica y la asistencia llevan el nombre y el código de la asignatura.',
       href: '/ajustes',
       done: hayCursos && s.gradosSinMateria.length === 0,
-      bloqueadoPor: hayCursos ? undefined : 'planilla',
+      bloqueadoPor: hayCursos ? undefined : 'califica',
     },
     {
       id: 'horario',
@@ -62,15 +67,16 @@ export function setupSteps(s: SetupState): SetupStep[] {
       porque: 'Qué dictas en cada tipo de día. Es lo que arma "Clases de hoy".',
       href: '/horario',
       done: s.bloquesHorario > 0,
-      bloqueadoPor: hayCursos ? undefined : 'planilla',
+      bloqueadoPor: hayCursos ? undefined : 'califica',
     },
     {
       id: 'codigos',
-      titulo: 'Carga los códigos de tus estudiantes',
-      porque: 'El COD_ALUM es lo que la plataforma usa para identificarlos al subir notas y asistencia.',
+      titulo: 'Confirma los códigos de tus estudiantes',
+      porque: 'Son lo que la plataforma usa para identificarlos al subir notas y '
+        + 'asistencia. Vienen en el Califica, así que este paso suele marcarse solo.',
       href: '/',
       done: s.estudiantes > 0 && s.estudiantesConCodigo > 0,
-      bloqueadoPor: hayCursos ? undefined : 'planilla',
+      bloqueadoPor: hayCursos ? undefined : 'califica',
     },
   ];
 }

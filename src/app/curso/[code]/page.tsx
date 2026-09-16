@@ -8,6 +8,7 @@ import { db, getCourseByCode } from '@/lib/db';
 import { PlanillaGrid } from '@/components/PlanillaGrid';
 import { ExportCalifica } from '@/components/ExportCalifica';
 import { CourseNav } from '@/components/CourseNav';
+import { DirectorField } from '@/components/DirectorField';
 import { ExportObservations } from '@/components/ExportObservations';
 import { CicloAttendance } from '@/components/CicloAttendance';
 import { CourseDashboard } from '@/components/CourseDashboard';
@@ -49,8 +50,10 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
           <Link href="/" className="text-sm text-neutral-500 hover:underline">← Cursos</Link>
           <div className="flex items-center gap-3 mt-1">
             <CourseNav code={course.code} ciclo={cicloParam} />
-            <h1 className="text-xl font-semibold">
-              {course.code} <span className="text-neutral-500">· {course.director}</span>
+            <h1 className="text-xl font-semibold flex items-center gap-2">
+              {course.code}
+              {/* El Califica no trae el director: se escribe acá cuando haga falta. */}
+              <DirectorField course={course} />
             </h1>
           </div>
         </div>

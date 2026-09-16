@@ -33,7 +33,7 @@ export function ExportEfas() {
   if (courses.length === 0) {
     return (
       <p className="text-sm text-neutral-500">
-        Importa la Planilla primero para generar el EFAS.
+        Importa tu Califica primero para generar el EFAS.
       </p>
     );
   }

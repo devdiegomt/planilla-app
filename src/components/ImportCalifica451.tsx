@@ -5,12 +5,18 @@ import {
   readPlatformWorkbook, validateHeaderAgainstSlots, type PlatformWorkbook,
 } from '@/lib/califica';
 import { fillPlatformWorkbook, writeWorkbookXls, type CourseFillReport } from '@/lib/califica451';
-import { db, getCourseByCode, hydrateCodAlum, type CodAlumReport } from '@/lib/db';
+import {
+  db, getCourseByCode, hydrateCodAlum, upsertCourseWithStudents,
+  type CodAlumReport,
+} from '@/lib/db';
+import { courseFromCalificaSheet } from '@/lib/importer';
 import { downloadBlob } from '@/lib/utils';
 import type { Achievement, Course, Student } from '@/types';
 
 interface Resultado {
   filename: string;
+  /** Cursos que no existían y se crearon desde el archivo. */
+  creados: string[];
   codigos: CodAlumReport;
   encabezados: string[];
   avisos: string[];
@@ -42,7 +48,24 @@ export function ImportCalifica451() {
         throw new Error('El archivo no trae ninguna hoja de Califica. ¿Es el que baja "planillas por profesor"?');
       }
 
-      // 1) Códigos en las filas de cada curso.
+      // 1) Crear los cursos que todavía no existen.
+      //
+      // Esto es lo que convierte al Califica en punto de partida: un docente
+      // sin la Planilla del año —o sea, todos menos quien la exporta— llega
+      // acá con la base vacía y sale con sus cursos, sus estudiantes y sus
+      // códigos. Para un curso que ya existe, `courseFromCalificaSheet` toma de
+      // él lo que el archivo no sabe, y `upsertCourseWithStudents` no toca
+      // notas, observaciones ni asistencia.
+      const creados: string[] = [];
+      for (const s of sheets) {
+        const previo = await getCourseByCode(s.data.curso);
+        if (!previo) creados.push(s.data.curso);
+        const { students, ...curso } = courseFromCalificaSheet(s.data, previo);
+        await upsertCourseWithStudents(curso, students);
+      }
+      creados.sort((a, b) => parseInt(a) - parseInt(b));
+
+      // 2) Códigos en las filas de cada curso.
       const codigos = await hydrateCodAlum({
         generado: '',
         courses: sheets.map(s => ({
@@ -59,7 +82,7 @@ export function ImportCalifica451() {
         if (c) courses.set(c.code, c);
       }
 
-      // 2) Encabezados del trimestre, uno por grado.
+      // 3) Encabezados del trimestre, uno por grado.
       const encabezados: string[] = [];
       const avisos: string[] = [];
       const grados = [...new Set(sheets.map(s => s.data.grade))].sort((a, b) => a - b);
@@ -86,7 +109,7 @@ export function ImportCalifica451() {
         encabezados.push(`${g}°`);
       }
 
-      // 3) Notas: se leen los estudiantes después de escribir los códigos.
+      // 4) Notas: se leen los estudiantes después de escribir los códigos.
       const activos = new Map<string, Student[]>();
       for (const c of courses.values()) {
         if (!c.id) continue;
@@ -98,7 +121,7 @@ export function ImportCalifica451() {
 
       const out = writeWorkbookXls(wb);
       downloadBlob(new Blob([out], { type: 'application/vnd.ms-excel' }), file.name);
-      setRes({ filename: file.name, codigos, encabezados, avisos, cursos, errores: libro.errores });
+      setRes({ filename: file.name, creados, codigos, encabezados, avisos, cursos, errores: libro.errores });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -124,9 +147,13 @@ export function ImportCalifica451() {
         />
         <p className="text-[11px] text-neutral-500 mt-1">
           Descárgalo en la plataforma: Importar/exportar planillas por profesor → Exportar.
-          La app escribe los códigos, guarda los encabezados del trimestre y descarga el
-          mismo archivo con tus notas, listo para importar. Si la app tiene 0 y la
-          plataforma ya tiene nota, se conserva la de la plataforma.
+          <strong> Si es tu primera vez, empieza por aquí:</strong> de este archivo salen
+          tus cursos, tus estudiantes y sus códigos, todo de una.
+        </p>
+        <p className="text-[11px] text-neutral-500 mt-1">
+          Después, cada vez que lo subas, la app guarda los encabezados del trimestre y
+          descarga el mismo archivo con tus notas, listo para importar. Si la app tiene 0
+          y la plataforma ya tiene nota, se conserva la de la plataforma.
         </p>
       </div>
 
@@ -139,6 +166,13 @@ export function ImportCalifica451() {
             ✅ Descargado <span className="font-mono">{res.filename}</span>: {total} notas escritas
             en {llenos} de {res.cursos.length} cursos.
           </p>
+          {res.creados.length > 0 && (
+            <p className="text-xs text-neutral-700">
+              🆕 Cursos creados desde el archivo: {res.creados.join(', ')}.{' '}
+              El director de grupo no viene en el Califica: puedes añadirlo en la
+              página de cada curso.
+            </p>
+          )}
           <p className="text-xs text-neutral-600">
             Códigos: {res.codigos.hydrated} escritos · {res.codigos.alreadyCorrect} ya estaban
             {res.encabezados.length > 0 && <> · Encabezados guardados: {res.encabezados.join(', ')}</>}
