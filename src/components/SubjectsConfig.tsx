@@ -51,7 +51,7 @@ export function SubjectsConfig() {
   if (courses.length === 0) {
     return (
       <p className="text-sm text-neutral-500">
-        Importa tu Planilla primero: los grados salen de tus cursos.
+        Importa tu Califica primero: los grados salen de tus cursos.
       </p>
     );
   }

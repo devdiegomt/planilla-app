@@ -361,7 +361,7 @@ function BlockEditor({
               className="w-full border rounded px-2 py-1.5"
             >
               <option value="">
-                {cursos.length ? '— elige un curso —' : '— importa tu Planilla primero —'}
+                {cursos.length ? '— elige un curso —' : '— importa tu Califica primero —'}
               </option>
               {cursos.map(c => <option key={c} value={c}>{c}</option>)}
             </select>

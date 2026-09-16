@@ -46,7 +46,7 @@ export function GlobalDashboard() {
   const byGrade = groupByGrade(cards);
 
   if (courses.length === 0) {
-    return <p className="text-sm text-neutral-500">Sube tu Planilla para empezar.</p>;
+    return <p className="text-sm text-neutral-500">Importa tu Califica de la plataforma para empezar.</p>;
   }
 
   return (

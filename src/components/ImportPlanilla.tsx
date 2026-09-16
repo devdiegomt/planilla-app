@@ -34,7 +34,7 @@ export function ImportPlanilla() {
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium mb-1">
-          Planilla del año (PLANILLA-NOTAS-*.xlsx)
+          Planilla del año (opcional)
         </label>
         <input
           type="file"
@@ -43,6 +43,11 @@ export function ImportPlanilla() {
           onChange={e => e.target.files?.[0] && handlePlanilla(e.target.files[0])}
           className="block w-full text-sm"
         />
+        <p className="text-[11px] text-neutral-500 mt-1">
+          Solo si la tienes: el archivo PLANILLA-NOTAS del año. Añade la asistencia
+          y las observaciones de ciclos anteriores, que el Califica no trae. Para
+          empezar no hace falta — con el Califica alcanza.
+        </p>
       </div>
       {status && (
         <p className={`text-sm ${status.startsWith('❌') ? 'text-red-600' : 'text-neutral-700'}`}>

@@ -103,6 +103,16 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   guarda los encabezados del trimestre por grado y devuelve **el mismo archivo** (.xls
   BIFF8, SheetJS) con las notas escritas por COD_ALUM (`lib/califica451.ts`). Diego lo
   importa en esa misma pantalla; confirmado que la plataforma lo acepta.
+- **Ese archivo es también el punto de partida.** Si un curso no existe, se crea con sus
+  estudiantes desde la hoja (`courseFromCalificaSheet`). Es lo que permite que lo use un
+  docente que no exporta la Planilla del año — o sea, todos menos Diego. Comparado con la
+  Planilla, al Califica solo le faltan la asistencia histórica, las observaciones por
+  ciclo y el director de grupo; y a cambio **trae el COD_ALUM, que la Planilla no**, así
+  que arrancar por acá se ahorra el extractor de códigos.
+- **Reimportar no puede pisar lo que el archivo no sabe.** Para un curso que ya existe, el
+  director, el trimestre, `cyclesActive` y los encabezados salen del curso guardado, no
+  del archivo. Las notas, observaciones y asistencia de los estudiantes las preserva
+  `upsertCourseWithStudents`.
 - **Regla de seguridad:** si la app tiene 0 y la plataforma ya tiene nota, se conserva
   la de la plataforma. Hojas de otro trimestre, grado o sin curso en la app quedan intactas.
 - **Por curso (respaldo):** "Cargar Califica de la plataforma" en la página del curso
