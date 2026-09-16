@@ -14,6 +14,9 @@ import {
   markDescription, type MarkKind, type MarkState,
 } from './attendance';
 import { MATERIAS_HEREDADAS } from './subjects';
+import {
+  cutoffIso, debePodar, RETENCION_CHANGELOG_DIAS,
+} from './retention';
 
 /** Registro local de una eliminación pendiente de propagar al servidor. */
 export interface SyncTombstone {
@@ -1383,4 +1386,51 @@ export async function dedupeStudents(): Promise<DedupeReport> {
 
   report.affectedCourses = [...courses].sort();
   return report;
+}
+
+/** Clave de la marca de última poda. Es por dispositivo, no se sincroniza. */
+const CLAVE_PODA = 'changeLogPruneAt';
+
+/**
+ * Borra del historial local lo anterior al corte y devuelve cuántas filas cayeron.
+ *
+ * Va SIN lápida a propósito. Una lápida diría "esto se borró en todas partes",
+ * y en el servidor deja la misma fila marcada `deleted_at`: cambiaríamos filas
+ * por lápidas sin liberar nada. Lo que se quiere decir es otra cosa — "este
+ * dispositivo ya no guarda historia tan vieja" —, así que el borrado del
+ * servidor va por su cuenta, en el cron.
+ *
+ * Un resync completo puede traerla de vuelta mientras siga en el servidor. Es
+ * correcto: la historia vive allá hasta que el cron la pode.
+ */
+export async function pruneChangeLog(corteIso: string): Promise<number> {
+  return withoutTombstone(async () => {
+    const viejas = await db.changeLog.where('at').below(corteIso).primaryKeys();
+    if (viejas.length === 0) return 0;
+    await db.changeLog.bulkDelete(viejas);
+    return viejas.length;
+  });
+}
+
+/**
+ * Poda local, como mucho una vez al día por dispositivo.
+ *
+ * Silenciosa a propósito: es mantenimiento, no una acción del docente. Nunca
+ * lanza — si el historial no se puede podar, la app tiene que abrir igual.
+ */
+export async function maybePruneChangeLog(ahora = new Date()): Promise<number> {
+  let ultima: string | null = null;
+  try {
+    ultima = localStorage.getItem(CLAVE_PODA);
+  } catch {
+    // Ventana privada o almacenamiento bloqueado: se poda igual, sin recordar.
+  }
+  if (!debePodar(ultima, ahora)) return 0;
+  try {
+    const n = await pruneChangeLog(cutoffIso(ahora, RETENCION_CHANGELOG_DIAS));
+    try { localStorage.setItem(CLAVE_PODA, ahora.toISOString()); } catch { /* ver arriba */ }
+    return n;
+  } catch {
+    return 0;
+  }
 }

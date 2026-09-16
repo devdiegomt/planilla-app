@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/lib/db';
+import { db, maybePruneChangeLog } from '@/lib/db';
 import {
   syncAll, getSyncStatus, SYNCABLE_TABLES,
   type SyncStatus as SyncStatusData,
@@ -94,6 +94,12 @@ export function SyncStatus() {
 
   // Rerender de status cuando cambien las tablas
   useEffect(() => { refresh(); }, [trigger, refresh]);
+
+  // Mantenimiento de arranque. Vive acá porque este componente está siempre en
+  // el layout y ya es el dueño del trabajo periódico sobre los datos. No
+  // depende de haber iniciado sesión: el historial es local. Se ignora el
+  // resultado a propósito — es mantenimiento, no una acción del docente.
+  useEffect(() => { void maybePruneChangeLog(); }, []);
 
   if (!user) return null;
 

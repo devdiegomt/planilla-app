@@ -64,6 +64,15 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   mismo UUID en cualquier dispositivo. Reimportar no debe duplicar.
 - **Migraciones Dexie:** nunca modificar una versión existente. Siempre una versión
   nueva que repita todos los stores.
+- **Borrar una fila sincronizable no la borra del servidor.** El hook `deleting`
+  encola una lápida, que al subir deja la MISMA fila marcada `deleted_at`. Podar en
+  local con lápidas cambia filas por lápidas sin liberar nada: para liberar de verdad
+  hay que borrar del lado del servidor (ver `pruneRemoteChangeLog`). Cuando el borrado
+  significa "este dispositivo ya no lo guarda" y no "esto se borró en todas partes",
+  va con `withoutTombstone`.
+- **`changeLog` se poda; las notas y lo archivado no.** Retención en `lib/retention.ts`:
+  180 días, en local al arrancar (una vez al día) y en el servidor desde el cron de la
+  tarde. `trimesterSnapshots` no se toca nunca.
 - **Tabla sincronizable nueva** = registrarla en tres lugares: `SYNCABLE` (hooks en
   `lib/db.ts`), `SYNCABLE_TABLES` (`lib/sync.ts`) y `TABLES` (`lib/backup.ts`). Si el dato
   cabe como campo opcional de una tabla que ya sincroniza, sale más barato: el sync sube

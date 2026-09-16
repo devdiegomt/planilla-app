@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
+import { describeRetencion } from '@/lib/retention';
 import type { Course } from '@/types';
 
 interface Props {
@@ -57,6 +58,11 @@ export function ChangeLogView({ course }: Props) {
 
       {open && (
         <div>
+          {/* Que la poda no sea una sorpresa: si el docente busca algo de hace
+              un año y no está, tiene que saber por qué. */}
+          <p className="px-4 pt-2 text-[11px] text-neutral-500">
+            {describeRetencion()}
+          </p>
           {entries.length === 0 ? (
             <p className="p-4 text-sm text-neutral-500">
               Aún no has editado nada en este curso.
