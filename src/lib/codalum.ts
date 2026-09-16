@@ -13,7 +13,8 @@
  *   { generado, cursos: [{ cod_cur, cod_gru, cod_mat, estudiantes: [...] }], errores }
  */
 
-import { GRADE_META } from './constants';
+import { subjectFor } from './subjects';
+import type { YearConfig } from '@/types';
 
 export interface CodAlumStudent {
   cod_alum: string;
@@ -46,6 +47,15 @@ export interface ParsedCodAlum {
   courses: CodAlumCourse[];
   warnings: ParseWarning[];
   totalStudents: number;
+  /**
+   * El `cod_mat` que reporta la plataforma, por grado. La plataforma es la
+   * fuente de verdad de este dato, así que en vez de pedírselo al docente se
+   * aprende de acá y se le ofrece guardarlo.
+   *
+   * Opcional porque quien arma un `ParsedCodAlum` sintético a partir de un
+   * Califica (para hidratar códigos) no lo necesita.
+   */
+  codMatPorGrado?: Record<number, string>;
 }
 
 /**
@@ -55,7 +65,10 @@ export interface ParsedCodAlum {
  * (código de grado que no cuadra, cod_alum malformado) se acumulan como
  * warnings: un curso raro no debe impedir hidratar los otros 18.
  */
-export function parseCodAlumJson(text: string): ParsedCodAlum {
+export function parseCodAlumJson(
+  text: string,
+  cfg?: Pick<YearConfig, 'subjects'>,
+): ParsedCodAlum {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -73,6 +86,7 @@ export function parseCodAlumJson(text: string): ParsedCodAlum {
 
   const warnings: ParseWarning[] = [];
   const courses: CodAlumCourse[] = [];
+  const codMatPorGrado: Record<number, string> = {};
   let totalStudents = 0;
 
   for (const c of obj.cursos) {
@@ -97,8 +111,12 @@ export function parseCodAlumJson(text: string): ParsedCodAlum {
         message: `cod_gru "${c.cod_gru}" no cuadra con el grado ${gradeFromCode} del código de curso.`,
       });
     }
-    const expectedMat = GRADE_META[gradeFromCode]?.codMat;
+    // Si el docente ya configuró su materia, se avisa cuando la plataforma
+    // reporta otra. Si no la configuró, no hay contra qué comparar y el dato
+    // se aprende en `codMatPorGrado` en vez de inventar una advertencia.
+    const expectedMat = subjectFor(cfg, gradeFromCode)?.codMat;
     const gotMat = String(c.cod_mat ?? '').trim();
+    if (gotMat) codMatPorGrado[gradeFromCode] = gotMat;
     if (expectedMat && gotMat && gotMat !== expectedMat) {
       warnings.push({
         course: code,
@@ -149,5 +167,6 @@ export function parseCodAlumJson(text: string): ParsedCodAlum {
     courses,
     warnings,
     totalStudents,
+    codMatPorGrado,
   };
 }

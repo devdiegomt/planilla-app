@@ -3,14 +3,6 @@
  * de las 19 planillas y del Califica-451 (consolidado 2026).
  */
 
-/** COD_MAT y nombre de materia por grado (nivel académico). */
-export const GRADE_META: Record<number, { codMat: string; materia: string }> = {
-  8:  { codMat: '2508', materia: 'Information Technology' },
-  9:  { codMat: '2509', materia: 'Information Technology' },
-  10: { codMat: '2510', materia: 'Information Technology' },
-  11: { codMat: '3011', materia: 'Informática y tecnología' },
-};
-
 /** Número de curso → nombre en palabras (encabezado del Califica). */
 export const CURSO_PALABRAS: Record<number, string> = {
   801: 'OCHOCIENTOS UNO',   802: 'OCHOCIENTOS DOS',   803: 'OCHOCIENTOS TRES',

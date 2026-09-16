@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { exportCalifica } from '@/lib/exporter';
 import {
   readPlatformCalifica, validateHeaderAgainstSlots, describeMismatches, parseAchievementDesc,
@@ -8,6 +9,7 @@ import {
 } from '@/lib/califica';
 import { db, hydrateCodAlum, type CodAlumReport } from '@/lib/db';
 import { downloadBlob } from '@/lib/utils';
+import { subjectFor } from '@/lib/subjects';
 import type { Course, Student, ExportReport, Achievement } from '@/types';
 
 interface Props {
@@ -22,6 +24,12 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [codigos, setCodigos] = useState<{ curso: string; r: CodAlumReport } | null>(null);
+
+  // La materia del grado sale de Ajustes: la cabecera del Califica lleva su
+  // nombre y su código, y antes venían de una constante fija.
+  const yearCfg = useLiveQuery(
+    () => db.yearConfig.where('year').equals(course.year).first(), [course.year],
+  );
 
   // Trimestre de los encabezados guardados, para avisar antes de exportar.
   const primero = course.achievements?.[0]?.desc;
@@ -52,7 +60,18 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
         return;
       }
 
-      const { blob, report } = await exportCalifica({ course, students, codAlumMap, trimestre });
+      const subject = subjectFor(yearCfg, course.grade);
+      if (!subject?.materia.trim()) {
+        setError(
+          `Falta configurar la materia de ${course.grade}° en Ajustes: el Califica ` +
+          'lleva el nombre de la asignatura y su código en la cabecera.',
+        );
+        return;
+      }
+
+      const { blob, report } = await exportCalifica({
+        course, students, codAlumMap, trimestre, subject,
+      });
       downloadBlob(blob, report.filename);
       setReport(report);
 

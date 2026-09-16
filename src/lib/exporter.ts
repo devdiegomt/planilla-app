@@ -11,7 +11,8 @@
 
 import ExcelJS from 'exceljs';
 import type { Course, Student, ExportReport } from '@/types';
-import { CURSO_PALABRAS, GRADE_META, slotsFor, columnsFor } from './constants';
+import { CURSO_PALABRAS, slotsFor, columnsFor } from './constants';
+import type { SubjectConfig } from '@/types';
 import { normalizeName, findFuzzyMatch } from './utils';
 import {
   readCalificaHeader, validateHeaderAgainstSlots, describeMismatches, columnsFromStored,
@@ -23,17 +24,22 @@ interface ExportParams {
   students: Student[];                      // solo activos
   codAlumMap: Map<string, string>;          // {nombreNormalizado: cod}
   trimestre: number;
+  /**
+   * La materia del grado, configurada por el docente en Ajustes. Antes salía
+   * de la constante GRADE_META, fija en Informática de 8° a 11°.
+   */
+  subject: SubjectConfig;
 }
 
 export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob; report: ExportReport }> {
-  const { course, students, codAlumMap, trimestre } = params;
+  const { course, students, codAlumMap, trimestre, subject } = params;
 
   const cursoNum = parseInt(course.code);
   const cursoPalabras = CURSO_PALABRAS[cursoNum] ?? `CURSO ${cursoNum}`;
   const gradeNum = course.grade;
   const slots = slotsFor(gradeNum);
   const nSlots = slots.length;                   // 10 u 11
-  const meta = GRADE_META[gradeNum];
+  const meta = subject;
   const codGru = String(gradeNum).padStart(2, '0').padEnd(5, ' ');
   const codCur = String(cursoNum).padEnd(10, ' ');
   const codPer = String(trimestre).padStart(2, '0');

@@ -193,9 +193,25 @@ export interface CalendarDay {
 }
 
 /** Configuración del año escolar (fecha de arranque + rotación inicial). */
+/**
+ * Una materia que el docente dicta en un grado.
+ *
+ * Reemplaza la constante `GRADE_META`, que fijaba Informática de 8° a 11° y
+ * dejaba fuera a cualquier otro docente. `codMat` es el código de la
+ * plataforma (2508, 3011…) y `materia` el nombre como aparece en la lista de
+ * asignaturas de Classroom Live — el autofill lo compara contra ese texto.
+ */
+export interface SubjectConfig {
+  grade: number;
+  codMat: string;
+  materia: string;
+}
+
 export interface YearConfig {
   id?: number;
   year: number;
+  /** Materias por grado. Ausente en bases anteriores a la v13. */
+  subjects?: SubjectConfig[];
   startDate: string;                  // 'YYYY-MM-DD' primer día lectivo
   initialDayType: DayType;            // día tipo asignado al startDate
   trim1Start?: string;                // 'YYYY-MM-DD' inicio trimestre 1

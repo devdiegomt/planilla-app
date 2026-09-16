@@ -46,7 +46,8 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   plataforma; no cambiarla sin volver a validar.
 - **Días:** rotación D1–D5 de lunes a jueves; el viernes es Día Fijo. Festivos
   (Colombia) y cancelaciones no consumen rotación.
-- `cod_mat` depende del grado: 2508, 2509, 2510 y **3011** para 11°.
+- `cod_mat` depende del grado: 2508, 2509, 2510 y **3011** para 11°. Ya no es una
+  constante: vive en `YearConfig.subjects` y se edita en /ajustes → "Mis materias".
 
 ## Invariantes que ya costaron bugs
 
@@ -58,7 +59,14 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
 - **Migraciones Dexie:** nunca modificar una versión existente. Siempre una versión
   nueva que repita todos los stores.
 - **Tabla sincronizable nueva** = registrarla en tres lugares: `SYNCABLE` (hooks en
-  `lib/db.ts`), `SYNCABLE_TABLES` (`lib/sync.ts`) y `TABLES` (`lib/backup.ts`).
+  `lib/db.ts`), `SYNCABLE_TABLES` (`lib/sync.ts`) y `TABLES` (`lib/backup.ts`). Si el dato
+  cabe como campo opcional de una tabla que ya sincroniza, sale más barato: el sync sube
+  la fila entera como JSON, así que un campo no indexado no necesita migración ni tocar
+  Supabase (así se agregaron `ScheduleBlock.kind` y `YearConfig.subjects`).
+- **Nada del docente en constantes.** Los cursos, los grados y las materias salen de lo
+  que el docente importó o configuró, no de `lib/constants.ts`. Ahí vivían `CURSOS_ORDER`,
+  `DIRECTORES` y `GRADE_META`, y ataban la app a un solo profesor. Lo que queda atado son
+  `SLOTS_8_10` y `SLOTS_11`.
 - **El ciclo es de la rotación, no del curso** (`lib/cycles.ts`). Un ciclo es una vuelta
   D1→D5; el viernes (FIJO) no consume rotación y pertenece al ciclo en curso, así que un
   ciclo puede traer dos viernes. No asumir `grade === 11 ? 2 : 1` sesiones: usar
