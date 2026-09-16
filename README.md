@@ -303,7 +303,7 @@ De paso, la plantilla ya traía el **nombre real de cada logro**. Se guarda en `
 - **Estadísticas:** el ranking de "top fallas" pondera solo lo injustificado; mezclarlas escondía a los casos que sí hay que vigilar.
 
 ### v4.1+ (candidatos)
-- [ ] Exportar todos los cursos de un día en un ZIP (hoy es un archivo por ciclo)
+- [x] Asistencia del día curso por curso, con botón de copiar (el ZIP queda de respaldo)
 - [ ] Reconciliar notas contra la plataforma (requiere que `codalum-extractor` conserve las columnas de notas de `ReporteCalificaMatrizProfesor`)
 - [ ] Importar `CalendarioN2` (136) y `CircularesProf` (124) para dejar de teclear entregas y pendientes
 - [ ] Historial de los 4 periodos vía `ConsCalificaDocentesGen` (24)
