@@ -150,14 +150,29 @@ export interface CalendarEvent {
 export type DayType = 'D1' | 'D2' | 'D3' | 'D4' | 'D5' | 'FIJO';
 
 /** Un bloque en el horario: qué curso, en qué tipo de día, en qué orden. */
+/**
+ * Qué ocupa una franja. Ausente = 'clase': las filas anteriores a este campo
+ * son todas clases, y así no hace falta migrarlas.
+ *
+ * Solo 'clase' cuenta para ciclos, asistencia, Califica y recordatorios. Un
+ * reemplazo de otro curso va como 'evento' con el curso en `title`, NUNCA en
+ * `courseCode`: `courseSessionDates` numera los ciclos de un curso a partir de
+ * los tipos de día en que aparece su código, así que meterlo ahí le correría
+ * la numeración de ciclos a ese curso.
+ */
+export type BlockKind = 'clase' | 'evento' | 'descanso';
+
 export interface ScheduleBlock {
   id?: number;
   dayType: DayType;
   block: number;                      // 1..6 posición dentro del día
-  courseCode: string;                 // '801', '1101', etc.
+  courseCode: string;                 // '801', '1101', etc. Vacío si no es clase.
   startTime: string;                  // 'HH:mm'
   endTime: string;                    // 'HH:mm'
   room?: string;
+  kind?: BlockKind;                   // ausente = 'clase'
+  title?: string;                     // rótulo cuando no es un curso ('RDA', 'Reemplazo 903')
+  note?: string;                      // nota libre, también sobre una clase
   syncId?: string;
   updatedAt?: string;
 }

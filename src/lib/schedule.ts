@@ -121,13 +121,47 @@ export function dayTypeOf(
 }
 
 /** Filtra el horario para un tipo de día y lo ordena por bloque. */
+/**
+ * ¿Este bloque es una clase de verdad? Los eventos y descansos comparten tabla
+ * con las clases pero no cuentan para ciclos, asistencia ni recordatorios.
+ * Las filas anteriores a `kind` no lo traen y son todas clases.
+ */
+export function isClassBlock(b: ScheduleBlock): boolean {
+  return (b.kind ?? 'clase') === 'clase';
+}
+
+/**
+ * Las clases de un tipo de día, en orden cronológico.
+ *
+ * Filtra los que no son clase: es el único camino por el que el horario llega
+ * al inicio, a la exportación de asistencia y a los recordatorios, así que
+ * filtrar acá alcanza para que un evento no se cuele a ninguno.
+ *
+ * Ordena por hora y no por `block`: el número de bloque es solo un consecutivo
+ * de creación y no tiene por qué ir en orden de reloj — con el horario real de
+ * Diego la lista del día salía con la clase de las 14:10 antes que la de las
+ * 10:50.
+ */
 export function classesForDayType(
+  dayType: DayType,
+  schedule: ScheduleBlock[],
+): ScheduleBlock[] {
+  return entriesForDayType(dayType, schedule).filter(isClassBlock);
+}
+
+/**
+ * Todo lo de un tipo de día — clases, eventos y descansos — en orden de reloj.
+ *
+ * Es para mostrarle el día completo a Diego. Para contar clases, numerar
+ * ciclos o exportar asistencia va `classesForDayType`, que filtra.
+ */
+export function entriesForDayType(
   dayType: DayType,
   schedule: ScheduleBlock[],
 ): ScheduleBlock[] {
   return schedule
     .filter(b => b.dayType === dayType)
-    .sort((a, b) => a.block - b.block);
+    .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.block - b.block);
 }
 
 /** Etiqueta legible del tipo de día. */
