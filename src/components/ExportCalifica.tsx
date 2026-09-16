@@ -210,7 +210,7 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
           )}
           {report.estudiantesSinCodAlum.length > 0 && (
             <div className="text-red-700 mt-1">
-              <p className="font-medium">⚠️ Sin COD_ALUM (corrige antes de subir):</p>
+              <p className="font-medium">⚠️ Sin código (corrige antes de subir):</p>
               <ul className="list-disc list-inside">
                 {report.estudiantesSinCodAlum.map((n, i) => <li key={i}>{n}</li>)}
               </ul>

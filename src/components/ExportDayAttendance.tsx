@@ -52,13 +52,13 @@ export function ExportDayAttendance() {
   // Se arma al cambiar la fecha, sin pulsar nada: es una función pura sobre lo
   // que ya está en memoria.
   const { items, error } = useMemo((): { items: DayExportItem[]; error: string | null } => {
-    if (!yearCfg) return { items: [], error: 'Falta el año lectivo. Definilo en Calendario.' };
+    if (!yearCfg) return { items: [], error: 'Falta el año lectivo. Defínelo en Calendario.' };
     try {
       const res = buildDayAttendanceExports({
         dateIso: fecha, courses, students, schedule, calendarDays, yearConfig: yearCfg,
       });
       if (res.length === 0) {
-        return { items: [], error: 'Ese día no tenés clases según el horario y el calendario.' };
+        return { items: [], error: 'Ese día no tienes clases según el horario y el calendario.' };
       }
       return { items: res, error: null };
     } catch (e) {
@@ -84,7 +84,7 @@ export function ExportDayAttendance() {
       // Sin portapapeles (contexto inseguro o permiso denegado) se muestra el
       // JSON para copiarlo a mano, en vez de dejar el botón sin hacer nada.
       setManual({ clave, json });
-      setAviso('El navegador no dejó copiar. Seleccioná el texto y copialo a mano.');
+      setAviso('El navegador no dejó copiar. Selecciona el texto y cópialo a mano.');
     }
   }
 
@@ -132,15 +132,15 @@ export function ExportDayAttendance() {
 
       {ok.length > 0 && (
         <p className="text-xs text-neutral-500">
-          Copiá una y pegala en el recuadro del panel de asistencia en Classroom
-          Live. Repetí con la siguiente.
+          Copia una y pégala en el recuadro del panel de asistencia en Classroom
+          Live. Repite con la siguiente.
         </p>
       )}
 
       {!esHoy && ok.length > 0 && (
         <p className="text-xs text-amber-700">
           ⚠ No es hoy. Los archivos no llevan fecha, así que el autofill los
-          registraría con la de hoy: ajustala en Classroom Live antes de correrlos.
+          registraría con la de hoy: ajústala en Classroom Live antes de correrlos.
         </p>
       )}
 

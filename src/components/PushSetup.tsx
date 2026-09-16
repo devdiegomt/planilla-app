@@ -71,7 +71,7 @@ export function PushSetup() {
       }
       const reg = await navigator.serviceWorker.ready;
       const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!publicKey) throw new Error('VAPID public key no configurada.');
+      if (!publicKey) throw new Error('Las notificaciones no están configuradas en el servidor. Avisa a quien administra la app.');
 
       // Des-suscribir cualquier suscripción previa que pueda estar usando una
       // VAPID key distinta (causa el 410 Gone inmediato en pruebas). Además,
@@ -95,7 +95,7 @@ export function PushSetup() {
         applicationServerKey: urlBase64ToUint8Array(publicKey),
       });
       const token = await getAccessToken();
-      if (!token) throw new Error('Sesión sin token (recarga).');
+      if (!token) throw new Error('Tu sesión venció. Recarga la página.');
       const json = sub.toJSON();
       const res = await fetch('/api/push/subscribe', {
         method: 'POST',
@@ -148,7 +148,7 @@ export function PushSetup() {
     setState(s => ({ ...s, busy: true, error: null, status: null }));
     try {
       const token = await getAccessToken();
-      if (!token) throw new Error('Sesión sin token.');
+      if (!token) throw new Error('Tu sesión venció. Vuelve a iniciar sesión.');
       const res = await fetch('/api/push/test', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },

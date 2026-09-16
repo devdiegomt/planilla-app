@@ -43,7 +43,7 @@ export function ExportAttendance({ course, students, ciclo, session }: Props) {
     setError(null);
     setResult(null);
     if (!yearConfig) {
-      setError('Falta la configuración del año. Defínela en /calendario.');
+      setError('Falta el año lectivo. Defínelo en Calendario.');
       return;
     }
     try {
@@ -94,7 +94,7 @@ export function ExportAttendance({ course, students, ciclo, session }: Props) {
           )}
           {result.sinCodAlum.length > 0 && (
             <span className="block text-amber-700">
-              ⚠ {result.sinCodAlum.length} sin COD_ALUM: {result.sinCodAlum.slice(0, 2).join(', ')}
+              ⚠ {result.sinCodAlum.length} sin código: {result.sinCodAlum.slice(0, 2).join(', ')}
               {result.sinCodAlum.length > 2 && ` +${result.sinCodAlum.length - 2}`}
             </span>
           )}
