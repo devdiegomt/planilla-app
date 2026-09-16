@@ -62,6 +62,12 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   del servidor comparar `courseId` da `undefined === undefined`.
 - **syncId deterministas** (`lib/syncId.ts`): el mismo curso o estudiante produce el
   mismo UUID en cualquier dispositivo. Reimportar no debe duplicar.
+- **La identidad de un estudiante es su COD_ALUM, no su nombre.** `studentSyncIdByCode`
+  para las filas nuevas; `studentSyncId` (por nombre) queda para las que ya existen, que
+  no pueden cambiar de clave sin volverse huérfanas. El emparejamiento al importar vive en
+  `lib/studentMatch.ts`, puro y aparte de Dexie: primero por código, y por nombre solo si
+  no hay. `normalizeName` ya absorbe tildes y mayúsculas; lo que el nombre NO aguanta es
+  un apellido añadido o corregido, y ahí el código es lo único que sostiene la identidad.
 - **Migraciones Dexie:** nunca modificar una versión existente. Siempre una versión
   nueva que repita todos los stores.
 - **Borrar una fila sincronizable no la borra del servidor.** El hook `deleting`
