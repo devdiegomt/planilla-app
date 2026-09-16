@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { DownloadIcon, ENTREGAS_URL, NAV_LINKS } from './nav-icons';
+import { NAV_LINKS } from './nav-icons';
 
 /**
  * Navegación de escritorio, con etiquetas de texto.
@@ -49,17 +49,6 @@ export function MainNav() {
         );
       })}
 
-      <a
-        href={ENTREGAS_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Descargar entregas de un ciclo (abre classroom-rpa en pestaña nueva)"
-        className="hidden sm:flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5
-                   text-neutral-500 hover:text-neutral-900 hover:bg-neutral-50 transition-colors"
-      >
-        <DownloadIcon />
-        <span className="whitespace-nowrap">Descargar entregas ↗</span>
-      </a>
     </nav>
   );
 }

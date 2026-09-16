@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react';
+import { DownloadSubmissions, type TrabajoParaBajar } from './DownloadSubmissions';
 import type {
   ClassroomCourse, CourseWork, StudentSubmission, Attachment,
 } from '@/lib/classroomApi';
@@ -161,6 +162,33 @@ export function ClassroomBrowser({
           ) : coursework.length === 0 ? (
             <p className="text-sm text-neutral-500">Sin tareas.</p>
           ) : (
+            <>
+              {/* El curso entero: una carpeta por estudiante y, dentro, una por
+                  trabajo. Va a buscar las entregas de cada tarea, así que puede
+                  tardar — por eso el avance y el botón de cancelar. */}
+              <div className="mb-3 pb-3 border-b">
+                <DownloadSubmissions
+                  nombreBase={selectedCourse.name ?? 'curso'}
+                  agruparPorTrabajo
+                  etiqueta={`Bajar el curso completo (${coursework.length} tareas)`}
+                  cargar={async () => {
+                    const out: TrabajoParaBajar[] = [];
+                    for (const cw of coursework) {
+                      const r = await fetch(
+                        `/api/classroom/courses/${selectedCourse.id}/coursework/${cw.id}/submissions`,
+                      );
+                      if (!r.ok) continue;   // una tarea que falla no tumba el resto
+                      const d = await r.json();
+                      out.push({
+                        titulo: cw.title,
+                        entregas: d.submissions ?? [],
+                        maxPoints: cw.maxPoints,
+                      });
+                    }
+                    return out;
+                  }}
+                />
+              </div>
             <ul className="space-y-1 max-h-[70vh] overflow-y-auto">
               {coursework.map(cw => {
                 const due = cw.dueDate
@@ -186,6 +214,7 @@ export function ClassroomBrowser({
                 );
               })}
             </ul>
+            </>
           )}
         </Panel>
 
@@ -197,10 +226,22 @@ export function ClassroomBrowser({
           ) : submissions.length === 0 ? (
             <p className="text-sm text-neutral-500">Sin entregas registradas.</p>
           ) : (
-            <SubmissionsList
-              submissions={submissions}
-              maxPoints={selectedCw.maxPoints}
-            />
+            <div className="space-y-3">
+              <DownloadSubmissions
+                nombreBase={`${selectedCourse?.name ?? 'curso'} - ${selectedCw.title}`}
+                agruparPorTrabajo={false}
+                etiqueta="Bajar este trabajo (ZIP)"
+                cargar={async () => [{
+                  titulo: selectedCw.title,
+                  entregas: submissions,
+                  maxPoints: selectedCw.maxPoints,
+                }]}
+              />
+              <SubmissionsList
+                submissions={submissions}
+                maxPoints={selectedCw.maxPoints}
+              />
+            </div>
           )}
         </Panel>
       </div>

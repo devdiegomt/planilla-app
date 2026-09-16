@@ -12,7 +12,7 @@ import { HomeIcon, NAV_LINKS } from './nav-icons';
  * hay una fila entera para seis pestañas (~60px cada una, sobre el mínimo
  * táctil de 44px) y además queda al alcance del pulgar.
  *
- * Ajustes y "Descargar entregas" no están acá: viven en el menú de `NavMenu`.
+ * Ajustes no está acá: vive en el menú de `NavMenu`.
  *
  * `env(safe-area-inset-bottom)` deja libre la barra de gestos de Android/iOS;
  * sin eso la última fila de pestañas queda debajo del indicador del sistema.

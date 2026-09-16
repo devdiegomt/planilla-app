@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useSession } from './SessionProvider';
-import { DownloadIcon, ENTREGAS_URL, GearIcon } from './nav-icons';
+import { GearIcon } from './nav-icons';
 
 /**
  * Menú de desbordamiento de móvil.
@@ -12,7 +12,7 @@ import { DownloadIcon, ENTREGAS_URL, GearIcon } from './nav-icons';
  * tercios de la barra en 375px y dejaba a los íconos sin espacio. Acá el
  * usuario es un círculo con la inicial y el correo se lee al abrir.
  *
- * Recoge lo que no entra en la barra inferior: Ajustes y "Descargar entregas".
+ * Recoge lo que no entra en la barra inferior: por ahora, Ajustes.
  * Ajustes tiene que estar también sin sesión iniciada — la app es local-first y
  * el backup, la reparación y la instalación no dependen de estar autenticado.
  *
@@ -61,17 +61,6 @@ export function NavMenu() {
               Ajustes
             </Link>
 
-            <a
-              href={ENTREGAS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-3 py-2.5 hover:bg-neutral-50 text-neutral-800 border-t"
-            >
-              <DownloadIcon />
-              Descargar entregas ↗
-            </a>
 
             {user ? (
               <div className="border-t">

@@ -13,6 +13,10 @@ export const CLASSROOM_SCOPES = [
   'https://www.googleapis.com/auth/classroom.rosters.readonly',
   'https://www.googleapis.com/auth/classroom.profile.emails',
   'https://www.googleapis.com/auth/userinfo.profile',
+  // Los trabajos de los estudiantes son archivos de Drive: sin esto se ven
+  // los enlaces pero no se pueden descargar. Es un permiso restringido de
+  // Google — al añadirlo hay que volver a dar consentimiento.
+  'https://www.googleapis.com/auth/drive.readonly',
 ];
 
 export function getOAuth2Client(): OAuth2Client {

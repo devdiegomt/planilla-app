@@ -150,4 +150,15 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   copiar desde el inicio y pegar ahí — sin ZIP, sin descomprimir y sin explorador de
   archivos, y funciona igual en el celular. El ZIP sigue como respaldo para cuando no
   hay portapapeles (contexto inseguro o permiso denegado).
+- **Descargar entregas de Classroom.** Reemplaza el enlace externo a classroom-rpa, que
+  se quitó de la barra. El ZIP se arma **en el navegador** (no en el servidor): un curso
+  completo son decenas de archivos y una función de Vercel se corta al minuto; además así
+  hay avance y cancelación. `api/classroom/drive/[fileId]` solo hace de puente, porque el
+  token vive en el servidor.
+- **Un Documento de Google no tiene bytes que descargar:** hay que pedirle a Drive que lo
+  exporte (`lib/driveExport.ts` decide a qué). Sin eso el ZIP saldría casi vacío, porque
+  la mayoría de los trabajos de Classroom son Documentos.
+- **Descargar trabajos necesita el permiso `drive.readonly`**, que Google considera
+  restringido: al añadirlo hay que volver a dar consentimiento, y para publicarlo a muchos
+  docentes haría falta la verificación de Google.
 - Cronograma, horario y detalle por módulo: ver `README.md`.

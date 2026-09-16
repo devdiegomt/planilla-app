@@ -68,9 +68,6 @@ export function GearIcon() {
   );
 }
 
-/** Enlace externo a classroom-rpa: no es una ruta de la app. */
-export const ENTREGAS_URL = 'https://classroom-rpa.vercel.app';
-
 /**
  * Las cinco secciones de contenido. En la barra inferior se les antepone
  * Inicio; `short` es la etiqueta de móvil, donde cada pestaña tiene ~60px.
