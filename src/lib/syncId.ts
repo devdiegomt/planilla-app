@@ -56,11 +56,17 @@ export function courseSyncId(year: number, code: string): string {
 }
 
 /**
- * Clave natural de un estudiante.
+ * Clave natural de un estudiante, derivada del nombre.
  *
- * `nombreNorm` debe venir de `normalizeName()`. No se usa `codAlum` —que sería
- * la clave ideal— porque el importador lo deja vacío: se hidrata después con el
- * consolidado de Califica, y para entonces la fila ya existe con su syncId.
+ * `nombreNorm` debe venir de `normalizeName()`. Es la forma heredada: se usaba
+ * porque la Planilla del año no trae `codAlum` y la fila nacía sin él.
+ *
+ * Tiene un defecto conocido: si la plataforma corrige una tilde o un apellido,
+ * el nombre cambia y con él la clave, así que la misma persona produce dos
+ * filas. Por eso, cuando hay código, se prefiere `studentSyncIdByCode`.
+ *
+ * Las filas que ya existen conservan esta clave: cambiarla las convertiría en
+ * huérfanas y el sync las vería como un borrado más un alta.
  */
 export function studentSyncId(
   year: number,
@@ -68,4 +74,20 @@ export function studentSyncId(
   nombreNorm: string,
 ): string {
   return stableUuid(`student:${year}:${courseCode}:${nombreNorm}`);
+}
+
+/**
+ * Clave natural de un estudiante, derivada de su COD_ALUM.
+ *
+ * Es la buena: el código lo asigna el colegio, no cambia cuando se corrige un
+ * nombre, y es el mismo en cualquier dispositivo. Se puede usar desde que el
+ * Califica es el punto de partida, porque ese archivo sí trae el código — la
+ * Planilla no lo traía, y de ahí venía la clave por nombre.
+ */
+export function studentSyncIdByCode(
+  year: number,
+  courseCode: string,
+  codAlum: string,
+): string {
+  return stableUuid(`student:${year}:${courseCode}:cod:${codAlum}`);
 }

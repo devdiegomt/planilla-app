@@ -6,7 +6,8 @@ import type {
 } from '@/types';
 import { calcDef } from './formula';
 import { slotsFor } from './constants';
-import { courseSyncId, studentSyncId } from './syncId';
+import { courseSyncId } from './syncId';
+import { planStudentMerge } from './studentMatch';
 import { normalizeName, findFuzzyMatch } from './utils';
 import type { ParsedCodAlum } from './codalum';
 import {
@@ -498,8 +499,9 @@ export async function getCourseIdByCodeMap(): Promise<Map<string, number>> {
  * Antes esto borraba todos los estudiantes del curso y los volvía a crear. Eso
  * regeneraba los syncId en cada importación (misma persona = registro nuevo →
  * duplicados al sincronizar), emitía una lápida por estudiante y borraba las
- * notas ya capturadas en la app. Ahora hace match por nombre normalizado:
- * actualiza los que siguen, crea los nuevos y retira suavemente los ausentes.
+ * notas ya capturadas en la app. Ahora empareja por COD_ALUM y, a falta de
+ * código, por nombre normalizado: actualiza los que siguen, crea los nuevos y
+ * retira suavemente los ausentes. La decisión vive en `lib/studentMatch`.
  */
 export async function upsertCourseWithStudents(
   course: Omit<Course, 'id'>,
@@ -523,45 +525,28 @@ export async function upsertCourseWithStudents(
       }) as number;
     }
 
-    // Dos estudiantes con el mismo nombre en un curso producirían el mismo
-    // syncId determinista y chocarían contra el índice único. El sufijo #n los
-    // separa de forma reproducible (el orden de la planilla es estable).
-    const prevSeen = new Map<string, number>();
-    const prev = (await db.students.where('courseId').equals(courseId).toArray())
-      .sort((a, b) => a.order - b.order);
-    const pending = new Map(prev.map(s => [dedupKey(s.nombre, prevSeen), s]));
+    // El plan vive en lib/studentMatch, aparte y sin Dexie: es la lógica más
+    // delicada de la app y así se puede ejercer sin navegador.
+    const prev = await db.students.where('courseId').equals(courseId).toArray();
+    const plan = planStudentMerge(prev, students, course.year, course.code);
 
-    const seen = new Map<string, number>();
-    for (const s of students) {
-      const key = dedupKey(s.nombre, seen);
-      const hit = pending.get(key);
-      if (hit) {
-        // Solo se refresca lo que viene de la planilla. Notas, observaciones y
-        // asistencia capturadas en la app se conservan intactas.
-        await db.students.update(hit.id!, {
-          order: s.order,
-          courseCode: course.code,
-          courseId,
-          withdrawnAt: null,
-        });
-        pending.delete(key);
-      } else {
-        await db.students.add({
-          ...s,
-          courseId,
-          courseCode: course.code,
-          syncId: studentSyncId(course.year, course.code, key),
-          updatedAt: now,
-        } as Student);
-      }
+    for (const u of plan.updates) {
+      await db.students.update(u.id, { ...u.patch, courseId });
+    }
+    for (const a of plan.adds) {
+      await db.students.add({
+        ...a.student,
+        courseId,
+        courseCode: course.code,
+        syncId: a.syncId,
+        updatedAt: now,
+      } as Student);
     }
 
-    // Los que ya no aparecen en la planilla: retiro suave, nunca delete. Un
+    // Los que ya no aparecen en el archivo: retiro suave, nunca delete. Un
     // delete aquí destruiría las notas del trimestre y propagaría una lápida.
-    for (const orphan of pending.values()) {
-      if (!orphan.withdrawnAt) {
-        await db.students.update(orphan.id!, { withdrawnAt: now });
-      }
+    for (const id of plan.withdraws) {
+      await db.students.update(id, { withdrawnAt: now });
     }
 
     return courseId;
@@ -1295,13 +1280,6 @@ export async function hydrateCodAlum(parsed: ParsedCodAlum): Promise<CodAlumRepo
  * apareció, se le agrega un sufijo `#2`, `#3`… para que dos homónimos no
  * colapsen en el mismo syncId.
  */
-function dedupKey(nombre: string, seen: Map<string, number>): string {
-  const base = normalizeName(nombre);
-  const n = (seen.get(base) ?? 0) + 1;
-  seen.set(base, n);
-  return n === 1 ? base : `${base}#${n}`;
-}
-
 /**
  * Cuánta información capturada en la app tiene una fila de estudiante.
  * Se usa para decidir cuál copia sobrevive al deduplicar: si las notas
