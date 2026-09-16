@@ -3,6 +3,7 @@ import { ImportPlanilla } from '@/components/ImportPlanilla';
 import { ImportCodAlum } from '@/components/ImportCodAlum';
 import { ImportCalifica451 } from '@/components/ImportCalifica451';
 import { TodayClasses } from '@/components/TodayClasses';
+import { PrimerArranque } from '@/components/PrimerArranque';
 import { ExportEfas } from '@/components/ExportEfas';
 import { ExportDayAttendance } from '@/components/ExportDayAttendance';
 import { PendientesList } from '@/components/PendientesList';
@@ -20,6 +21,10 @@ export default function Home() {
           Automatización de planillas y Califica — GLA 2026
         </p>
       </header>
+
+      {/* Solo aparece si falta algún paso de configuración; con la base lista
+          el inicio queda igual que antes. */}
+      <PrimerArranque />
 
       <section>
         <TodayClasses />
