@@ -11,6 +11,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getSupabaseAdmin } from './supabaseAdmin';
 import { sendPush, type SubscriptionRow } from './webpushClient';
 import { todayInBogota, type ReminderPayload, type ReminderInput } from './reminder';
+import { cutoffIso, PODA_SERVIDOR_MAX_FILAS } from './retention';
 import type {
   ScheduleBlock, CalendarDay, YearConfig, Course,
   AttendanceMark, Todo, CalendarEvent,
@@ -101,6 +102,48 @@ async function loadReminderInputs(
   return out;
 }
 
+/**
+ * Borra del servidor la historia de ediciones anterior al corte.
+ *
+ * Es la mitad que de verdad libera espacio. Podar en local no alcanza: un
+ * borrado sincronizado deja la fila marcada `deleted_at` en el servidor, así
+ * que se cambiarían filas por lápidas. Acá el borrado es de verdad.
+ *
+ * Solo toca `changeLog`. Las notas, la asistencia y los trimestres archivados
+ * no se podan nunca.
+ *
+ * Va acotada por corrida porque corre dentro del cron, que tiene el minuto
+ * contado. Si hay atraso, se termina de poner al día en las corridas
+ * siguientes: es una tarea diaria, no una migración.
+ */
+export async function pruneRemoteChangeLog(
+  admin: Admin,
+  corteIso: string,
+  max = PODA_SERVIDOR_MAX_FILAS,
+): Promise<{ borradas: number; quedanMas: boolean }> {
+  const { data, error } = await admin
+    .from('sync_records')
+    .select('sync_id')
+    .eq('table_name', 'changeLog')
+    .lt('updated_at', corteIso)
+    .limit(max);
+  if (error) throw new Error(`select changeLog viejo: ${error.message}`);
+
+  const ids = (data ?? []).map(r => r.sync_id as string);
+  if (ids.length === 0) return { borradas: 0, quedanMas: false };
+
+  // `sync_id` es único por registro, pero el filtro por tabla se repite para
+  // que un id no pueda alcanzar a una fila de otra tabla.
+  const { error: delErr } = await admin
+    .from('sync_records')
+    .delete()
+    .eq('table_name', 'changeLog')
+    .in('sync_id', ids);
+  if (delErr) throw new Error(`borrar changeLog viejo: ${delErr.message}`);
+
+  return { borradas: ids.length, quedanMas: ids.length === max };
+}
+
 /** Parte una lista en trozos de `n`. */
 function enLotes<T>(xs: T[], n: number): T[][] {
   const out: T[][] = [];
@@ -117,6 +160,7 @@ function enLotes<T>(xs: T[], n: number): T[][] {
 export async function runReminderCron(
   req: NextRequest,
   compose: (input: ReminderInput, today: string) => ReminderPayload | null,
+  opciones: { podarHistorial?: boolean } = {},
 ): Promise<NextResponse> {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
@@ -214,10 +258,22 @@ export async function runReminderCron(
     }));
   }
 
+  // Mantenimiento al final y solo si sobra tiempo: notificar es lo que no
+  // puede quedarse sin hacer; podar espera a mañana sin que pase nada.
+  let poda: { borradas: number; quedanMas: boolean } | { error: string } | null = null;
+  if (opciones.podarHistorial && Date.now() - arranque < PRESUPUESTO_MS) {
+    try {
+      poda = await pruneRemoteChangeLog(admin, cutoffIso(new Date()));
+    } catch (e) {
+      poda = { error: (e as Error).message };
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     today,
     ...report,
+    poda,
     usersTotal: userIds.length,
     elapsedMs: Date.now() - arranque,
     at: new Date().toISOString(),
