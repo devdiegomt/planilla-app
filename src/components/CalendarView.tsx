@@ -91,19 +91,29 @@ export function CalendarView() {
 
       <NoClassRange />
 
-      <div className="flex items-center justify-between">
+      {/* En 360px los rótulos completos no caben junto al mes y la fila se
+          desbordaba; abajo de `sm` los botones quedan en la flecha sola.
+          `first-letter:uppercase` y no `capitalize`, que también subía el
+          "de" y dejaba "Septiembre De 2026". */}
+      <div className="flex items-center justify-between gap-2">
         <button
           onClick={() => setVisibleMonth(prev => shiftMonth(prev, -1))}
-          className="px-3 py-1.5 border rounded-md text-sm hover:bg-neutral-50"
+          aria-label="Mes anterior"
+          className="shrink-0 px-3 py-1.5 border rounded-md text-sm hover:bg-neutral-50"
         >
-          ← Anterior
+          <span aria-hidden="true">←</span>
+          <span className="hidden sm:inline"> Anterior</span>
         </button>
-        <h2 className="text-lg font-medium capitalize">{monthLabel}</h2>
+        <h2 className="text-base sm:text-lg font-medium first-letter:uppercase truncate">
+          {monthLabel}
+        </h2>
         <button
           onClick={() => setVisibleMonth(prev => shiftMonth(prev, 1))}
-          className="px-3 py-1.5 border rounded-md text-sm hover:bg-neutral-50"
+          aria-label="Mes siguiente"
+          className="shrink-0 px-3 py-1.5 border rounded-md text-sm hover:bg-neutral-50"
         >
-          Siguiente →
+          <span className="hidden sm:inline">Siguiente </span>
+          <span aria-hidden="true">→</span>
         </button>
       </div>
 
