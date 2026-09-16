@@ -111,6 +111,11 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
 - **Service worker:** no se registra en desarrollo. En producción va versionado por
   deploy y valida el tipo de lo que guarda. La guardia de arranque inline
   (`lib/recovery.ts`) repara sin tocar IndexedDB.
+- **Un 403 o un 503 no hacen que `fetch` lance.** `navegar` solo caía al caché en el
+  `catch`, así que un bloqueo de la plataforma se mostraba tal cual teniendo la copia
+  guardada — lo peor de los dos mundos en una app local-first: los datos están en el
+  dispositivo y aun así no abre. Ahora `fallaDelServidor` (403, 408, 429, 5xx) también
+  sirve la copia. El 404 queda fuera a propósito: ahí la ruta de verdad no existe.
 
 ## Califica (notas hacia la plataforma)
 
