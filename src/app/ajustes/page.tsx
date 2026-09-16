@@ -1,3 +1,4 @@
+import { SubjectsConfig } from '@/components/SubjectsConfig';
 import { CloseTrimester } from '@/components/CloseTrimester';
 import { BackupRestore } from '@/components/BackupRestore';
 import { RepairPanel } from '@/components/RepairPanel';
@@ -15,9 +16,14 @@ export default function AjustesPage() {
       <header>
         <h1 className="text-2xl font-semibold">Ajustes</h1>
         <p className="text-sm text-neutral-500">
-          Cierre de trimestre, copias de seguridad, reparación e instalación.
+          Materias, cierre de trimestre, copias de seguridad, reparación e instalación.
         </p>
       </header>
+
+      <section className="border rounded-lg p-4 bg-neutral-50">
+        <h2 className="font-medium mb-3">Mis materias</h2>
+        <SubjectsConfig />
+      </section>
 
       <section className="border rounded-lg p-4 bg-neutral-50">
         <h2 className="font-medium mb-3">Cierre de trimestre</h2>

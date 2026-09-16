@@ -13,6 +13,7 @@ import {
   justFieldOf, cycleMarkState, sessionMarkState, consolidateSessions,
   markDescription, type MarkKind, type MarkState,
 } from './attendance';
+import { MATERIAS_HEREDADAS } from './subjects';
 
 /** Registro local de una eliminación pendiente de propagar al servidor. */
 export interface SyncTombstone {
@@ -320,6 +321,43 @@ class PlanillaDB extends Dexie {
         '++id, studentSyncId, courseCode, trimestre, at, '
         + '[courseCode+trimestre], &syncId, updatedAt',
     });
+
+    // v13: materias por grado en YearConfig. Antes eran la constante
+    // GRADE_META, fija en Informática de 8° a 11°.
+    //
+    // La migración siembra los valores heredados para que la base que ya
+    // existe siga exportando igual. No corre en una instalación nueva: Dexie
+    // crea esa base directamente en la última versión, así que otro docente
+    // arranca sin materias y las configura en Ajustes, que es justo lo que se
+    // busca — heredarle la materia de Diego marcaría su asistencia bajo la
+    // asignatura equivocada sin avisar.
+    this.version(13).stores({
+      courses: '++id, code, grade, year, trimestre, &[year+code], &syncId, updatedAt',
+      students: '++id, courseId, courseCode, codAlum, nombre, order, &syncId, updatedAt',
+      todos: '++id, status, priority, dueDate, courseCode, &syncId, updatedAt',
+      events: '++id, date, courseCode, kind, &syncId, updatedAt',
+      schedule: '++id, dayType, block, courseCode, [dayType+block], &syncId, updatedAt',
+      calendarDays: '++id, &date, status, &syncId, updatedAt',
+      yearConfig: '++id, &year, &syncId, updatedAt',
+      attendanceMarks: '++id, courseId, courseCode, ciclo, [courseId+ciclo], &syncId, updatedAt',
+      changeLog: '++id, courseId, courseCode, studentId, studentSyncId, at, kind, ciclo, &syncId, updatedAt',
+      rubrics: '++id, name, courseCode, createdAt, &syncId, updatedAt',
+      gradingResults: '++id, rubricId, at, courseCode, studentName, &syncId, updatedAt',
+      syncTombstones: '++id, tableName, syncId, deletedAt, [tableName+syncId]',
+      trimesterSnapshots:
+        '++id, studentSyncId, courseCode, year, trimestre, [year+trimestre], '
+        + '[courseCode+trimestre], &syncId, updatedAt',
+      emailLog:
+        '++id, studentSyncId, courseCode, trimestre, at, '
+        + '[courseCode+trimestre], &syncId, updatedAt',
+    })
+      .upgrade(async tx => {
+        const cfgs = tx.table('yearConfig');
+        for (const cfg of await cfgs.toArray()) {
+          if (cfg.subjects) continue;
+          await cfgs.update(cfg.id, { subjects: MATERIAS_HEREDADAS });
+        }
+      });
   }
 }
 

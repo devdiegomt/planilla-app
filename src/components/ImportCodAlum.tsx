@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { parseCodAlumJson, type ParseWarning } from '@/lib/codalum';
-import { hydrateCodAlum, type CodAlumReport } from '@/lib/db';
+import { db, hydrateCodAlum, type CodAlumReport } from '@/lib/db';
 
 /**
  * Importa el JSON que baja `codalum-extractor` (planilla-v2) y escribe el
@@ -13,6 +14,11 @@ import { hydrateCodAlum, type CodAlumReport } from '@/lib/db';
  * retiros que todavía no se reflejan localmente.
  */
 export function ImportCodAlum() {
+  // La materia configurada, para avisar si la plataforma reporta otro cod_mat.
+  // Si todavía no hay ninguna, el parser aprende el código en vez de advertir.
+  const yearCfg = useLiveQuery(
+    () => db.yearConfig.where('year').equals(new Date().getFullYear()).first(), [],
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<CodAlumReport | null>(null);
@@ -25,7 +31,7 @@ export function ImportCodAlum() {
     setReport(null);
     setWarnings([]);
     try {
-      const parsed = parseCodAlumJson(await file.text());
+      const parsed = parseCodAlumJson(await file.text(), yearCfg);
       setGenerado(parsed.generado);
       setWarnings(parsed.warnings);
       setReport(await hydrateCodAlum(parsed));

@@ -15,7 +15,7 @@ import {
 } from './schedule';
 import { buildCycleContext, sessionDatesOf } from './cycles';
 import { autofillTipo, cycleMarkState, sessionMarkState, type AutofillTipo } from './attendance';
-import { GRADE_META } from './constants';
+import { subjectFor } from './subjects';
 import type {
   Course, Student, ScheduleBlock, CalendarDay, YearConfig, DayType,
 } from '@/types';
@@ -242,7 +242,7 @@ export function buildAttendanceExport(
     marcas.push({ cod_alum: s.codAlum, tipo });
   }
 
-  const materia = GRADE_META[course.grade]?.materia ?? '';
+  const materia = subjectFor(yearConfig, course.grade)?.materia ?? '';
   const payload: AutofillPayload = {
     hora,
     curso: course.code,
