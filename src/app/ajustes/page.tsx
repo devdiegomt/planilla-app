@@ -4,6 +4,7 @@ import { BackupRestore } from '@/components/BackupRestore';
 import { RepairPanel } from '@/components/RepairPanel';
 import { PwaInstall } from '@/components/PwaInstall';
 import { PushSetup } from '@/components/PushSetup';
+import { WipeDevice } from '@/components/WipeDevice';
 
 /**
  * Todo lo que se hace una vez al año, una vez por trimestre o solo cuando algo
@@ -16,7 +17,8 @@ export default function AjustesPage() {
       <header>
         <h1 className="text-2xl font-semibold">Ajustes</h1>
         <p className="text-sm text-neutral-500">
-          Materias, cierre de trimestre, copias de seguridad, reparación e instalación.
+          Materias, cierre de trimestre, copias de seguridad, reparación, instalación
+          y borrado de salida.
         </p>
       </header>
 
@@ -48,6 +50,12 @@ export default function AjustesPage() {
       <section className="border rounded-lg p-4 bg-neutral-50">
         <h2 className="font-medium mb-3">Notificaciones</h2>
         <PushSetup />
+      </section>
+
+      {/* Al final y con borde rojo: es lo único de esta página sin vuelta atrás. */}
+      <section className="border border-red-200 rounded-lg p-4 bg-red-50">
+        <h2 className="font-medium mb-3 text-red-900">Borrar los datos de este equipo</h2>
+        <WipeDevice />
       </section>
     </main>
   );

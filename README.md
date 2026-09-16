@@ -77,6 +77,9 @@ Y abres `http://localhost:3000`.
 1. `supabase/schema.sql` (tabla `sync_records` + RLS)
 2. `supabase/migrations/002_tombstones.sql` (columna `deleted_at`)
 3. `supabase/migrations/003_push_subscriptions.sql` (tabla `push_subscriptions` para VAPID)
+4. `supabase/migrations/004_dominio_institucional.sql` (solo `@gla.edu.co` sincroniza) —
+   **corre primero la consulta del PASO 1 que trae comentada**: lista a quién dejarías
+   afuera. Si aparece una cuenta en uso, resuélvelo antes de aplicar el resto.
 
 **Push notifications** — el usuario habilita desde la home (sección "Notificaciones"). Hay **dos crons** en `vercel.json`, ambos con `Authorization: Bearer $CRON_SECRET`:
 

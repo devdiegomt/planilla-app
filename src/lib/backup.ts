@@ -76,3 +76,42 @@ export async function restoreBackup(data: Backup): Promise<RestoreReport> {
   });
   return report;
 }
+
+/**
+ * Borra de ESTE dispositivo todo lo que la app guarda de estudiantes.
+ *
+ * Es el cierre de un docente que deja el colegio, o que devuelve un equipo
+ * prestado. La app es local-first: restringir el dominio del correo impide
+ * entrar, pero no saca los datos del navegador de nadie. Esto sí.
+ *
+ * `withoutTombstone` es deliberado: esto NO es "borré estos estudiantes", que
+ * se propagaría por sync y los borraría también de los otros dispositivos del
+ * docente. Es "este equipo ya no los guarda". Lo que está en el servidor sigue
+ * ahí y vuelve al iniciar sesión otra vez — por eso el borrado va junto al
+ * cierre de sesión.
+ */
+export async function wipeLocalData(): Promise<number> {
+  return withoutTombstone(async () => {
+    let filas = 0;
+    await db.transaction(
+      'rw',
+      [...TABLES.map(t => db.table(t)), db.syncTombstones],
+      async () => {
+        for (const name of TABLES) {
+          filas += await db.table(name).count();
+          await db.table(name).clear();
+        }
+        // Las lápidas pendientes tampoco tienen sentido en un equipo que se deja.
+        await db.syncTombstones.clear();
+      },
+    );
+    // Rastros fuera de Dexie: el mapa de códigos y la marca de poda.
+    try {
+      localStorage.removeItem('codAlumMap');
+      localStorage.removeItem('changeLogPruneAt');
+    } catch {
+      // Almacenamiento bloqueado: no hay nada que limpiar ahí.
+    }
+    return filas;
+  });
+}

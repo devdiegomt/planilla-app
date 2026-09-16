@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { useSession } from './SessionProvider';
+import { emailPermitido, mensajeDominio } from '@/lib/allowedDomain';
 
 type Step = 'email' | 'code';
 
@@ -25,6 +26,9 @@ export function AuthPanel() {
   const sendCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
+    // Se corta antes de pedir el código: mandar un correo a una dirección que
+    // después el servidor va a rechazar solo confunde.
+    if (!emailPermitido(email)) { setErr(mensajeDominio()); return; }
     setBusy(true); setErr(null); setInfo(null);
     try {
       const { error } = await getSupabase().auth.signInWithOtp({
@@ -62,6 +66,7 @@ export function AuthPanel() {
   };
 
   const resend = async () => {
+    if (!emailPermitido(email)) { setErr(mensajeDominio()); return; }
     setBusy(true); setErr(null); setInfo(null);
     try {
       const { error } = await getSupabase().auth.signInWithOtp({
