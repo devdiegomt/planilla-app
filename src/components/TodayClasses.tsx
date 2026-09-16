@@ -9,8 +9,11 @@ import {
   dayTypeLabel,
   todayIso,
   classesForDayType,
+  entriesForDayType,
+  isClassBlock,
   type DateStatus,
 } from '@/lib/schedule';
+import { blockLabel } from '@/lib/horarioGrid';
 import { buildCycleContext, cycleOf, type CycleContext } from '@/lib/cycles';
 import type {
   DayType, ScheduleBlock, Course, Student, AttendanceMark, YearConfig,
@@ -118,6 +121,12 @@ function statusToClasses(status: DateStatus | undefined, schedule: ScheduleBlock
   return classesForDayType(status as DayType, schedule);
 }
 
+/** El día completo, con eventos y descansos. El banner de F/R usa el otro. */
+function statusToEntries(status: DateStatus | undefined, schedule: ScheduleBlock[]): ScheduleBlock[] {
+  if (!status || status === 'weekend' || status === 'skip') return [];
+  return entriesForDayType(status as DayType, schedule);
+}
+
 function classInfo(block: ScheduleBlock, dateIso: string, ctx: CicloCtx): ClassInfo {
   const course = ctx.courses.find(c => c.code === block.courseCode);
   if (!course) {
@@ -180,7 +189,9 @@ function DayCard({
   ctx: CicloCtx;
 }) {
   const isLive = status && status !== 'weekend' && status !== 'skip';
-  const classes = statusToClasses(status, ctx.schedule);
+  // El día completo: las reuniones y los descansos también son parte de su día.
+  // El banner de F/R pendientes sigue mirando solo las clases.
+  const entries = statusToEntries(status, ctx.schedule);
 
   const prettyDate = new Date(dateIso + 'T00:00:00')
     .toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'short' });
@@ -190,7 +201,7 @@ function DayCard({
       <div className="flex items-baseline justify-between mb-3">
         <div>
           <div className="text-xs text-neutral-500 uppercase">{label}</div>
-          <div className="text-sm capitalize">{prettyDate}</div>
+          <div className="text-sm first-letter:uppercase">{prettyDate}</div>
         </div>
         <div className={`px-2 py-1 rounded text-xs font-medium ${
           status === 'FIJO' ? 'bg-amber-100 text-amber-800' :
@@ -205,19 +216,20 @@ function DayCard({
         <p className="text-sm text-neutral-500">Sin clases programadas.</p>
       )}
 
-      {isLive && classes.length === 0 && (
+      {isLive && entries.length === 0 && (
         <p className="text-sm text-neutral-500">
           No hay bloques definidos para este día.{' '}
           <Link href="/horario" className="underline">Configurar</Link>
         </p>
       )}
 
-      {classes.length > 0 && (
+      {entries.length > 0 && (
         <ul className="space-y-1.5">
-          {classes.map(b => {
-            const ci = classInfo(b, dateIso, ctx);
-            return <ClassRow key={b.id} block={b} info={ci} />;
-          })}
+          {entries.map(b => (
+            isClassBlock(b)
+              ? <ClassRow key={b.id} block={b} info={classInfo(b, dateIso, ctx)} />
+              : <EntryRow key={b.id} block={b} />
+          ))}
         </ul>
       )}
     </div>
@@ -240,24 +252,65 @@ function ClassRow({ block, info }: { block: ScheduleBlock; info: ClassInfo }) {
     ? `/curso/${block.courseCode}?ciclo=${info.ciclo}`
     : `/curso/${block.courseCode}`;
 
+  // `shrink-0` en todo menos el aula: sin eso, a 360px la fila se encoge y la
+  // hora se parte en dos líneas y la insignia también. El aula es lo único que
+  // puede ceder, y cede truncándose.
   return (
-    <li className="flex items-center gap-3 text-sm">
-      <span className="text-xs text-neutral-500 w-4 text-right">{block.block}</span>
-      <span className="text-xs text-neutral-500 tabular-nums w-24">
+    <li className="flex items-center gap-2 text-sm">
+      {/* Sin el número de bloque: es un consecutivo de creación y, ahora que la
+          lista va en orden de reloj, salía desordenado (4, 5, 3). */}
+      <span className="shrink-0 text-xs text-neutral-500 tabular-nums w-24">
         {block.startTime}–{block.endTime}
       </span>
-      <Link href={href} className="font-medium hover:underline">
+      <Link href={href} className="shrink-0 font-medium hover:underline">
         {block.courseCode}
       </Link>
-      {block.room && <span className="text-xs text-neutral-500">· {block.room}</span>}
-      <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded font-medium ${badge.cls}`}>
+      {block.room && (
+        <span className="text-xs text-neutral-500 truncate min-w-0">· {block.room}</span>
+      )}
+      <span className={`ml-auto shrink-0 whitespace-nowrap text-[10px] px-1.5 py-0.5
+                        rounded font-medium ${badge.cls}`}>
         {badge.text}
       </span>
       {(info.fallas > 0 || info.retardos > 0) && (
-        <span className="text-[10px] text-neutral-500 tabular-nums">
+        <span className="shrink-0 text-[10px] text-neutral-500 tabular-nums">
           {info.fallas}F · {info.retardos}R
         </span>
       )}
+    </li>
+  );
+}
+
+/**
+ * Una reunión, un reemplazo o un descanso. No enlaza a `/curso/` — no tiene
+ * código de curso — ni lleva ciclo ni F/R, porque no es una clase suya.
+ */
+function EntryRow({ block }: { block: ScheduleBlock }) {
+  const esDescanso = block.kind === 'descanso';
+  // Aula y nota en un solo texto: como renglones aparte se apretaban a 360px.
+  const detalle = [block.room, block.note].filter(Boolean).join(' · ');
+  return (
+    <li className="flex items-center gap-2 text-sm">
+      <span className="shrink-0 text-xs text-neutral-500 tabular-nums w-24">
+        {block.startTime}–{block.endTime}
+      </span>
+      {/* Tope en vez de encogerse: si compite con el detalle, "Descanso" se
+          cortaba sobrando espacio. Con el tope, un título largo se trunca al
+          45 % y uno corto se lee entero. */}
+      <span className={`shrink-0 max-w-[45%] truncate ${
+        esDescanso ? 'text-neutral-500' : 'font-medium text-amber-900'
+      }`}>
+        {blockLabel(block)}
+      </span>
+      {detalle && (
+        <span className="text-xs text-neutral-500 truncate min-w-0">· {detalle}</span>
+      )}
+      <span className={`ml-auto shrink-0 whitespace-nowrap text-[10px] px-1.5 py-0.5
+                        rounded font-medium ${
+        esDescanso ? 'bg-neutral-100 text-neutral-600' : 'bg-amber-100 text-amber-800'
+      }`}>
+        {esDescanso ? 'descanso' : 'evento'}
+      </span>
     </li>
   );
 }

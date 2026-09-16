@@ -146,8 +146,21 @@ export function classesForDayType(
   dayType: DayType,
   schedule: ScheduleBlock[],
 ): ScheduleBlock[] {
+  return entriesForDayType(dayType, schedule).filter(isClassBlock);
+}
+
+/**
+ * Todo lo de un tipo de día — clases, eventos y descansos — en orden de reloj.
+ *
+ * Es para mostrarle el día completo a Diego. Para contar clases, numerar
+ * ciclos o exportar asistencia va `classesForDayType`, que filtra.
+ */
+export function entriesForDayType(
+  dayType: DayType,
+  schedule: ScheduleBlock[],
+): ScheduleBlock[] {
   return schedule
-    .filter(b => b.dayType === dayType && isClassBlock(b))
+    .filter(b => b.dayType === dayType)
     .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.block - b.block);
 }
 
