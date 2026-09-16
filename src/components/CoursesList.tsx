@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
-import { CURSOS_ORDER } from '@/lib/constants';
+import { gradesOf, sortCourses } from '@/lib/courseOrder';
 
 export function CoursesList() {
   const courses = useLiveQuery(() => db.courses.toArray());
@@ -12,18 +12,15 @@ export function CoursesList() {
     return <p className="text-sm text-neutral-500">Sube tu Planilla para empezar.</p>;
   }
 
-  // Ordenar por CURSOS_ORDER, agrupar por grado
+  // Agrupar por grado, en el orden del colegio (el código ya trae el grado).
   const byGrade: Record<number, typeof courses> = {};
-  for (const c of courses) {
+  for (const c of sortCourses(courses)) {
     (byGrade[c.grade] ??= [] as typeof courses).push(c);
-  }
-  for (const g of Object.keys(byGrade).map(Number)) {
-    byGrade[g].sort((a, b) => CURSOS_ORDER.indexOf(parseInt(a.code)) - CURSOS_ORDER.indexOf(parseInt(b.code)));
   }
 
   return (
     <div className="space-y-4">
-      {[8, 9, 10, 11].map(grade => {
+      {gradesOf(courses).map(grade => {
         const list = byGrade[grade];
         if (!list?.length) return null;
         return (

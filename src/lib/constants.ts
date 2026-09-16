@@ -23,18 +23,6 @@ export const CURSO_PALABRAS: Record<number, string> = {
   1103: 'UNDECIMO TRES',    1104: 'UNDECIMO CUATRO',
 };
 
-/** Directores de grupo 2026. */
-export const DIRECTORES: Record<number, string> = {
-  801: 'Diana Gaviria', 802: 'Jose Morales', 803: 'Juan Sanmartín',
-  804: 'Tatiana Wild', 805: 'Carol Largo', 806: 'Alejandra Numpaque',
-  901: 'Mónica Arango', 902: 'Natalia Chacón', 903: 'David Torres',
-  904: 'Gabriela Lozada', 905: 'Sandy Jiménez',
-  1001: 'Andrés Carvajal', 1002: 'Fernando Izquierdo',
-  1003: 'Marcela Dávila', 1004: 'Verónica Sarmiento',
-  1101: 'Julián Ortiz', 1102: 'Luisa Gil',
-  1103: 'Wilmar Bedoya', 1104: 'Heidy Chávez',
-};
-
 /** Categoría + peso interno para cada subnota, en el orden que aparecen en el Califica. */
 export type SlotDef = { key: string; cat: 'K'|'M'|'U'|'C'|'E'; weight: number };
 
@@ -111,10 +99,3 @@ export function columnsFor(grade: number): ColumnDef[] {
   );
 }
 
-/** Los 19 cursos que el docente maneja actualmente. */
-export const CURSOS_ORDER = [
-  801, 802, 803, 804, 805, 806,
-  901, 902, 903, 904, 905,
-  1001, 1002, 1003, 1004,
-  1101, 1102, 1103, 1104,
-];

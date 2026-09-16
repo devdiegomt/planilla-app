@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, addEvent, deleteEvent } from '@/lib/db';
-import { CURSOS_ORDER } from '@/lib/constants';
+import { sortedCourseCodes } from '@/lib/courseOrder';
 import type { CalendarEvent } from '@/types';
 
 interface Props {
@@ -120,6 +120,8 @@ function NewEventForm({
   defaultCourseCode?: string;
   defaultDate?: string;
 }) {
+  // Los cursos del docente: el desplegable ofrecía 19 códigos fijos.
+  const cursos = sortedCourseCodes(useLiveQuery(() => db.courses.toArray(), []) ?? []);
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState<CalendarEvent['kind']>('entrega');
   const [date, setDate] = useState(defaultDate ?? todayIso());
@@ -162,7 +164,7 @@ function NewEventForm({
           className="border rounded px-2 py-1 text-sm"
         >
           <option value="">Sin curso</option>
-          {CURSOS_ORDER.map(c => <option key={c} value={String(c)}>{c}</option>)}
+          {cursos.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       )}
       <input

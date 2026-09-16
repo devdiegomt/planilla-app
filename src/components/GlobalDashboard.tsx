@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { computeCourseStats } from '@/lib/stats';
-import { CURSOS_ORDER } from '@/lib/constants';
+import { compareCourseCodes, gradesOf } from '@/lib/courseOrder';
 import type { Course, Student } from '@/types';
 
 interface CourseCard {
@@ -71,7 +71,7 @@ export function GlobalDashboard() {
         </div>
       )}
 
-      {[8, 9, 10, 11].map(grade => {
+      {gradesOf(courses).map(grade => {
         const list = byGrade[grade];
         if (!list?.length) return null;
         return (
@@ -146,10 +146,7 @@ function groupByGrade(cards: CourseCard[]): Record<number, CourseCard[]> {
     (by[c.course.grade] ??= []).push(c);
   }
   for (const g of Object.keys(by).map(Number)) {
-    by[g].sort((a, b) =>
-      CURSOS_ORDER.indexOf(parseInt(a.course.code))
-      - CURSOS_ORDER.indexOf(parseInt(b.course.code))
-    );
+    by[g].sort((a, b) => compareCourseCodes(a.course.code, b.course.code));
   }
   return by;
 }

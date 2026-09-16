@@ -9,7 +9,7 @@ import {
   clearCalendarDay,
   addEvent, deleteEvent,
 } from '@/lib/db';
-import { CURSOS_ORDER } from '@/lib/constants';
+import { sortedCourseCodes } from '@/lib/courseOrder';
 import {
   computeDayTypes,
   dayTypeLabel,
@@ -434,6 +434,8 @@ function DayCell({
 }
 
 function QuickAddEvent({ iso }: { iso: string }) {
+  // Los cursos del docente: el desplegable ofrecía 19 códigos fijos.
+  const cursos = sortedCourseCodes(useLiveQuery(() => db.courses.toArray(), []) ?? []);
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState<CalendarEvent['kind']>('entrega');
   const [courseCode, setCourseCode] = useState('');
@@ -475,7 +477,7 @@ function QuickAddEvent({ iso }: { iso: string }) {
           className="border rounded px-1 py-0.5 text-[10px] flex-1 min-w-0"
         >
           <option value="">Curso</option>
-          {CURSOS_ORDER.map(c => <option key={c} value={String(c)}>{c}</option>)}
+          {cursos.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <button
           type="submit"

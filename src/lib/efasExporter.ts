@@ -2,12 +2,13 @@
  * Exportador EFAS: consolidado institucional en XLSX.
  *
  * Una fila por curso con % aprobación (DEF ≥ 70) y % Experto+Aprendiz (DEF ≥ 80),
- * ordenados por CURSOS_ORDER (agrupados por grado). Cierra con fila TOTAL.
+ * ordenados por código de curso (agrupados por grado). Cierra con fila TOTAL.
  */
 
 import ExcelJS from 'exceljs';
 import type { Course, Student } from '@/types';
-import { CURSOS_ORDER, NOTA_APROBACION, NOTA_EXPERTO } from './constants';
+import { NOTA_APROBACION, NOTA_EXPERTO } from './constants';
+import { compareCourseCodes } from './courseOrder';
 import { computeCourseStats } from './stats';
 
 export interface EfasRow {
@@ -41,11 +42,7 @@ export function buildEfasRows(
 ): { rows: EfasRow[]; totals: Omit<EfasRow, 'curso'>; honor: HonorRow[] } {
   const rows: EfasRow[] = [];
   const honor: HonorRow[] = [];
-  const ordered = [...courses].sort((a, b) => {
-    const ai = CURSOS_ORDER.indexOf(parseInt(a.code));
-    const bi = CURSOS_ORDER.indexOf(parseInt(b.code));
-    return ai - bi;
-  });
+  const ordered = [...courses].sort((a, b) => compareCourseCodes(a.code, b.code));
 
   let totalActivos = 0, totalAprob = 0, totalExp = 0, sumPromWeighted = 0;
 
@@ -186,7 +183,7 @@ export async function exportEfas(
     c.border = allBorders();
   });
 
-  // Ya ordenados por curso (CURSOS_ORDER); resortear cada bloque por DEF desc
+  // Ya ordenados por curso; resortear cada bloque por DEF desc
   const grouped = new Map<string, HonorRow[]>();
   for (const h of honor) {
     (grouped.get(h.curso) ?? grouped.set(h.curso, []).get(h.curso)!).push(h);
