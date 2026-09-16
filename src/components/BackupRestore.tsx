@@ -16,9 +16,9 @@ export function BackupRestore() {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       downloadBlob(blob, `planilla-backup-${stamp}.json`);
-      setStatus(`✅ Backup descargado (${total} registros de ${Object.keys(data.tables).length} tablas)`);
+      setStatus(`✅ Copia descargada: ${total} registros (cursos, estudiantes, notas, asistencia y lo demás)`);
     } catch (e) {
-      setStatus(`❌ Error: ${(e as Error).message}`);
+      setStatus(`❌ No se pudo: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -38,7 +38,7 @@ export function BackupRestore() {
       const skipMsg = report.skipped.length ? ` · omitidas: ${report.skipped.join(', ')}` : '';
       setStatus(`✅ Restaurados ${total} registros${skipMsg}`);
     } catch (e) {
-      setStatus(`❌ Error: ${(e as Error).message}`);
+      setStatus(`❌ No se pudo: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -52,10 +52,10 @@ export function BackupRestore() {
           onClick={doExport}
           className="px-4 py-1.5 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
         >
-          Descargar backup
+          Descargar copia
         </button>
         <label className={`px-4 py-1.5 rounded-md border text-sm cursor-pointer ${busy ? 'opacity-40 pointer-events-none' : 'hover:bg-neutral-50'}`}>
-          Restaurar backup
+          Restaurar copia
           <input
             type="file"
             accept=".json,application/json"
@@ -64,7 +64,7 @@ export function BackupRestore() {
           />
         </label>
         <span className="text-xs text-neutral-500">
-          Copia local completa · JSON portable
+          Copia completa de tus datos, en un archivo que puedes guardar donde quieras
         </span>
       </div>
       {status && (

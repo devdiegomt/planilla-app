@@ -36,21 +36,21 @@ export function setupSteps(s: SetupState): SetupStep[] {
   return [
     {
       id: 'planilla',
-      titulo: 'Importá tu Planilla',
+      titulo: 'Importa tu Planilla',
       porque: 'De ahí salen tus cursos y tus estudiantes. Todo lo demás depende de esto.',
       href: '/',
       done: hayCursos,
     },
     {
       id: 'anio',
-      titulo: 'Definí el año lectivo',
+      titulo: 'Define el año lectivo',
       porque: 'La fecha de inicio y el primer día de la rotación. Sin eso no hay ciclos ni asistencia.',
       href: '/calendario',
       done: s.tieneAnio,
     },
     {
       id: 'materias',
-      titulo: 'Configurá tus materias',
+      titulo: 'Configura tus materias',
       porque: 'El Califica y la asistencia llevan el nombre y el código de la asignatura.',
       href: '/ajustes',
       done: hayCursos && s.gradosSinMateria.length === 0,
@@ -58,15 +58,15 @@ export function setupSteps(s: SetupState): SetupStep[] {
     },
     {
       id: 'horario',
-      titulo: 'Armá tu horario',
-      porque: 'Qué dictás en cada tipo de día. Es lo que arma "Clases de hoy".',
+      titulo: 'Arma tu horario',
+      porque: 'Qué dictas en cada tipo de día. Es lo que arma "Clases de hoy".',
       href: '/horario',
       done: s.bloquesHorario > 0,
       bloqueadoPor: hayCursos ? undefined : 'planilla',
     },
     {
       id: 'codigos',
-      titulo: 'Cargá los códigos de tus estudiantes',
+      titulo: 'Carga los códigos de tus estudiantes',
       porque: 'El COD_ALUM es lo que la plataforma usa para identificarlos al subir notas y asistencia.',
       href: '/',
       done: s.estudiantes > 0 && s.estudiantesConCodigo > 0,

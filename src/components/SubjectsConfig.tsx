@@ -51,7 +51,7 @@ export function SubjectsConfig() {
   if (courses.length === 0) {
     return (
       <p className="text-sm text-neutral-500">
-        Importá tu Planilla primero: los grados salen de tus cursos.
+        Importa tu Planilla primero: los grados salen de tus cursos.
       </p>
     );
   }
@@ -61,7 +61,7 @@ export function SubjectsConfig() {
       <p className="text-xs text-neutral-500">
         El nombre tiene que coincidir con el de la lista de asignaturas de la
         plataforma — el autofill de asistencia lo busca por ahí. El código
-        (2508, 3011…) aparece en el Califica, y al importar los COD_ALUM la app
+        (2508, 3011…) aparece en el Califica, y al importar los códigos la app
         te avisa si no coincide.
       </p>
 

@@ -46,7 +46,7 @@ export function ImportCodAlum() {
     <div className="space-y-3">
       <div>
         <label className="block text-sm font-medium mb-1">
-          Códigos de Classroom Live (JSON de codalum-extractor)
+          Códigos de los estudiantes (archivo que baja el extractor)
         </label>
         <input
           type="file"
@@ -56,8 +56,8 @@ export function ImportCodAlum() {
           className="block w-full text-sm"
         />
         <p className="text-[11px] text-neutral-500 mt-1">
-          Escribe el COD_ALUM en cada estudiante; el código queda en la fila y se
-          sincroniza entre dispositivos.
+          Escribe el código de cada estudiante en su fila. Queda guardado y se
+          sincroniza entre tus dispositivos.
         </p>
       </div>
 
@@ -111,7 +111,7 @@ export function ImportCodAlum() {
             items={report.changed.map(x => `${x.course} · ${x.nombre}: ${x.from} → ${x.to}`)}
           />
           <Detail
-            title="Cursos del JSON que la app no tiene"
+            title="Cursos que están en el archivo pero no en la app"
             items={report.coursesNotInApp}
           />
           <Detail

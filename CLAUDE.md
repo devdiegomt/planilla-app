@@ -17,6 +17,12 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
 ## Cómo trabajar con Diego
 
 - Chat, UI y comentarios en español; identificadores en inglés.
+- **La UI habla de tú** ("Importa tu Planilla", "Revisa antes de subir"), no de vos.
+  Los READMEs de planilla-v2 usan voseo; la app no.
+- **La UI no nombra la implementación.** Se conserva el vocabulario del colegio
+  (Planilla, Califica, EFAS, ciclo, D1–D5, F/R) y se evita el del código: nada de
+  Supabase, VAPID, JSON de tal script, COD_ALUM, tablas ni rutas de URL como texto.
+  En pantalla es "el código del estudiante", "el servidor", "la copia".
 - Alcance pequeño y entregable; proponer una opción recomendada en vez de muchas
   preguntas. Para funciones grandes, plan corto antes de programar.
 - Git: nunca commitear sin que lo pida. Cuando lo pide: rama nueva desde `main`

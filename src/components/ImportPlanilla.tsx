@@ -24,7 +24,7 @@ export function ImportPlanilla() {
       const wmsg = warnings.length ? ` (${warnings.length} advertencias)` : '';
       setStatus(`✅ Importados ${courses.length} cursos, ${totalStudents} estudiantes${wmsg}`);
     } catch (err) {
-      setStatus(`❌ Error: ${(err as Error).message}`);
+      setStatus(`❌ No se pudo importar: ${(err as Error).message}`);
     } finally {
       setBusy(false);
     }

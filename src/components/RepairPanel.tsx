@@ -118,7 +118,7 @@ export function RepairPanel() {
   async function rebuildServer() {
     if (!user) return;
     if (!confirm(
-      'Esto borra TODOS tus registros en Supabase y los reconstruye desde esta base local. ' +
+      'Esto borra TODO lo que hay en el servidor y lo reconstruye desde este dispositivo. ' +
       'Si tienes datos en otro dispositivo que no estén aquí, se pierden. ¿Continuar?',
     )) return;
 
@@ -230,16 +230,16 @@ export function RepairPanel() {
       <div className="border-t pt-3 space-y-2">
         <p className="font-medium">Paso 2 · Reconstruir el servidor</p>
         <p className="text-xs text-neutral-500">
-          Borra todos tus registros en Supabase y reinicia el cursor de sync. La base
-          local pasa a ser la fuente de verdad. Hazlo solo cuando el diagnóstico de
-          arriba esté limpio.
+          Borra todo lo que hay en el servidor y lo vuelve a subir desde cero. Lo que
+          tienes en este dispositivo pasa a ser lo válido. Hazlo solo cuando el
+          diagnóstico de arriba esté limpio.
         </p>
         <button
           onClick={rebuildServer}
           disabled={busy || !user}
           className="px-3 py-1.5 rounded bg-red-600 text-white text-xs disabled:opacity-40"
         >
-          Vaciar servidor y reiniciar sync
+          Vaciar el servidor y volver a subir todo
         </button>
         {!user && <p className="text-xs text-neutral-500">Inicia sesión para usar este paso.</p>}
       </div>

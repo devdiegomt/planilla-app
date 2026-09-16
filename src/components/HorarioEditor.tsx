@@ -74,7 +74,7 @@ export function HorarioEditor() {
 
       {slots.length === 0 ? (
         <p className="border rounded-lg p-6 text-sm text-neutral-500 text-center">
-          Empezá con “Nueva franja”: definís la hora de inicio y fin, y después
+          Empieza con “Nueva franja”: defines la hora de inicio y fin, y después
           vas llenando cada día.
         </p>
       ) : (
@@ -361,7 +361,7 @@ function BlockEditor({
               className="w-full border rounded px-2 py-1.5"
             >
               <option value="">
-                {cursos.length ? '— elegí un curso —' : '— importá tu Planilla primero —'}
+                {cursos.length ? '— elige un curso —' : '— importa tu Planilla primero —'}
               </option>
               {cursos.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -370,7 +370,7 @@ function BlockEditor({
           <Campo
             label="Título"
             hint={kind === 'evento'
-              ? 'Si es un reemplazo, escribí acá el curso (“Reemplazo 903”). No cuenta como clase tuya.'
+              ? 'Si es un reemplazo, escribe aquí el curso (“Reemplazo 903”). No cuenta como clase tuya.'
               : undefined}
           >
             <input
