@@ -14,7 +14,7 @@
 
 import * as XLSX from 'xlsx';
 import type { Course, Student, CycleData } from '@/types';
-import { DIRECTORES, SLOTS_8_10, SLOTS_11 } from './constants';
+import { SLOTS_8_10, SLOTS_11 } from './constants';
 
 interface ImportResult {
   courses: (Course & { students: Omit<Student, 'id' | 'courseId' | 'courseCode'>[] })[];
@@ -184,7 +184,7 @@ function parseCourse11(aoa: unknown[][], code: string, director: string, trimest
  * Parsea un archivo Planilla completo (ArrayBuffer del File).
  *
  * Convención de nombre de hoja: "801 (S1)", "1101 (S7)", etc.
- * Se extrae el código del curso y el director (segundo puede sobrescribirse por DIRECTORES).
+ * El código del curso y el director salen del nombre de la hoja y de A1.
  */
 export async function importPlanilla(buffer: ArrayBuffer, trimestre = 2): Promise<ImportResult> {
   const wb = XLSX.read(buffer, { type: 'array' });
@@ -200,7 +200,10 @@ export async function importPlanilla(buffer: ArrayBuffer, trimestre = 2): Promis
     // Título del curso está en A1 con formato "801 (DIANA GAVIRIA)"
     const sheet = wb.Sheets[sheetName];
     const title = sheet['A1']?.v as string | undefined;
-    let director = DIRECTORES[courseNum] ?? '';
+    // El director sale de A1 ("801 (DIANA GAVIRIA)"). Antes había una tabla
+    // fija de directores como respaldo: eran nombres reales de colegas
+    // versionados en el repo, y además envejecían cada año.
+    let director = '';
     if (title && title.includes('(')) {
       const m = title.match(/\(([^)]+)\)/);
       if (m) director = m[1].trim();

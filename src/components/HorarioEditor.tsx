@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, upsertScheduleBlock, deleteScheduleBlock } from '@/lib/db';
-import { CURSOS_ORDER } from '@/lib/constants';
+import { sortedCourseCodes } from '@/lib/courseOrder';
 import {
   DAY_TYPES, buildHorarioSlots, blockLabel, hourNumbers, minutesBetween,
   type HorarioSlot,
@@ -39,6 +39,9 @@ type Draft = Omit<ScheduleBlock, 'block'> & { block?: number };
 
 export function HorarioEditor() {
   const schedule = useLiveQuery(() => db.schedule.toArray(), []) ?? [];
+  // Los cursos que el docente importó. Antes eran 19 códigos fijos, así que
+  // otro profesor veía cursos que no dicta y no veía los suyos.
+  const courses = useLiveQuery(() => db.courses.toArray(), []) ?? [];
   const [selectedDay, setSelectedDay] = useState<DayType>('D1');
   const [draft, setDraft] = useState<Draft | null>(null);
 
@@ -94,6 +97,7 @@ export function HorarioEditor() {
         <BlockEditor
           draft={draft}
           schedule={schedule}
+          cursos={sortedCourseCodes(courses)}
           onClose={() => setDraft(null)}
         />
       )}
@@ -265,10 +269,11 @@ function TimelineMobile({
 // ---------- editor ----------
 
 function BlockEditor({
-  draft, schedule, onClose,
+  draft, schedule, cursos, onClose,
 }: {
   draft: Draft;
   schedule: ScheduleBlock[];
+  cursos: string[];
   onClose: () => void;
 }) {
   const [b, setB] = useState<Draft>(draft);
@@ -355,10 +360,10 @@ function BlockEditor({
               onChange={e => set({ courseCode: e.target.value })}
               className="w-full border rounded px-2 py-1.5"
             >
-              <option value="">— elegí un curso —</option>
-              {CURSOS_ORDER.map(c => (
-                <option key={c} value={String(c)}>{c}</option>
-              ))}
+              <option value="">
+                {cursos.length ? '— elegí un curso —' : '— importá tu Planilla primero —'}
+              </option>
+              {cursos.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </Campo>
         ) : (

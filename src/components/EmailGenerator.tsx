@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
-import { CURSOS_ORDER } from '@/lib/constants';
+import { sortCourses } from '@/lib/courseOrder';
 import {
   buildEmailCandidates, renderEmail, vozSugerida, UMBRALES_POR_DEFECTO,
   PLANTILLA_POR_DEFECTO, ASUNTO_POR_DEFECTO,
@@ -39,10 +39,7 @@ export function EmailGenerator() {
   const courses = useLiveQuery(() => db.courses.toArray(), []) ?? [];
   const logs = useLiveQuery(() => db.emailLog.toArray(), []) ?? [];
 
-  const ordenados = useMemo(() => {
-    const orden = new Map(CURSOS_ORDER.map((c, i) => [String(c), i]));
-    return [...courses].sort((a, b) => (orden.get(a.code) ?? 999) - (orden.get(b.code) ?? 999));
-  }, [courses]);
+  const ordenados = useMemo(() => sortCourses(courses), [courses]);
 
   const [code, setCode] = useState('');
   const course = ordenados.find(c => c.code === code) ?? ordenados[0];
