@@ -103,4 +103,9 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
 - **planilla-v2:** el JSON de `codalum-extractor` hidrata `Student.codAlum`; la app
   exporta el JSON de `asistencia-autofill`, sin `fecha` porque la pone la plataforma;
   `verificar-planilla.mjs` compara Califica original vs generado.
+- **Asistencia: copiar y pegar, no archivos.** El panel del autofill recibe el JSON en
+  un `<textarea>` y el selector de archivo solo lo rellena, así que el camino normal es
+  copiar desde el inicio y pegar ahí — sin ZIP, sin descomprimir y sin explorador de
+  archivos, y funciona igual en el celular. El ZIP sigue como respaldo para cuando no
+  hay portapapeles (contexto inseguro o permiso denegado).
 - Cronograma, horario y detalle por módulo: ver `README.md`.
