@@ -97,6 +97,17 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   marcan; si no, la numeración de ciclos se corre.
 - **Asistencia:** banderas `F`/`Fj`/`R`/`Rj`. Si el ciclo trae dos clases del curso,
   marcas, razones y confirmación van por sesión (`S1`/`S2`). `arrived` no se exporta.
+- **Solo el dominio del colegio sincroniza.** `lib/allowedDomain.ts` avisa en el
+  navegador; la puerta de verdad es la política de RLS
+  (`supabase/migrations/004_dominio_institucional.sql`), porque un filtro de cliente se
+  salta. El dominio se compara **completo y por la última arroba**, nunca con `like %`:
+  `alguien@gla.edu.co.otrositio.com` no es del colegio. JS (`lastIndexOf('@')`) y SQL
+  (`regexp_replace('^.*@','')`) leen el dominio igual, a propósito.
+- **Restringir el correo NO saca los datos de ningún equipo.** La app es local-first: lo
+  que hay en IndexedDB sigue ahí aunque se desactive la cuenta. Para eso está
+  `wipeLocalData` (Ajustes → "Borrar los datos de este equipo"), que va con
+  `withoutTombstone`: significa "este equipo ya no los guarda", no "bórralos de todos
+  mis dispositivos".
 - **Service worker:** no se registra en desarrollo. En producción va versionado por
   deploy y valida el tipo de lo que guarda. La guardia de arranque inline
   (`lib/recovery.ts`) repara sin tocar IndexedDB.
