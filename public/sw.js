@@ -65,6 +65,18 @@ function guardable(pathname, res) {
   return res.ok && !res.redirected && res.type === 'basic' && tipoCorrecto(pathname, res);
 }
 
+/**
+ * Respuestas que no son culpa de la página pedida, sino de que el servidor no
+ * la quiere servir ahora: un bloqueo de la plataforma, un límite de peticiones
+ * o una caída. Ante eso vale más la copia guardada que una pantalla de error.
+ *
+ * El 404 queda fuera a propósito: ahí la ruta de verdad no existe, y servir una
+ * copia vieja escondería el problema.
+ */
+function fallaDelServidor(status) {
+  return status === 403 || status === 429 || status === 408 || status >= 500;
+}
+
 async function navegar(req) {
   try {
     const res = await fetch(req);
@@ -72,6 +84,14 @@ async function navegar(req) {
     if (res.ok && !res.redirected && ct.includes('text/html')) {
       const copia = res.clone();
       caches.open(CACHE).then(c => c.put(req, copia)).catch(() => {});
+    }
+    // Un 403 o un 503 NO hacen que fetch lance: sin esto la app mostraba la
+    // pantalla de bloqueo del servidor teniendo su propia copia guardada. Para
+    // una app local-first eso es lo peor de los dos mundos — los datos están
+    // en el dispositivo y aun así no se pueden abrir.
+    if (!res.ok && fallaDelServidor(res.status)) {
+      const guardada = await caches.match(req, { ignoreSearch: true });
+      if (guardada) return guardada;
     }
     return res;
   } catch {
