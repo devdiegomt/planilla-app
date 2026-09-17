@@ -92,6 +92,20 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   D1→D5; el viernes (FIJO) no consume rotación y pertenece al ciclo en curso, así que un
   ciclo puede traer dos viernes. No asumir `grade === 11 ? 2 : 1` sesiones: usar
   `sessionDatesOf`. Verificado contra el cronograma real del colegio.
+- **Ser descanso es de la franja, no de lo que le caiga adentro** (`lib/horarioGrid.ts`).
+  Las filas del horario se derivan agrupando bloques por inicio–fin, y `hourNumbers`
+  numera las que no son descanso. Antes la franja era descanso solo si TODO lo que
+  había en ella lo era: al poner una actividad en el descanso la fila pasaba a contar
+  como hora, las 7 horas se volvían 8 y la séptima se corría a la octava. Ahora la
+  declara un bloque `kind: 'descanso'` y basta uno. Un descanso se guarda como un
+  bloque por tipo de día (está a la misma hora todos los días) y se edita desde el
+  rótulo de la fila, no desde una celda; `byDay` no lo incluye para no dibujarlo seis
+  veces. `gapsBetween` detecta los ratos libres entre franjas y ofrece crear ahí la
+  franja con las horas ya puestas.
+- **Editar un bloque del horario no puede reenviar su `updatedAt`.** El hook `updating`
+  respeta el que venga en el patch —lo necesita el pull, que trae el del servidor—, así
+  que pasar la fila entera dejaba la fecha vieja y el push, que sube lo que tenga
+  `updatedAt > lastPushed`, nunca se llevaba la edición. `upsertScheduleBlock` lo quita.
 - **La rotación es continua:** `computeDayTypes` no la reinicia por trimestre. El primer
   día de cada trimestre se fuerza a D1 desde `/calendario`, y las semanas sin clase se
   marcan; si no, la numeración de ciclos se corre.
