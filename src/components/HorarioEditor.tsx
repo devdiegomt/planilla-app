@@ -5,8 +5,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, upsertScheduleBlock, deleteScheduleBlock } from '@/lib/db';
 import { sortedCourseCodes } from '@/lib/courseOrder';
 import {
-  DAY_TYPES, buildHorarioSlots, blockLabel, hourNumbers, minutesBetween,
-  type HorarioSlot,
+  DAY_TYPES, buildHorarioSlots, blockLabel, hourNumbers, minutesBetween, gapsBetween,
+  type HorarioGap, type HorarioSlot,
 } from '@/lib/horarioGrid';
 import type { BlockKind, DayType, ScheduleBlock } from '@/types';
 
@@ -20,6 +20,15 @@ import type { BlockKind, DayType, ScheduleBlock } from '@/types';
  * En escritorio va la rejilla completa (los seis tipos de día a la vez, que es
  * donde de verdad se lee). En móvil no caben seis columnas, así que se ve un
  * tipo de día a la vez como línea de tiempo vertical.
+ *
+ * Hay dos cosas distintas que se pueden crear, y no se editan igual:
+ *
+ * - Un **bloque** (clase o evento) es de un día: va en una celda.
+ * - Una **franja de descanso** es de la fila entera, porque el descanso está a
+ *   la misma hora todos los días. Por eso se edita desde el rótulo de la fila y
+ *   no desde una celda, y por eso la fila sigue siendo descanso aunque se le
+ *   ponga una actividad encima: si no, esa actividad le robaba el número a las
+ *   horas siguientes y la séptima terminaba de octava.
  */
 
 function dayLabel(dt: DayType) {
@@ -37,6 +46,22 @@ function dayLabelLong(dt: DayType) {
 
 type Draft = Omit<ScheduleBlock, 'block'> & { block?: number };
 
+/** Lo que se edita de una franja de descanso: vale para varios días a la vez. */
+interface BreakDraft {
+  /** Los bloques que ya existían, para actualizarlos en vez de duplicarlos. */
+  original: ScheduleBlock[];
+  title: string;
+  startTime: string;
+  endTime: string;
+  note: string;
+  days: DayType[];
+}
+
+/** `block` es solo un consecutivo dentro del día; el orden lo da la hora. */
+function siguienteBlock(schedule: ScheduleBlock[], dayType: DayType): number {
+  return Math.max(0, ...schedule.filter(x => x.dayType === dayType).map(x => x.block)) + 1;
+}
+
 export function HorarioEditor() {
   const schedule = useLiveQuery(() => db.schedule.toArray(), []) ?? [];
   // Los cursos que el docente importó. Antes eran 19 códigos fijos, así que
@@ -44,9 +69,13 @@ export function HorarioEditor() {
   const courses = useLiveQuery(() => db.courses.toArray(), []) ?? [];
   const [selectedDay, setSelectedDay] = useState<DayType>('D1');
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [breakDraft, setBreakDraft] = useState<BreakDraft | null>(null);
 
   const slots = buildHorarioSlots(schedule);
   const horas = hourNumbers(slots);
+  // Los ratos libres entre franja y franja: ahí es donde va el descanso, así
+  // que se ofrecen con las horas ya puestas.
+  const huecos = new Map(gapsBetween(slots).map(g => [g.afterKey, g]));
 
   const nuevo = (dayType: DayType, slot?: HorarioSlot): Draft => ({
     dayType,
@@ -56,20 +85,53 @@ export function HorarioEditor() {
     endTime: slot?.endTime ?? '',
   });
 
+  const nuevoDescanso = (gap?: HorarioGap): BreakDraft => ({
+    original: [],
+    title: 'Descanso',
+    startTime: gap?.startTime ?? '',
+    endTime: gap?.endTime ?? '',
+    note: '',
+    days: [...DAY_TYPES],
+  });
+
+  const editarDescanso = (slot: HorarioSlot): BreakDraft => ({
+    original: slot.breakBlocks,
+    title: slot.breakLabel ?? 'Descanso',
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    note: slot.breakBlocks.find(b => b.note)?.note ?? '',
+    days: slot.breakBlocks.map(b => b.dayType),
+  });
+
+  const acciones = {
+    onEdit: (b: ScheduleBlock) => setDraft(b),
+    onAdd: (dt: DayType, slot: HorarioSlot) => setDraft(nuevo(dt, slot)),
+    onEditBreak: (slot: HorarioSlot) => setBreakDraft(editarDescanso(slot)),
+    onAddBreak: (gap?: HorarioGap) => setBreakDraft(nuevoDescanso(gap)),
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-xs text-neutral-500">
           {slots.length === 0
             ? 'Todavía no hay franjas.'
-            : `${slots.length} franjas · ${schedule.length} bloques`}
+            : `${horas.size} horas de clase · ${schedule.length} bloques`}
         </p>
-        <button
-          onClick={() => setDraft(nuevo(selectedDay))}
-          className="shrink-0 text-sm px-3 py-1.5 rounded-md border hover:bg-neutral-50"
-        >
-          + Nueva franja
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => acciones.onAddBreak()}
+            className="shrink-0 text-sm px-3 py-1.5 rounded-md border hover:bg-neutral-50"
+          >
+            + Descanso
+          </button>
+          <button
+            onClick={() => setDraft(nuevo(selectedDay))}
+            className="shrink-0 text-sm px-3 py-1.5 rounded-md border hover:bg-neutral-50"
+          >
+            + Nueva franja
+          </button>
+        </div>
       </div>
 
       {slots.length === 0 ? (
@@ -79,16 +141,11 @@ export function HorarioEditor() {
         </p>
       ) : (
         <>
-          <GridDesktop
-            slots={slots} horas={horas}
-            onEdit={b => setDraft(b)}
-            onAdd={(dt, slot) => setDraft(nuevo(dt, slot))}
-          />
+          <GridDesktop slots={slots} horas={horas} huecos={huecos} {...acciones} />
           <TimelineMobile
-            slots={slots} horas={horas}
+            slots={slots} horas={horas} huecos={huecos}
             selectedDay={selectedDay} onSelectDay={setSelectedDay}
-            onEdit={b => setDraft(b)}
-            onAdd={(dt, slot) => setDraft(nuevo(dt, slot))}
+            {...acciones}
           />
         </>
       )}
@@ -101,8 +158,23 @@ export function HorarioEditor() {
           onClose={() => setDraft(null)}
         />
       )}
+
+      {breakDraft && (
+        <BreakEditor
+          draft={breakDraft}
+          schedule={schedule}
+          onClose={() => setBreakDraft(null)}
+        />
+      )}
     </div>
   );
+}
+
+interface Acciones {
+  onEdit: (b: ScheduleBlock) => void;
+  onAdd: (dt: DayType, slot: HorarioSlot) => void;
+  onEditBreak: (slot: HorarioSlot) => void;
+  onAddBreak: (gap?: HorarioGap) => void;
 }
 
 // ---------- celda ----------
@@ -148,15 +220,47 @@ function EmptyCell({ onAdd, compact }: { onAdd: () => void; compact?: boolean })
   );
 }
 
+/**
+ * El rótulo de la fila. En una franja de clase, el número de hora; en una de
+ * descanso, su nombre, que además abre su editor — es el único camino para
+ * cambiarla, porque el descanso no vive en ninguna celda.
+ */
+function SlotLabel({
+  slot, hora, onEditBreak,
+}: {
+  slot: HorarioSlot;
+  hora?: number;
+  onEditBreak: (slot: HorarioSlot) => void;
+}) {
+  return (
+    <>
+      {slot.isBreak ? (
+        <button
+          onClick={() => onEditBreak(slot)}
+          className="text-xs font-medium text-neutral-600 underline decoration-dotted
+                     underline-offset-2 hover:text-neutral-900"
+        >
+          {slot.breakLabel ?? 'Descanso'}
+        </button>
+      ) : hora != null ? (
+        <div className="text-xs font-medium text-neutral-700">{hora}ª hora</div>
+      ) : null}
+      <div className="text-xs text-neutral-600 tabular-nums whitespace-nowrap">
+        {slot.startTime}–{slot.endTime}
+      </div>
+      <div className="text-[11px] text-neutral-400">{slot.minutes} min</div>
+    </>
+  );
+}
+
 // ---------- escritorio ----------
 
 function GridDesktop({
-  slots, horas, onEdit, onAdd,
-}: {
+  slots, horas, huecos, onEdit, onAdd, onEditBreak, onAddBreak,
+}: Acciones & {
   slots: HorarioSlot[];
   horas: Map<string, number>;
-  onEdit: (b: ScheduleBlock) => void;
-  onAdd: (dt: DayType, slot: HorarioSlot) => void;
+  huecos: Map<string, HorarioGap>;
 }) {
   return (
     <div className="hidden sm:block border rounded-lg overflow-x-auto">
@@ -170,33 +274,48 @@ function GridDesktop({
           </tr>
         </thead>
         <tbody>
-          {slots.map(slot => (
-            <tr key={slot.key} className={`border-b ${slot.isBreak ? 'bg-neutral-50' : ''}`}>
-              <th scope="row" className="p-2 text-left align-top font-normal">
-                {horas.has(slot.key) && (
-                  <div className="text-xs font-medium text-neutral-700">
-                    {horas.get(slot.key)}ª hora
-                  </div>
-                )}
-                <div className="text-xs text-neutral-600 tabular-nums whitespace-nowrap">
-                  {slot.startTime}–{slot.endTime}
-                </div>
-                <div className="text-[11px] text-neutral-400">{slot.minutes} min</div>
-              </th>
-              {DAY_TYPES.map(dt => {
-                const items = slot.byDay.get(dt) ?? [];
-                return (
-                  <td key={dt} className="p-1 align-top">
-                    {items.length === 0
-                      ? <EmptyCell onAdd={() => onAdd(dt, slot)} />
-                      : <div className="space-y-1">
-                          {items.map(b => <BlockChip key={b.id} b={b} onEdit={onEdit} />)}
-                        </div>}
+          {slots.map(slot => {
+            const hueco = huecos.get(slot.key);
+            return [
+              <tr key={slot.key} className={`border-b ${slot.isBreak ? 'bg-neutral-50' : ''}`}>
+                <th scope="row" className="p-2 text-left align-top font-normal">
+                  <SlotLabel slot={slot} hora={horas.get(slot.key)} onEditBreak={onEditBreak} />
+                </th>
+                {DAY_TYPES.map(dt => {
+                  const items = slot.byDay.get(dt) ?? [];
+                  return (
+                    <td key={dt} className="p-1 align-top">
+                      {items.length === 0
+                        ? <EmptyCell onAdd={() => onAdd(dt, slot)} />
+                        : <div className="space-y-1">
+                            {items.map(b => <BlockChip key={b.id} b={b} onEdit={onEdit} />)}
+                          </div>}
+                    </td>
+                  );
+                })}
+              </tr>,
+              hueco ? (
+                <tr key={`${slot.key}-hueco`} className="border-b">
+                  <th scope="row" className="p-2 text-left align-top font-normal">
+                    <div className="text-xs text-neutral-400 tabular-nums whitespace-nowrap">
+                      {hueco.startTime}–{hueco.endTime}
+                    </div>
+                    <div className="text-[11px] text-neutral-400">{hueco.minutes} min</div>
+                  </th>
+                  <td colSpan={DAY_TYPES.length} className="p-1">
+                    <button
+                      onClick={() => onAddBreak(hueco)}
+                      className="w-full rounded-md border border-dashed border-neutral-200 py-1.5
+                                 text-xs text-neutral-400 hover:text-neutral-700
+                                 hover:border-neutral-400 transition-colors"
+                    >
+                      + Franja de descanso aquí
+                    </button>
                   </td>
-                );
-              })}
-            </tr>
-          ))}
+                </tr>
+              ) : null,
+            ];
+          })}
         </tbody>
       </table>
     </div>
@@ -206,14 +325,13 @@ function GridDesktop({
 // ---------- móvil ----------
 
 function TimelineMobile({
-  slots, horas, selectedDay, onSelectDay, onEdit, onAdd,
-}: {
+  slots, horas, huecos, selectedDay, onSelectDay, onEdit, onAdd, onEditBreak, onAddBreak,
+}: Acciones & {
   slots: HorarioSlot[];
   horas: Map<string, number>;
+  huecos: Map<string, HorarioGap>;
   selectedDay: DayType;
   onSelectDay: (dt: DayType) => void;
-  onEdit: (b: ScheduleBlock) => void;
-  onAdd: (dt: DayType, slot: HorarioSlot) => void;
 }) {
   return (
     <div className="sm:hidden space-y-3">
@@ -238,7 +356,9 @@ function TimelineMobile({
       <ul className="space-y-1.5">
         {slots.map(slot => {
           const items = slot.byDay.get(selectedDay) ?? [];
-          return (
+          const hueco = huecos.get(slot.key);
+          const hora = horas.get(slot.key);
+          return [
             <li key={slot.key} className="flex gap-2">
               {/* Riel de horas: el inicio y el fin siempre visibles y sin cortar,
                   que era justo lo que la tabla anterior perdía en el celular. */}
@@ -247,26 +367,51 @@ function TimelineMobile({
                 <div className="text-[11px] tabular-nums text-neutral-400">{slot.endTime}</div>
               </div>
               <div className="flex-1 min-w-0">
-                {horas.has(slot.key) && (
+                {slot.isBreak ? (
+                  <button
+                    onClick={() => onEditBreak(slot)}
+                    className="text-[11px] text-neutral-500 mb-0.5 underline decoration-dotted
+                               underline-offset-2"
+                  >
+                    {slot.breakLabel ?? 'Descanso'} · {slot.minutes} min
+                  </button>
+                ) : hora != null ? (
                   <div className="text-[11px] text-neutral-400 mb-0.5">
-                    {horas.get(slot.key)}ª hora · {slot.minutes} min
+                    {hora}ª hora · {slot.minutes} min
                   </div>
-                )}
+                ) : null}
                 {items.length === 0
                   ? <EmptyCell compact onAdd={() => onAdd(selectedDay, slot)} />
                   : <div className="space-y-1">
                       {items.map(b => <BlockChip key={b.id} b={b} onEdit={onEdit} />)}
                     </div>}
               </div>
-            </li>
-          );
+            </li>,
+            hueco ? (
+              <li key={`${slot.key}-hueco`} className="flex gap-2">
+                <div className="w-14 shrink-0 pt-1 text-right">
+                  <div className="text-[11px] tabular-nums text-neutral-400">{hueco.startTime}</div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <button
+                    onClick={() => onAddBreak(hueco)}
+                    className="w-full rounded-md border border-dashed border-neutral-200 h-7
+                               text-xs text-neutral-400 hover:text-neutral-700
+                               hover:border-neutral-400 transition-colors"
+                  >
+                    + Descanso ({hueco.minutes} min)
+                  </button>
+                </div>
+              </li>
+            ) : null,
+          ];
         })}
       </ul>
     </div>
   );
 }
 
-// ---------- editor ----------
+// ---------- editor de bloque ----------
 
 function BlockEditor({
   draft, schedule, cursos, onClose,
@@ -287,14 +432,9 @@ function BlockEditor({
 
   const guardar = async () => {
     if (!puedeGuardar) return;
-    // `block` es solo un consecutivo dentro del tipo de día: el orden de
-    // verdad lo da la hora (ver classesForDayType).
-    const siguiente = Math.max(
-      0, ...schedule.filter(x => x.dayType === b.dayType).map(x => x.block),
-    ) + 1;
     await upsertScheduleBlock({
       ...b,
-      block: b.block ?? siguiente,
+      block: b.block ?? siguienteBlock(schedule, b.dayType),
       // Un evento nunca lleva código de curso: si lo llevara, le correría la
       // numeración de ciclos a ese curso.
       courseCode: kind === 'clase' ? b.courseCode : '',
@@ -313,136 +453,300 @@ function BlockEditor({
   };
 
   return (
+    <Modal label={b.id ? 'Editar bloque' : 'Nuevo bloque'} onClose={onClose}>
+      <h2 className="font-medium">{b.id ? 'Editar bloque' : 'Nuevo bloque'}</h2>
+
+      <Campo label="Tipo de día">
+        <select
+          value={b.dayType}
+          onChange={e => set({ dayType: e.target.value as DayType })}
+          className="w-full border rounded px-2 py-1.5"
+        >
+          {DAY_TYPES.map(dt => <option key={dt} value={dt}>{dayLabelLong(dt)}</option>)}
+        </select>
+      </Campo>
+
+      <Campo label="Qué es">
+        <div className="grid grid-cols-2 gap-1.5">
+          {/* El descanso no está acá a propósito: no es de un día, es de la
+              franja entera, y se crea con el botón “+ Descanso”. */}
+          {(['clase', 'evento'] as BlockKind[]).map(k => (
+            <button
+              key={k}
+              onClick={() => set({ kind: k })}
+              aria-pressed={kind === k}
+              className={`px-2 py-1.5 rounded-md border text-sm capitalize ${
+                kind === k ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white'
+              }`}
+            >
+              {k}
+            </button>
+          ))}
+        </div>
+      </Campo>
+
+      {kind === 'clase' ? (
+        <Campo label="Curso">
+          <select
+            value={b.courseCode}
+            onChange={e => set({ courseCode: e.target.value })}
+            className="w-full border rounded px-2 py-1.5"
+          >
+            <option value="">
+              {cursos.length ? '— elige un curso —' : '— importa tu Califica primero —'}
+            </option>
+            {cursos.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </Campo>
+      ) : (
+        <Campo
+          label="Título"
+          hint="Si es un reemplazo, escribe aquí el curso (“Reemplazo 903”). No cuenta como clase tuya."
+        >
+          <input
+            type="text"
+            value={b.title ?? ''}
+            onChange={e => set({ title: e.target.value })}
+            placeholder="Reunión de área"
+            className="w-full border rounded px-2 py-1.5"
+          />
+        </Campo>
+      )}
+
+      <HorasCampo
+        startTime={b.startTime} endTime={b.endTime}
+        onChange={patch => set(patch)}
+        minutos={minutos} horasOk={horasOk}
+      />
+
+      <Campo label="Aula">
+        <input
+          type="text"
+          value={b.room ?? ''}
+          onChange={e => set({ room: e.target.value })}
+          placeholder="Sala de informática"
+          className="w-full border rounded px-2 py-1.5"
+        />
+      </Campo>
+
+      <Campo label="Nota" hint="Por ejemplo, dónde te toca estar en ese descanso.">
+        <textarea
+          value={b.note ?? ''}
+          onChange={e => set({ note: e.target.value })}
+          rows={2}
+          className="w-full border rounded px-2 py-1.5"
+        />
+      </Campo>
+
+      <Botones onGuardar={guardar} puedeGuardar={puedeGuardar} onClose={onClose}
+               onBorrar={b.id ? borrar : undefined} />
+    </Modal>
+  );
+}
+
+// ---------- editor de franja de descanso ----------
+
+function BreakEditor({
+  draft, schedule, onClose,
+}: {
+  draft: BreakDraft;
+  schedule: ScheduleBlock[];
+  onClose: () => void;
+}) {
+  const [d, setD] = useState<BreakDraft>(draft);
+  const set = (patch: Partial<BreakDraft>) => setD(prev => ({ ...prev, ...patch }));
+  const esNuevo = d.original.length === 0;
+
+  const minutos = minutesBetween(d.startTime, d.endTime);
+  const horasOk = minutos > 0;
+  const puedeGuardar = horasOk && !!d.title.trim() && d.days.length > 0;
+
+  const alternarDia = (dt: DayType) =>
+    set({ days: d.days.includes(dt) ? d.days.filter(x => x !== dt) : [...d.days, dt] });
+
+  const guardar = async () => {
+    if (!puedeGuardar) return;
+    const quiero = new Set(d.days);
+    const previos = new Map(d.original.map(b => [b.dayType, b]));
+    // Un descanso es una fila del horario, así que se guarda un bloque por cada
+    // día marcado y se borran los de los días que se desmarcaron.
+    for (const dt of DAY_TYPES) {
+      const prev = previos.get(dt);
+      if (quiero.has(dt)) {
+        await upsertScheduleBlock({
+          ...(prev ?? {}),
+          dayType: dt,
+          block: prev?.block ?? siguienteBlock(schedule, dt),
+          courseCode: '',
+          kind: 'descanso',
+          title: d.title.trim(),
+          startTime: d.startTime,
+          endTime: d.endTime,
+          room: undefined,
+          note: d.note.trim() || undefined,
+        } as ScheduleBlock);
+      } else if (prev?.id) {
+        await deleteScheduleBlock(prev.id);
+      }
+    }
+    onClose();
+  };
+
+  const borrar = async () => {
+    if (esNuevo) return;
+    if (!confirm(`¿Borrar la franja “${d.title.trim() || 'Descanso'}” de todos los días?`)) return;
+    for (const b of d.original) if (b.id) await deleteScheduleBlock(b.id);
+    onClose();
+  };
+
+  return (
+    <Modal label={esNuevo ? 'Nueva franja de descanso' : 'Editar descanso'} onClose={onClose}>
+      <h2 className="font-medium">{esNuevo ? 'Nueva franja de descanso' : 'Editar descanso'}</h2>
+      <p className="text-xs text-neutral-500">
+        Una franja de descanso no cuenta como hora de clase, así que las horas
+        siguen numeradas igual. Puedes poner actividades dentro sin que se
+        corran.
+      </p>
+
+      <Campo label="Nombre">
+        <input
+          type="text"
+          value={d.title}
+          onChange={e => set({ title: e.target.value })}
+          placeholder="Descanso"
+          className="w-full border rounded px-2 py-1.5"
+        />
+      </Campo>
+
+      <HorasCampo
+        startTime={d.startTime} endTime={d.endTime}
+        onChange={patch => set(patch)}
+        minutos={minutos} horasOk={horasOk}
+      />
+
+      <Campo label="Días" hint="Desmarca un día si ese descanso te cae a otra hora.">
+        <div className="grid grid-cols-3 gap-1.5">
+          {DAY_TYPES.map(dt => {
+            const activo = d.days.includes(dt);
+            return (
+              <button
+                key={dt}
+                onClick={() => alternarDia(dt)}
+                aria-pressed={activo}
+                className={`px-2 py-1.5 rounded-md border text-sm ${
+                  activo ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white'
+                }`}
+              >
+                {dayLabel(dt)}
+              </button>
+            );
+          })}
+        </div>
+      </Campo>
+
+      <Campo label="Nota" hint="Por ejemplo, dónde te toca estar en ese descanso.">
+        <textarea
+          value={d.note}
+          onChange={e => set({ note: e.target.value })}
+          rows={2}
+          className="w-full border rounded px-2 py-1.5"
+        />
+      </Campo>
+
+      <Botones onGuardar={guardar} puedeGuardar={puedeGuardar} onClose={onClose}
+               onBorrar={esNuevo ? undefined : borrar} />
+    </Modal>
+  );
+}
+
+// ---------- piezas compartidas ----------
+
+function Modal({
+  label, onClose, children,
+}: {
+  label: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
     // z-[60]: por encima de la barra inferior de móvil, que va en z-50.
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={b.id ? 'Editar bloque' : 'Nuevo bloque'}
+        aria-label={label}
         className="relative w-full sm:max-w-md bg-white rounded-t-xl sm:rounded-xl border shadow-lg
                    p-4 space-y-3 max-h-[85vh] overflow-y-auto
                    pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4"
       >
-        <h2 className="font-medium">{b.id ? 'Editar bloque' : 'Nuevo bloque'}</h2>
-
-        <Campo label="Tipo de día">
-          <select
-            value={b.dayType}
-            onChange={e => set({ dayType: e.target.value as DayType })}
-            className="w-full border rounded px-2 py-1.5"
-          >
-            {DAY_TYPES.map(dt => <option key={dt} value={dt}>{dayLabelLong(dt)}</option>)}
-          </select>
-        </Campo>
-
-        <Campo label="Qué es">
-          <div className="grid grid-cols-3 gap-1.5">
-            {(['clase', 'evento', 'descanso'] as BlockKind[]).map(k => (
-              <button
-                key={k}
-                onClick={() => set({ kind: k })}
-                aria-pressed={kind === k}
-                className={`px-2 py-1.5 rounded-md border text-sm capitalize ${
-                  kind === k ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white'
-                }`}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-        </Campo>
-
-        {kind === 'clase' ? (
-          <Campo label="Curso">
-            <select
-              value={b.courseCode}
-              onChange={e => set({ courseCode: e.target.value })}
-              className="w-full border rounded px-2 py-1.5"
-            >
-              <option value="">
-                {cursos.length ? '— elige un curso —' : '— importa tu Califica primero —'}
-              </option>
-              {cursos.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Campo>
-        ) : (
-          <Campo
-            label="Título"
-            hint={kind === 'evento'
-              ? 'Si es un reemplazo, escribe aquí el curso (“Reemplazo 903”). No cuenta como clase tuya.'
-              : undefined}
-          >
-            <input
-              type="text"
-              value={b.title ?? ''}
-              onChange={e => set({ title: e.target.value })}
-              placeholder={kind === 'evento' ? 'Reunión de área' : 'Descanso'}
-              className="w-full border rounded px-2 py-1.5"
-            />
-          </Campo>
-        )}
-
-        <div className="grid grid-cols-2 gap-3">
-          <Campo label="Inicio">
-            <input
-              type="time"
-              value={b.startTime}
-              onChange={e => set({ startTime: e.target.value })}
-              className="w-full border rounded px-2 py-1.5"
-            />
-          </Campo>
-          <Campo label="Fin">
-            <input
-              type="time"
-              value={b.endTime}
-              onChange={e => set({ endTime: e.target.value })}
-              className="w-full border rounded px-2 py-1.5"
-            />
-          </Campo>
-        </div>
-        <p className="text-xs text-neutral-500">
-          {horasOk ? `${minutos} min` : 'Poné una hora de fin posterior a la de inicio.'}
-        </p>
-
-        <Campo label="Aula">
-          <input
-            type="text"
-            value={b.room ?? ''}
-            onChange={e => set({ room: e.target.value })}
-            placeholder="Sala de informática"
-            className="w-full border rounded px-2 py-1.5"
-          />
-        </Campo>
-
-        <Campo label="Nota" hint="Por ejemplo, dónde te toca estar en ese descanso.">
-          <textarea
-            value={b.note ?? ''}
-            onChange={e => set({ note: e.target.value })}
-            rows={2}
-            className="w-full border rounded px-2 py-1.5"
-          />
-        </Campo>
-
-        <div className="flex items-center gap-2 pt-1">
-          <button
-            onClick={guardar}
-            disabled={!puedeGuardar}
-            className="px-3 py-1.5 rounded-md bg-neutral-900 text-white text-sm
-                       disabled:opacity-40"
-          >
-            Guardar
-          </button>
-          <button onClick={onClose} className="px-3 py-1.5 rounded-md border text-sm">
-            Cancelar
-          </button>
-          {b.id && (
-            <button onClick={borrar} className="ml-auto text-sm text-red-600 hover:text-red-800">
-              Borrar
-            </button>
-          )}
-        </div>
+        {children}
       </div>
+    </div>
+  );
+}
+
+function HorasCampo({
+  startTime, endTime, onChange, minutos, horasOk,
+}: {
+  startTime: string;
+  endTime: string;
+  onChange: (patch: { startTime?: string; endTime?: string }) => void;
+  minutos: number;
+  horasOk: boolean;
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <Campo label="Inicio">
+          <input
+            type="time"
+            value={startTime}
+            onChange={e => onChange({ startTime: e.target.value })}
+            className="w-full border rounded px-2 py-1.5"
+          />
+        </Campo>
+        <Campo label="Fin">
+          <input
+            type="time"
+            value={endTime}
+            onChange={e => onChange({ endTime: e.target.value })}
+            className="w-full border rounded px-2 py-1.5"
+          />
+        </Campo>
+      </div>
+      <p className="text-xs text-neutral-500">
+        {horasOk ? `${minutos} min` : 'Pon una hora de fin posterior a la de inicio.'}
+      </p>
+    </>
+  );
+}
+
+function Botones({
+  onGuardar, puedeGuardar, onClose, onBorrar,
+}: {
+  onGuardar: () => void;
+  puedeGuardar: boolean;
+  onClose: () => void;
+  onBorrar?: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 pt-1">
+      <button
+        onClick={onGuardar}
+        disabled={!puedeGuardar}
+        className="px-3 py-1.5 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
+      >
+        Guardar
+      </button>
+      <button onClick={onClose} className="px-3 py-1.5 rounded-md border text-sm">
+        Cancelar
+      </button>
+      {onBorrar && (
+        <button onClick={onBorrar} className="ml-auto text-sm text-red-600 hover:text-red-800">
+          Borrar
+        </button>
+      )}
     </div>
   );
 }

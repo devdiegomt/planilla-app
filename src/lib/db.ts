@@ -688,12 +688,22 @@ export async function getScheduleForDayType(dayType: string) {
   return db.schedule.where('dayType').equals(dayType).sortBy('block');
 }
 
+/**
+ * Guarda un bloque editado a mano desde /horario.
+ *
+ * Va sin `updatedAt` a propósito: el hook 'updating' respeta el que venga en el
+ * patch —lo necesita el pull, que trae el del servidor— así que reenviar el
+ * viejo dejaba la fila con su fecha de antes y el push, que sube lo que tenga
+ * `updatedAt > lastPushed`, nunca se llevaba la edición. Quitándolo, el hook
+ * pone la de ahora.
+ */
 export async function upsertScheduleBlock(b: ScheduleBlock) {
+  const { updatedAt: _ignorado, ...fila } = b;
   if (b.id) {
-    await db.schedule.update(b.id, b);
+    await db.schedule.update(b.id, fila);
     return b.id;
   }
-  return (await db.schedule.add(b)) as number;
+  return (await db.schedule.add(fila as ScheduleBlock)) as number;
 }
 
 export async function deleteScheduleBlock(id: number) {
