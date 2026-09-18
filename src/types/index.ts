@@ -134,14 +134,27 @@ export interface Todo {
   updatedAt?: string;
 }
 
-/** Evento de calendario (para v2). */
+/**
+ * Algo que pasa en una fecha y no todas las semanas: una entrega, una reunión
+ * de proyecto de esta semana, un reemplazo de mañana.
+ *
+ * Es de una FECHA, no de un tipo de día, y ahí está la diferencia con
+ * `ScheduleBlock`: el horario se repite en cada vuelta de la rotación y esto
+ * ocurre una vez y se vence solo. Con `startTime` cae en su franja del día
+ * junto a las clases; sin hora, es de todo el día. `endDate` es para lo que
+ * dura varios días seguidos (una semana de proyecto, un encargo mientras
+ * alguien no está).
+ */
 export interface CalendarEvent {
   id?: number;
-  date: string;                       // ISO
+  date: string;                       // ISO, el primer día
+  endDate?: string;                   // ISO, el último; ausente = solo `date`
   title: string;
   description?: string;
   courseCode?: string;
-  kind: 'entrega' | 'actividad' | 'festivo' | 'otro';
+  startTime?: string;                 // 'HH:mm'; ausente = todo el día
+  endTime?: string;                   // 'HH:mm'
+  kind: 'entrega' | 'actividad' | 'reemplazo' | 'festivo' | 'otro';
   syncId?: string;
   updatedAt?: string;
 }

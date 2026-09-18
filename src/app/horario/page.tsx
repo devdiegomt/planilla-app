@@ -1,8 +1,9 @@
 import { HorarioEditor } from '@/components/HorarioEditor';
+import { TempEventsPanel } from '@/components/TempEventEditor';
 
 export default function HorarioPage() {
   return (
-    <main className="max-w-5xl mx-auto p-6 space-y-6">
+    <main className="max-w-5xl mx-auto p-6 space-y-8">
       <header>
         <h1 className="text-2xl font-semibold">Horario</h1>
         <p className="text-sm text-neutral-500">
@@ -11,11 +12,13 @@ export default function HorarioPage() {
           Toca un bloque para editarlo, o un hueco para llenarlo.
         </p>
         <p className="text-xs text-neutral-500">
-          Además de clases puedes poner eventos (reuniones, reemplazos) y descansos
-          con notas. Solo las clases cuentan para ciclos, asistencia y Califica.
+          Acá va lo que se repite cada semana: clases, eventos fijos y descansos.
+          Lo que pasa una sola vez —una reunión, un reemplazo— va abajo, en
+          “Estos días”. Solo las clases cuentan para ciclos, asistencia y Califica.
         </p>
       </header>
       <HorarioEditor />
+      <TempEventsPanel />
     </main>
   );
 }

@@ -9,14 +9,14 @@ import {
   dayTypeLabel,
   todayIso,
   classesForDayType,
-  entriesForDayType,
   isClassBlock,
   type DateStatus,
 } from '@/lib/schedule';
 import { blockLabel } from '@/lib/horarioGrid';
+import { dayAgenda, type DayAgenda } from '@/lib/dayAgenda';
 import { buildCycleContext, cycleOf, type CycleContext } from '@/lib/cycles';
 import type {
-  DayType, ScheduleBlock, Course, Student, AttendanceMark, YearConfig,
+  DayType, ScheduleBlock, Course, Student, AttendanceMark, YearConfig, CalendarEvent,
 } from '@/types';
 
 const DEFAULT_YEAR = new Date().getFullYear();
@@ -28,6 +28,8 @@ export function TodayClasses() {
   const courses = useLiveQuery(() => db.courses.toArray()) ?? [];
   const students = useLiveQuery(() => db.students.toArray()) ?? [];
   const marks = useLiveQuery(() => db.attendanceMarks.toArray()) ?? [];
+  // Lo temporal: reuniones, reemplazos y entregas de una fecha concreta.
+  const events = useLiveQuery(() => db.events.toArray()) ?? [];
 
   const today = todayIso();
   const tomorrow = useMemo(() => {
@@ -64,6 +66,7 @@ export function TodayClasses() {
     courses,
     students,
     marks,
+    events,
     trimStart: activeTrimStart(today, yearCfg) ?? yearCfg.startDate,
     cycles: buildCycleContext(seq, schedule, courses, yearCfg),
   };
@@ -101,6 +104,7 @@ interface CicloCtx {
   courses: Course[];
   students: Student[];
   marks: AttendanceMark[];
+  events: CalendarEvent[];
   trimStart: string;
   cycles?: CycleContext;
 }
@@ -121,10 +125,28 @@ function statusToClasses(status: DateStatus | undefined, schedule: ScheduleBlock
   return classesForDayType(status as DayType, schedule);
 }
 
-/** El día completo, con eventos y descansos. El banner de F/R usa el otro. */
-function statusToEntries(status: DateStatus | undefined, schedule: ScheduleBlock[]): ScheduleBlock[] {
-  if (!status || status === 'weekend' || status === 'skip') return [];
-  return entriesForDayType(status as DayType, schedule);
+/**
+ * El día completo: el horario de ese tipo de día MÁS lo temporal de esa fecha.
+ *
+ * Lo temporal es lo que no se repite —la reunión de esta semana, el reemplazo
+ * de mañana— y sin esto no se veía en ninguna parte del día. El banner de F/R
+ * sigue mirando solo las clases.
+ *
+ * Un fin de semana o un festivo no tiene horario, pero sí puede tener algo
+ * anotado, así que la fecha se mira igual y solo se salta la parte del horario.
+ */
+function agendaOf(
+  dateIso: string,
+  status: DateStatus | undefined,
+  ctx: CicloCtx,
+): DayAgenda {
+  const esLectivo = status && status !== 'weekend' && status !== 'skip';
+  return dayAgenda(
+    dateIso,
+    (esLectivo ? status : 'D1') as DayType,
+    esLectivo ? ctx.schedule : [],
+    ctx.events,
+  );
 }
 
 function classInfo(block: ScheduleBlock, dateIso: string, ctx: CicloCtx): ClassInfo {
@@ -189,9 +211,11 @@ function DayCard({
   ctx: CicloCtx;
 }) {
   const isLive = status && status !== 'weekend' && status !== 'skip';
-  // El día completo: las reuniones y los descansos también son parte de su día.
-  // El banner de F/R pendientes sigue mirando solo las clases.
-  const entries = statusToEntries(status, ctx.schedule);
+  // El día completo: las reuniones y los descansos también son parte de su día,
+  // y lo temporal de esa fecha entra en su hora junto a las clases. El banner
+  // de F/R pendientes sigue mirando solo las clases.
+  const { timed, allDay } = agendaOf(dateIso, status, ctx);
+  const vacio = timed.length === 0 && allDay.length === 0;
 
   const prettyDate = new Date(dateIso + 'T00:00:00')
     .toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'short' });
@@ -212,24 +236,33 @@ function DayCard({
         </div>
       </div>
 
-      {!isLive && (
+      {!isLive && vacio && (
         <p className="text-sm text-neutral-500">Sin clases programadas.</p>
       )}
 
-      {isLive && entries.length === 0 && (
+      {isLive && vacio && (
         <p className="text-sm text-neutral-500">
           No hay bloques definidos para este día.{' '}
           <Link href="/horario" className="underline">Configurar</Link>
         </p>
       )}
 
-      {entries.length > 0 && (
+      {timed.length > 0 && (
         <ul className="space-y-1.5">
-          {entries.map(b => (
-            isClassBlock(b)
-              ? <ClassRow key={b.id} block={b} info={classInfo(b, dateIso, ctx)} />
-              : <EntryRow key={b.id} block={b} />
+          {timed.map(item => (
+            item.type === 'event'
+              ? <EventRow key={`e${item.event.id}`} ev={item.event} />
+              : isClassBlock(item.block)
+                ? <ClassRow key={item.block.id} block={item.block}
+                            info={classInfo(item.block, dateIso, ctx)} />
+                : <EntryRow key={item.block.id} block={item.block} />
           ))}
+        </ul>
+      )}
+
+      {allDay.length > 0 && (
+        <ul className={`space-y-1.5 ${timed.length > 0 ? 'mt-2 pt-2 border-t' : ''}`}>
+          {allDay.map(ev => <EventRow key={`e${ev.id}`} ev={ev} sinHora />)}
         </ul>
       )}
     </div>
@@ -310,6 +343,48 @@ function EntryRow({ block }: { block: ScheduleBlock }) {
         esDescanso ? 'bg-neutral-100 text-neutral-600' : 'bg-amber-100 text-amber-800'
       }`}>
         {esDescanso ? 'descanso' : 'evento'}
+      </span>
+    </li>
+  );
+}
+
+const EVENT_BADGE: Record<CalendarEvent['kind'], string> = {
+  entrega: 'bg-red-100 text-red-800',
+  actividad: 'bg-blue-100 text-blue-800',
+  reemplazo: 'bg-violet-100 text-violet-800',
+  festivo: 'bg-neutral-100 text-neutral-700',
+  otro: 'bg-neutral-100 text-neutral-700',
+};
+
+const EVENT_LABEL: Record<CalendarEvent['kind'], string> = {
+  entrega: 'entrega', actividad: 'actividad', reemplazo: 'reemplazo',
+  festivo: 'festivo', otro: 'otro',
+};
+
+/**
+ * Algo temporal dentro del día: no es del horario, es de esta fecha.
+ *
+ * Se ve como las otras filas para que el día se lea de corrido, pero con su
+ * color propio, que es lo que dice de un vistazo qué se sale de lo normal hoy.
+ */
+function EventRow({ ev, sinHora }: { ev: CalendarEvent; sinHora?: boolean }) {
+  const hora = ev.startTime
+    ? `${ev.startTime}${ev.endTime ? `–${ev.endTime}` : ''}`
+    : 'todo el día';
+  return (
+    <li className="flex items-center gap-2 text-sm">
+      <span className="shrink-0 text-xs text-neutral-500 tabular-nums w-24">
+        {sinHora ? <span className="not-italic text-neutral-400">{hora}</span> : hora}
+      </span>
+      <span className="shrink-0 max-w-[45%] truncate font-medium text-neutral-800">
+        {ev.title}
+      </span>
+      {ev.description && (
+        <span className="text-xs text-neutral-500 truncate min-w-0">· {ev.description}</span>
+      )}
+      <span className={`ml-auto shrink-0 whitespace-nowrap text-[10px] px-1.5 py-0.5
+                        rounded font-medium ${EVENT_BADGE[ev.kind]}`}>
+        {EVENT_LABEL[ev.kind]}
       </span>
     </li>
   );
