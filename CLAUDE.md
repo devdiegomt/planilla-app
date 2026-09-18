@@ -102,6 +102,17 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   rótulo de la fila, no desde una celda; `byDay` no lo incluye para no dibujarlo seis
   veces. `gapsBetween` detecta los ratos libres entre franjas y ofrece crear ahí la
   franja con las horas ya puestas.
+- **Lo que se repite y lo que pasa una vez son cosas distintas** (`lib/dayAgenda.ts`).
+  `ScheduleBlock` va por tipo de día y vuelve en cada vuelta D1→D5; `CalendarEvent` va
+  por fecha, sale en su hora dentro del día y se vence solo. Una reunión de esta semana
+  o un reemplazo NO son bloques del horario: puestos ahí quedarían para siempre y habría
+  que acordarse de borrarlos. `dayAgenda` los mezcla para mostrar el día; `upcomingEvents`
+  arma la lista de /horario. `CalendarEvent` ganó `startTime`, `endTime` y `endDate` como
+  campos opcionales no indexados, así que no hizo falta migración ni tocar Supabase.
+- **El próximo D2 no es el martes que viene.** El viernes es Fijo y no consume rotación,
+  así que la vuelta se corre un día por semana (lun D1, mar D2… lun siguiente D5, mar D1,
+  mié D2). Por eso `nextDateOfDayType` sale de `computeDayTypes` y no de sumar 7 días: es
+  lo que deja crear algo temporal desde una celda del horario con la fecha ya puesta.
 - **Editar un bloque del horario no puede reenviar su `updatedAt`.** El hook `updating`
   respeta el que venga en el patch —lo necesita el pull, que trae el del servidor—, así
   que pasar la fila entera dejaba la fecha vieja y el push, que sube lo que tenga

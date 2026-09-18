@@ -8,6 +8,10 @@ import {
   DAY_TYPES, buildHorarioSlots, blockLabel, hourNumbers, minutesBetween, gapsBetween,
   type HorarioGap, type HorarioSlot,
 } from '@/lib/horarioGrid';
+import { computeDayTypes, todayIso } from '@/lib/schedule';
+import { nextDateOfDayType, addDays } from '@/lib/dayAgenda';
+import { FormModal, Campo, HorasCampo, Botones } from './FormModal';
+import { TempEventEditor, type TempEventDraft } from './TempEventEditor';
 import type { BlockKind, DayType, ScheduleBlock } from '@/types';
 
 /**
@@ -29,6 +33,10 @@ import type { BlockKind, DayType, ScheduleBlock } from '@/types';
  *   no desde una celda, y por eso la fila sigue siendo descanso aunque se le
  *   ponga una actividad encima: si no, esa actividad le robaba el número a las
  *   horas siguientes y la séptima terminaba de octava.
+ * - Lo **temporal** (una reunión de esta semana, un reemplazo de mañana) no es
+ *   del horario: va con fecha y se vence solo. Desde la celda se puede pasar a
+ *   crearlo con la fecha ya calculada — qué día del calendario es el próximo
+ *   D2 lo sabe la app, y hacerlo contar a mano es justo lo que sobra.
  */
 
 function dayLabel(dt: DayType) {
@@ -67,9 +75,21 @@ export function HorarioEditor() {
   // Los cursos que el docente importó. Antes eran 19 códigos fijos, así que
   // otro profesor veía cursos que no dicta y no veía los suyos.
   const courses = useLiveQuery(() => db.courses.toArray(), []) ?? [];
+  // Para saber qué fecha es el próximo D2, D3… cuando se crea algo temporal
+  // desde una celda. Sin esto habría que contar la rotación a mano.
+  const yearCfg = useLiveQuery(
+    () => db.yearConfig.where('year').equals(new Date().getFullYear()).first(), []);
+  const customDays = useLiveQuery(() => db.calendarDays.toArray(), []) ?? [];
   const [selectedDay, setSelectedDay] = useState<DayType>('D1');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [breakDraft, setBreakDraft] = useState<BreakDraft | null>(null);
+  const [tempDraft, setTempDraft] = useState<TempEventDraft | null>(null);
+
+  const hoy = todayIso();
+  // Una vuelta larga alcanza: el próximo D-lo-que-sea cae dentro de un mes.
+  const seq = yearCfg
+    ? computeDayTypes(yearCfg.startDate, yearCfg.initialDayType, addDays(hoy, 45), customDays, true)
+    : null;
 
   const slots = buildHorarioSlots(schedule);
   const horas = hourNumbers(slots);
@@ -102,6 +122,24 @@ export function HorarioEditor() {
     note: slot.breakBlocks.find(b => b.note)?.note ?? '',
     days: slot.breakBlocks.map(b => b.dayType),
   });
+
+  /**
+   * Pasar de un bloque fijo a algo de un solo día, conservando lo ya escrito.
+   *
+   * La fecha sale de la rotación: la próxima vez que caiga ese tipo de día. Si
+   * el año no está configurado todavía, queda hoy y él la corrige.
+   */
+  const soloUnaVez = (b: Draft) => {
+    setDraft(null);
+    setTempDraft({
+      title: b.kind === 'clase' ? '' : (b.title ?? ''),
+      date: (seq && nextDateOfDayType(b.dayType, seq, hoy)) ?? hoy,
+      startTime: b.startTime || undefined,
+      endTime: b.endTime || undefined,
+      kind: 'actividad',
+      description: b.note?.trim() || undefined,
+    });
+  };
 
   const acciones = {
     onEdit: (b: ScheduleBlock) => setDraft(b),
@@ -155,8 +193,13 @@ export function HorarioEditor() {
           draft={draft}
           schedule={schedule}
           cursos={sortedCourseCodes(courses)}
+          onSoloUnaVez={soloUnaVez}
           onClose={() => setDraft(null)}
         />
+      )}
+
+      {tempDraft && (
+        <TempEventEditor draft={tempDraft} onClose={() => setTempDraft(null)} />
       )}
 
       {breakDraft && (
@@ -414,11 +457,13 @@ function TimelineMobile({
 // ---------- editor de bloque ----------
 
 function BlockEditor({
-  draft, schedule, cursos, onClose,
+  draft, schedule, cursos, onSoloUnaVez, onClose,
 }: {
   draft: Draft;
   schedule: ScheduleBlock[];
   cursos: string[];
+  /** Pasa lo escrito a un evento de una sola fecha. */
+  onSoloUnaVez: (b: Draft) => void;
   onClose: () => void;
 }) {
   const [b, setB] = useState<Draft>(draft);
@@ -453,7 +498,7 @@ function BlockEditor({
   };
 
   return (
-    <Modal label={b.id ? 'Editar bloque' : 'Nuevo bloque'} onClose={onClose}>
+    <FormModal label={b.id ? 'Editar bloque' : 'Nuevo bloque'} onClose={onClose}>
       <h2 className="font-medium">{b.id ? 'Editar bloque' : 'Nuevo bloque'}</h2>
 
       <Campo label="Tipo de día">
@@ -465,6 +510,18 @@ function BlockEditor({
           {DAY_TYPES.map(dt => <option key={dt} value={dt}>{dayLabelLong(dt)}</option>)}
         </select>
       </Campo>
+
+      {!b.id && (
+        <p className="text-xs text-neutral-500">
+          Esto se repite en todos los {dayLabelLong(b.dayType)} del año.{' '}
+          <button
+            onClick={() => onSoloUnaVez(b)}
+            className="underline decoration-dotted underline-offset-2 hover:text-neutral-800"
+          >
+            ¿Es solo una vez?
+          </button>
+        </p>
+      )}
 
       <Campo label="Qué es">
         <div className="grid grid-cols-2 gap-1.5">
@@ -540,7 +597,7 @@ function BlockEditor({
 
       <Botones onGuardar={guardar} puedeGuardar={puedeGuardar} onClose={onClose}
                onBorrar={b.id ? borrar : undefined} />
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -600,7 +657,7 @@ function BreakEditor({
   };
 
   return (
-    <Modal label={esNuevo ? 'Nueva franja de descanso' : 'Editar descanso'} onClose={onClose}>
+    <FormModal label={esNuevo ? 'Nueva franja de descanso' : 'Editar descanso'} onClose={onClose}>
       <h2 className="font-medium">{esNuevo ? 'Nueva franja de descanso' : 'Editar descanso'}</h2>
       <p className="text-xs text-neutral-500">
         Una franja de descanso no cuenta como hora de clase, así que las horas
@@ -655,114 +712,6 @@ function BreakEditor({
 
       <Botones onGuardar={guardar} puedeGuardar={puedeGuardar} onClose={onClose}
                onBorrar={esNuevo ? undefined : borrar} />
-    </Modal>
-  );
-}
-
-// ---------- piezas compartidas ----------
-
-function Modal({
-  label, onClose, children,
-}: {
-  label: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    // z-[60]: por encima de la barra inferior de móvil, que va en z-50.
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} aria-hidden="true" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        className="relative w-full sm:max-w-md bg-white rounded-t-xl sm:rounded-xl border shadow-lg
-                   p-4 space-y-3 max-h-[85vh] overflow-y-auto
-                   pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4"
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function HorasCampo({
-  startTime, endTime, onChange, minutos, horasOk,
-}: {
-  startTime: string;
-  endTime: string;
-  onChange: (patch: { startTime?: string; endTime?: string }) => void;
-  minutos: number;
-  horasOk: boolean;
-}) {
-  return (
-    <>
-      <div className="grid grid-cols-2 gap-3">
-        <Campo label="Inicio">
-          <input
-            type="time"
-            value={startTime}
-            onChange={e => onChange({ startTime: e.target.value })}
-            className="w-full border rounded px-2 py-1.5"
-          />
-        </Campo>
-        <Campo label="Fin">
-          <input
-            type="time"
-            value={endTime}
-            onChange={e => onChange({ endTime: e.target.value })}
-            className="w-full border rounded px-2 py-1.5"
-          />
-        </Campo>
-      </div>
-      <p className="text-xs text-neutral-500">
-        {horasOk ? `${minutos} min` : 'Pon una hora de fin posterior a la de inicio.'}
-      </p>
-    </>
-  );
-}
-
-function Botones({
-  onGuardar, puedeGuardar, onClose, onBorrar,
-}: {
-  onGuardar: () => void;
-  puedeGuardar: boolean;
-  onClose: () => void;
-  onBorrar?: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2 pt-1">
-      <button
-        onClick={onGuardar}
-        disabled={!puedeGuardar}
-        className="px-3 py-1.5 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
-      >
-        Guardar
-      </button>
-      <button onClick={onClose} className="px-3 py-1.5 rounded-md border text-sm">
-        Cancelar
-      </button>
-      {onBorrar && (
-        <button onClick={onBorrar} className="ml-auto text-sm text-red-600 hover:text-red-800">
-          Borrar
-        </button>
-      )}
-    </div>
-  );
-}
-
-function Campo({
-  label, hint, children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block space-y-1">
-      <span className="text-xs text-neutral-600">{label}</span>
-      {children}
-      {hint && <span className="block text-[11px] text-neutral-500">{hint}</span>}
-    </label>
+    </FormModal>
   );
 }

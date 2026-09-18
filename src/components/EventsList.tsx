@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, addEvent, deleteEvent } from '@/lib/db';
 import { sortedCourseCodes } from '@/lib/courseOrder';
+import { eventLastDate } from '@/lib/dayAgenda';
 import type { CalendarEvent } from '@/types';
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
 const KIND_LABEL: Record<CalendarEvent['kind'], string> = {
   entrega: 'Entrega',
   actividad: 'Actividad',
+  reemplazo: 'Reemplazo',
   festivo: 'Festivo',
   otro: 'Otro',
 };
@@ -30,6 +32,7 @@ const KIND_LABEL: Record<CalendarEvent['kind'], string> = {
 const KIND_COLOR: Record<CalendarEvent['kind'], string> = {
   entrega: 'bg-red-500',
   actividad: 'bg-blue-500',
+  reemplazo: 'bg-violet-500',
   festivo: 'bg-neutral-500',
   otro: 'bg-neutral-400',
 };
@@ -37,6 +40,7 @@ const KIND_COLOR: Record<CalendarEvent['kind'], string> = {
 const KIND_BADGE: Record<CalendarEvent['kind'], string> = {
   entrega: 'bg-red-100 text-red-800',
   actividad: 'bg-blue-100 text-blue-800',
+  reemplazo: 'bg-violet-100 text-violet-800',
   festivo: 'bg-neutral-100 text-neutral-700',
   otro: 'bg-neutral-100 text-neutral-700',
 };
@@ -51,7 +55,9 @@ export function EventsList({
     if (courseCode) list = list.filter(e => e.courseCode === courseCode);
     if (onlyUpcoming) {
       const today = todayIso();
-      list = list.filter(e => e.date >= today);
+      // Por el último día y no por el primero: algo que empezó ayer y termina
+      // mañana sigue estando por venir, y filtrando por `date` desaparecía.
+      list = list.filter(e => eventLastDate(e) >= today);
     }
     list = [...list].sort((a, b) => a.date.localeCompare(b.date));
     return list;
@@ -90,6 +96,11 @@ function EventRow({ ev, showCourse }: { ev: CalendarEvent; showCourse: boolean }
         {KIND_LABEL[ev.kind]}
       </span>
       <span className="flex-1 truncate" title={ev.description ?? ev.title}>
+        {ev.startTime && (
+          <span className="text-[11px] text-neutral-500 tabular-nums mr-1.5">
+            {ev.startTime}
+          </span>
+        )}
         {ev.title}
       </span>
       {showCourse && ev.courseCode && (
@@ -102,6 +113,7 @@ function EventRow({ ev, showCourse }: { ev: CalendarEvent; showCourse: boolean }
       )}
       <span className="text-[11px] text-neutral-500 tabular-nums shrink-0">
         {formatDate(ev.date)}
+        {ev.endDate && ev.endDate > ev.date ? ` → ${formatDate(ev.endDate)}` : ''}
       </span>
       <button
         onClick={() => deleteEvent(ev.id!)}
@@ -155,6 +167,7 @@ function NewEventForm({
       >
         <option value="entrega">Entrega</option>
         <option value="actividad">Actividad</option>
+        <option value="reemplazo">Reemplazo</option>
         <option value="otro">Otro</option>
       </select>
       {!defaultCourseCode && (
