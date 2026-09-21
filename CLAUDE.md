@@ -113,6 +113,16 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   así que la vuelta se corre un día por semana (lun D1, mar D2… lun siguiente D5, mar D1,
   mié D2). Por eso `nextDateOfDayType` sale de `computeDayTypes` y no de sumar 7 días: es
   lo que deja crear algo temporal desde una celda del horario con la fecha ya puesta.
+- **La casilla de nota no puede ser `type="number"`** (`PlanillaGrid` + `lib/gridNav.ts`).
+  Ahí las flechas suben y bajan el valor, y calificando lo que se quiere es bajar por la
+  columna estudiante por estudiante; de paso la rueda del mouse cambiaba la nota al pasar
+  por encima. Es `type="text"` con `inputMode="numeric"`, el teclado lo decide `nextCell`
+  y las casillas se encuentran por `data-nota="fila-columna"` (con refs habría que rehacer
+  la matriz en cada tecleo: guardar una nota redibuja la tabla entera). Izquierda y derecha
+  solo cambian de columna con el cursor en la punta, para no robarle el paso al texto.
+  El texto que se escribe vive en estado aparte del valor guardado, porque si no, borrar
+  la casilla la volvía 0 en el acto; el efecto que los sincroniza no pisa lo escrito
+  mientras la casilla tiene el foco.
 - **Editar un bloque del horario no puede reenviar su `updatedAt`.** El hook `updating`
   respeta el que venga en el patch —lo necesita el pull, que trae el del servidor—, así
   que pasar la fila entera dejaba la fecha vieja y el push, que sube lo que tenga
