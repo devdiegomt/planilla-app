@@ -8,10 +8,16 @@ import {
   NOTA_APROBACION, NOTA_EXPERTO,
 } from '@/lib/constants';
 import { calcDef } from '@/lib/formula';
+import { nextCell, sanitizeNota, notaValue } from '@/lib/gridNav';
 import type { Course } from '@/types';
 
 interface Props {
   course: Course;
+}
+
+/** Cómo se encuentra una casilla desde otra en el DOM. */
+function notaCellId(row: number, col: number): string {
+  return `${row}-${col}`;
 }
 
 /**
@@ -20,7 +26,14 @@ interface Props {
  * K y C), el input se propaga a los slots correspondientes al guardar.
  * La definitiva usa el algoritmo real de la plataforma (ignore-zeros).
  * Cada celda soporta una observación docente por columna (popover con textarea).
+ *
+ * Se recorre con el teclado como una hoja de cálculo: las flechas cambian de
+ * casilla en vez de subir y bajar el número. Cada casilla lleva su fila y su
+ * columna en `data-nota` y el salto busca la de destino por ahí — con refs
+ * habría que mantener una matriz que se rearma en cada tecleo, porque guardar
+ * la nota vuelve a dibujar la tabla entera.
  */
+
 export function PlanillaGrid({ course }: Props) {
   const students = useLiveQuery(
     () => db.students.where('courseId').equals(course.id!).sortBy('order'),
@@ -98,7 +111,7 @@ export function PlanillaGrid({ course }: Props) {
                     del nombre en móvil. */}
                 <td className="p-2 sticky left-0 z-10 bg-white text-neutral-500">{i + 1}</td>
                 <td className="p-2 sticky left-8 z-10 bg-white whitespace-nowrap">{s.nombre}</td>
-                {columns.map(col => {
+                {columns.map((col, ci) => {
                   const value = s.subnotas[col.slotKeys[0]] ?? 0;
                   const observation = s.noteObservations?.[col.column] ?? '';
                   const isEv = col.cats.length === 1 && col.cats[0] === 'E';
@@ -113,6 +126,9 @@ export function PlanillaGrid({ course }: Props) {
                       value={value}
                       observation={observation}
                       isEv={isEv}
+                      row={i}
+                      col={ci}
+                      size={{ rows: activos.length, cols: columns.length }}
                     />
                   );
                 })}
@@ -139,7 +155,7 @@ export function PlanillaGrid({ course }: Props) {
             <span className="inline-block w-6 h-4 rounded border border-red-400 bg-red-100" />
             &lt; {NOTA_APROBACION}
           </span>
-          <span>Click en 📝 para observación</span>
+          <span>Flechas para moverte · Enter baja · 📝 para observación</span>
         </p>
         <p>
           {columns.length} columnas ({slots.length} slots internos) · {activos.length} activos ·
@@ -158,6 +174,7 @@ export function PlanillaGrid({ course }: Props) {
  */
 function NoteCell({
   studentId, studentName, column, achievement, slotKeys, value, observation, isEv,
+  row, col, size,
 }: {
   studentId: number;
   studentName: string;
@@ -168,11 +185,60 @@ function NoteCell({
   value: number;
   observation: string;
   isEv: boolean;
+  row: number;
+  col: number;
+  size: { rows: number; cols: number };
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(observation);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Lo escrito, aparte de lo guardado: mientras se escribe la casilla puede
+  // quedar vacía. Con el valor guardado directo, borrar el contenido lo volvía
+  // un 0 en el acto y había que escribir encima de él.
+  const [texto, setTexto] = useState(String(value));
+
+  /*
+   * Guardar una nota vuelve a dibujar la tabla (la lee un live query), así que
+   * este efecto corre en cada tecleo. Si pisara el texto mientras se escribe,
+   * el cursor saltaría al final en cada dígito — por eso solo sincroniza
+   * cuando la casilla NO tiene el foco, que es el caso que importa: un cambio
+   * llegado del otro dispositivo.
+   */
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) setTexto(String(value));
+  }, [value]);
+
+  /** Saltar a otra casilla: se busca por su fila y columna, no por ref. */
+  const irA = (destino: { row: number; col: number }) => {
+    const el = document.querySelector<HTMLInputElement>(
+      `[data-nota="${notaCellId(destino.row, destino.col)}"]`,
+    );
+    if (!el) return;
+    el.focus();
+    // Seleccionado: al llegar, escribir reemplaza en vez de pegarse a lo que
+    // ya había (llegar a un 70 y teclear 8 daría 708).
+    el.select();
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const el = e.currentTarget;
+    // Con algo seleccionado no se está moviendo el cursor dentro del número,
+    // así que izquierda y derecha pueden cambiar de columna.
+    const sinSeleccion = el.selectionStart === el.selectionEnd;
+    const destino = nextCell({ row, col }, {
+      key: e.key,
+      shiftKey: e.shiftKey,
+      atStart: sinSeleccion && el.selectionStart === 0,
+      atEnd: sinSeleccion && el.selectionStart === el.value.length,
+    }, size);
+    if (!destino) return;
+    // Sin esto, arriba y abajo mandan el cursor a las puntas del texto.
+    e.preventDefault();
+    irA(destino);
+  };
 
   // Cuando cambia la observación externa (por sync/pull), sincronizar el draft si el popover está cerrado
   useEffect(() => {
@@ -229,19 +295,38 @@ function NoteCell({
   return (
     <td className={`p-1 text-center ${cellBg} relative`}>
       <div className="inline-flex items-center gap-0.5">
+        {/*
+          * `text` y no `number`: en un input numérico las flechas suben y
+          * bajan el valor, que es justo lo que estorba calificando. De paso se
+          * van las flechitas del spinner —que en 12px de ancho sobran— y deja
+          * de cambiar la nota si la rueda del mouse pasa por encima.
+          * `inputMode="numeric"` conserva el teclado de números en el celular.
+          */}
         <input
-          type="number"
-          min={0}
-          max={100}
-          value={value}
+          ref={inputRef}
+          type="text"
+          inputMode="numeric"
+          data-nota={notaCellId(row, col)}
+          value={texto}
+          onKeyDown={onKeyDown}
+          onFocus={e => e.currentTarget.select()}
           onChange={e => {
-            const v = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
-            updateColumnValue(studentId, slotKeys, v);
+            const limpio = sanitizeNota(e.target.value);
+            setTexto(limpio);
+            updateColumnValue(studentId, slotKeys, notaValue(limpio));
           }}
+          // Se normaliza de lo escrito y no del valor guardado: ese llega por
+          // el live query un instante después, así que salir de una casilla
+          // recién cambiada mostraba la nota vieja por un parpadeo.
+          onBlur={() => setTexto(String(notaValue(texto)))}
+          aria-label={`${studentName} · ${column}`}
           className={`w-12 text-center border rounded p-1 ${inputColor}`}
         />
         <button
           type="button"
+          // Fuera del recorrido del tabulador: si no, Tab alternaba nota,
+          // botón, nota, y avanzar por la fila costaba el doble de teclazos.
+          tabIndex={-1}
           onClick={() => setOpen(o => !o)}
           title={observation ? `Obs: ${observation}` : 'Añadir observación'}
           className={`text-[11px] leading-none px-0.5 hover:text-neutral-900 ${
