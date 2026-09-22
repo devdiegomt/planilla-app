@@ -1,188 +1,243 @@
 # planilla-app
 
-Automatización del flujo docente para profesores de GLA — PWA local-first con backup en la nube.
+El trabajo de un docente de GLA, hecho app: notas, asistencia, horario y los
+archivos que la plataforma del colegio pide. PWA local-first con copia en la nube.
 
-**Deploy:** https://planillaapp.vercel.app
+**Producción:** https://planillaapp.vercel.app
 
-## Qué hace la app
+## Qué hace
 
-**Gestión de planilla y Califica (v1):**
-1. **Importar** una `PLANILLA-NOTAS-*.xlsx` con los 19 cursos y sus notas. Detección automática del layout (8°–10° vs 11°) y guardado en IndexedDB.
-2. **Cargar el Califica del curso** descargado de la plataforma (desde la página del curso): escribe los COD_ALUM y guarda los encabezados del trimestre para el grado.
-3. **Editar** notas y F/R por estudiante desde una vista tipo planilla optimizada para móvil.
-4. **Ver la DEF con el algoritmo real de la plataforma** (ignore-zeros + half-up), no con el que trae tu Excel — sabes quién va aprobando de verdad.
-5. **Exportar** el Califica del curso preservando el formato del template, con lista viva de activos y corrección automática de typos.
+### Notas y Califica
 
-**Horario, calendario y agenda (v2):**
-6. **Modelo de días D1–D5 + Día Fijo** con motor que respeta festivos colombianos (Ley Emiliani auto) y cancelaciones — no consumen turno rotativo.
-7. **Widget "Hoy"** en la home: qué clases toca, en qué bloque, con badge de ciclo y estado F/R por clase.
-8. **Editor F/R por ciclo** — checkboxes por estudiante, con `S1/S2` separadas para 11°, botón de confirmación por sesión.
-9. **Calendario mensual** con overlay de entregas/actividades por color; agregar/editar desde el mismo popover.
-10. **To-do** con prioridad y vencimiento, por curso opcional.
-11. **Exportador EFAS** — consolidado institucional en XLSX con hoja de Salón de Honor (estudiantes ≥80).
+1. **Arranca desde el Califica de todos los cursos.** Se descarga de la plataforma
+   (*Importar/exportar planillas por profesor GLA* → Exportar) un solo `.xls` con una
+   hoja por curso. La app crea los cursos que no existan con sus estudiantes, escribe
+   los COD_ALUM y guarda los encabezados del trimestre por grado.
+2. **Devuelve el mismo archivo** con las notas escritas por COD_ALUM (`lib/califica451.ts`),
+   listo para importar en esa misma pantalla.
+3. **Planilla tipo hoja de cálculo**, con observación por celda. Se recorre con las
+   flechas y **se puede pegar una columna de notas desde un Excel**, con vista previa
+   antes de aplicar.
+4. **La definitiva con el algoritmo real de la plataforma** (ignora los ceros,
+   redondeo half-up), no con el que trae un Excel: se sabe quién va aprobando de verdad.
+5. **Importar la Planilla del año** (`PLANILLA-NOTAS-*.xlsx`) sigue estando, como
+   camino alterno: trae la asistencia histórica y el director de grupo, que el
+   Califica no tiene.
 
-**Backup y multi-dispositivo (v2 completa):**
-12. **Auth email OTP** vía Supabase — código de 6/8 dígitos por email (Resend SMTP).
-13. **Sync Dexie ↔ Supabase** de las 11 tablas locales, last-write-wins por `updated_at`, con auto-sync cada 60s + debounce on-write de 5s.
-14. **Tombstones** para que los deletes se propaguen entre dispositivos.
-15. **Contador de conflictos** cuando el remoto pisa un cambio local no sincronizado.
-16. **Backup/restore JSON** de toda la base local, portable y versionado (funciona incluso sin Supabase).
+### Horario, calendario y día
 
-**Integraciones (v4):**
-17. **Google Classroom read-only** — conectar cuenta, listar cursos/tareas/entregas, ver adjuntos.
-18. **Link a classroom-rpa** — para descargar entregas de un ciclo por curso, se usa la app hermana [classroom-rpa.vercel.app](https://classroom-rpa.vercel.app) (link en el nav bar). La calificación de las entregas se hace manualmente por el docente en su flujo habitual.
+6. **Rotación D1–D5 + Día Fijo** con festivos de Colombia (Ley Emiliani automática) y
+   cancelaciones, que no consumen turno.
+7. **Horario como horario**: filas = franjas, columnas = tipos de día. En el celular,
+   un día a la vez como línea de tiempo.
+8. **Franjas de descanso** con acompañamiento por día y **dos turnos** — el
+   acompañamiento no dura todo el descanso.
+9. **Lo temporal va aparte**: una reunión de esta semana o un reemplazo llevan fecha,
+   salen en el día y se vencen solos.
+10. **"Hoy" y "Mañana"** en el inicio: clases con su ciclo y estado F/R, más lo
+    temporal de esa fecha.
+11. **Calendario mensual** con el ciclo de cada curso y las entregas por color.
 
-**PWA:**
-19. **Instalable en móvil** con service worker (cache app shell + persistencia de IndexedDB).
+### Asistencia
+
+12. **F/R por ciclo**, con `S1`/`S2` separadas para 11° y confirmación por sesión.
+13. **Cuatro estados** (sin marca / injustificada / justificada, por falla y por retardo).
+14. **Asistencia del día lista para pegar** en el autofill de planilla-v2, curso por
+    curso, con botón de copiar.
+
+### Reportes y seguimiento
+
+15. **EFAS** consolidado en XLSX, con hoja de Salón de Honor (≥80).
+16. **Correos de seguimiento** armados con las observaciones ya escritas, sin IA.
+17. **To-do** con prioridad, vencimiento y curso opcional.
+18. **Cierre de trimestre** con foto de las notas que no se vuelve a tocar.
+
+### Classroom
+
+19. **Cursos, tareas y entregas** en modo lectura.
+20. **Descargar todos los trabajos en un ZIP**, con una carpeta por estudiante. El ZIP
+    se arma en el navegador, con avance y cancelación.
+
+### Copia y varios dispositivos
+
+21. **Entrar con código al correo** (OTP), solo del dominio del colegio.
+22. **Sincronización** de las 11 tablas locales, con lápidas para que los borrados
+    viajen y conteo de conflictos.
+23. **Copia de seguridad en JSON** de toda la base, que funciona aunque no haya servidor.
+24. **Recordatorios push** por la mañana y por la tarde.
+25. **Instalable en el celular**, y abre con su copia guardada aunque el servidor no
+    responda.
 
 ## Stack
 
-- **Next.js 15** (App Router, RSC + Client Components donde hace falta)
-- **Dexie 4** sobre IndexedDB — local-first, con hooks que autogeneran `syncId` (UUID) y `updatedAt` en cada escritura
-- **Supabase** (auth OTP + sync JSONB con RLS)
-- **Resend** (SMTP para OTP emails)
-- **google-auth-library** — OAuth2 read-only a Classroom
-- **SheetJS (xlsx)** — leer archivos Excel
-- **ExcelJS** — generar Califica y EFAS preservando estilos
-- **Tailwind CSS**
+- **Next.js 15** (App Router) + React 19 + **Tailwind CSS**
+- **Dexie 4** sobre IndexedDB — local-first, con hooks que ponen `syncId` y `updatedAt`
+  en cada escritura
+- **Supabase** — entrar con código y sincronizar (JSONB con RLS)
+- **Resend** — el correo del código
+- **google-auth-library** — OAuth2 de solo lectura a Classroom y Drive
+- **SheetJS (xlsx)** — leer y escribir los `.xls` de la plataforma (BIFF8)
+- **ExcelJS** — generar Califica y EFAS conservando estilos
+- **JSZip** — armar el ZIP de entregas en el navegador
 - **Deploy:** Vercel
 
-## Setup local
+## Comandos
 
 ```bash
 npm install
-cp .env.local.example .env.local
-# Edita .env.local con tus keys
-npm run dev
+cp .env.local.example .env.local   # y editarlo
+npm run dev                        # http://localhost:3000
+npx tsc --noEmit                   # typecheck: la puerta obligatoria
 ```
 
-Y abres `http://localhost:3000`.
+No hay runner de tests ni ESLint configurado. Las pruebas de lógica se hacen
+transpilando los `.ts` de `src/lib` a CommonJS en una carpeta temporal **fuera del
+repo** y corriéndolas con Node contra los archivos reales.
 
-**Env vars requeridas** (ver `.env.local.example`):
+## Configuración
+
+**Variables de entorno** (ver `.env.local.example`):
 
 | Variable | Prefijo | Notas |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | `NEXT_PUBLIC_` (safe) | URL del proyecto Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `NEXT_PUBLIC_` (safe) | anon key, protegido por RLS |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `NEXT_PUBLIC_` (safe) | anon key, protegida por RLS |
 | `GOOGLE_CLIENT_ID` | server-only | OAuth client de Google Cloud |
-| `GOOGLE_CLIENT_SECRET` | server-only | nunca en el bundle cliente |
-| `GOOGLE_REDIRECT_URI` | server-only | `http://localhost:3000/api/classroom/callback` en dev, URL de Vercel en prod |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | `NEXT_PUBLIC_` (safe) | VAPID public key para push subscribe. Generar con `npx web-push generate-vapid-keys --json` |
-| `VAPID_PRIVATE_KEY` | server-only | pareja privada — NUNCA con prefijo `NEXT_PUBLIC_` |
-| `VAPID_SUBJECT` | server-only | `mailto:tu@email.com` o URL — requerido por VAPID |
-| `CRON_SECRET` | server-only | Bearer que Vercel Cron envía. Generar con `openssl rand -hex 32` |
-| `SUPABASE_SERVICE_ROLE_KEY` | server-only | bypasa RLS, solo lo usa el cron para leer datos de todos los usuarios. Obtener en Supabase → Settings → API |
+| `GOOGLE_CLIENT_SECRET` | server-only | nunca en el bundle del cliente |
+| `GOOGLE_REDIRECT_URI` | server-only | `http://localhost:3000/api/classroom/callback` en dev |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | `NEXT_PUBLIC_` (safe) | generar con `npx web-push generate-vapid-keys --json` |
+| `VAPID_PRIVATE_KEY` | server-only | la pareja privada — NUNCA con prefijo `NEXT_PUBLIC_` |
+| `VAPID_SUBJECT` | server-only | `mailto:tu@correo` o URL |
+| `CRON_SECRET` | server-only | lo manda Vercel Cron. Generar con `openssl rand -hex 32` |
+| `SUPABASE_SERVICE_ROLE_KEY` | server-only | se salta RLS; solo el cron la usa |
 
-**Supabase schema** — corre en orden en Dashboard → SQL Editor:
-1. `supabase/schema.sql` (tabla `sync_records` + RLS)
-2. `supabase/migrations/002_tombstones.sql` (columna `deleted_at`)
-3. `supabase/migrations/003_push_subscriptions.sql` (tabla `push_subscriptions` para VAPID)
-4. `supabase/migrations/004_dominio_institucional.sql` (solo `@gla.edu.co` sincroniza) —
-   **corre primero la consulta del PASO 1 que trae comentada**: lista a quién dejarías
-   afuera. Si aparece una cuenta en uso, resuélvelo antes de aplicar el resto.
+**Supabase** — correr en orden en Dashboard → SQL Editor:
 
-**Push notifications** — el usuario habilita desde la home (sección "Notificaciones"). Hay **dos crons** en `vercel.json`, ambos con `Authorization: Bearer $CRON_SECRET`:
+1. `supabase/schema.sql` — tabla `sync_records` + RLS
+2. `supabase/migrations/002_tombstones.sql` — columna `deleted_at`
+3. `supabase/migrations/003_push_subscriptions.sql` — tabla para VAPID
+4. `supabase/migrations/004_dominio_institucional.sql` — solo `@gla.edu.co` sincroniza.
+   **Correr primero la consulta del PASO 1 que trae comentada**: lista a quién dejarías
+   afuera. Si aparece una cuenta en uso, resolverlo antes de aplicar el resto.
+
+> El dominio se compara **completo y por la última arroba**, nunca con `like %`:
+> `alguien@gla.edu.co.otrositio.com` no es del colegio. `lib/allowedDomain.ts` avisa en
+> el navegador, pero la puerta de verdad es la política de RLS, porque un filtro de
+> cliente se salta.
+
+**Entrar con código** necesita SMTP propio en Supabase (el default rate-limita fuerte).
+Resend en Authentication → Emails → SMTP Settings: host `smtp.resend.com`, puerto `465`,
+usuario `resend`, contraseña `re_…`. El template "Magic Link" tiene que incluir
+`{{ .Token }}`, no solo el enlace.
+
+**Google OAuth** — proyecto en Google Cloud Console con Classroom API y Drive API
+habilitadas, OAuth Client Web con los redirect URIs de localhost y de producción.
+
+> Descargar trabajos necesita el permiso `drive.readonly`, que Google considera
+> **restringido**: al añadirlo hay que volver a dar consentimiento, y publicarlo a
+> muchos docentes exigiría la verificación de Google.
+
+**Recordatorios** — dos crons en `vercel.json`, ambos con `Authorization: Bearer $CRON_SECRET`:
 
 | cron | UTC | COT | ruta | qué manda |
 |---|---|---|---|---|
-| matutino | `0 12 * * 1-5` | 7 AM | `/api/push/daily-reminders` | agenda del día |
-| vespertino | `0 20 * * 1-5` | 3 PM | `/api/push/afternoon-reminders` | F/R de HOY sin registrar |
+| matutino | `0 12 * * 1-5` | 7 AM | `/api/push/daily-reminders` | la agenda del día |
+| vespertino | `0 20 * * 1-5` | 3 PM | `/api/push/afternoon-reminders` | F/R de hoy sin registrar |
 
-`src/lib/pushCron.ts` tiene la maquinaria común (auth, suscripciones, fan-out, limpieza de expiradas); las rutas son de tres líneas y solo eligen el compositor.
+`lib/pushCron.ts` tiene la maquinaria común y las rutas solo eligen el compositor.
 
-> **El vespertino calla cuando no hay nada pendiente.** Un aviso que también llega para decir "todo al día" se vuelve ruido y se aprende a ignorar. Solo suena si quedaron clases de hoy sin confirmar, y si es una sola enlaza directo a `/curso/{code}?ciclo=N`.
+> **El vespertino calla cuando no hay nada pendiente.** Un aviso que también llega para
+> decir "todo al día" se vuelve ruido y se aprende a ignorar.
 
-> **Plan Hobby de Vercel: dos crons es el tope.** Si hiciera falta un tercero, habría que fusionar rutas con un parámetro o subir de plan.
+> **Plan Hobby de Vercel: dos crons es el tope.** Un tercero obligaría a fusionar rutas
+> con un parámetro o a subir de plan.
 
-El recordatorio lo arma `composeReminder()` en `src/lib/reminder.ts` — lógica pura, sin Supabase ni red, para poder ejercitarla con escenarios controlados. El route solo hace el fetch y el fan-out a las suscripciones. El body incluye:
+> **La fecha se ancla a UTC-5 explícitamente** (`todayInBogota()`), no a la zona del
+> runtime. Vercel corre en UTC: `todayIso()` acertaría solo mientras el cron dispare
+> después de las 05:00 UTC.
 
-```
-Día D3 · 4 clases hoy
-801, 902, 1003, 1101
-📌 2 entregas hoy: 801, 902
-⚠️ 3 pendientes (2 vencidos)
-📋 F/R sin registrar: 1003, 1101
-```
-
-Devuelve `null` (no notifica) en fin de semana, festivo, día cancelado, o día lectivo sin bloques en el horario.
-
-> **La fecha se ancla a UTC-5 explícitamente** (`todayInBogota()`), no a la zona del runtime. Vercel corre en UTC: `todayIso()` acertaría solo mientras el cron dispare después de las 05:00 UTC, y mover el horario correría todas las fechas un día.
-
-> **Las relaciones se matchean por `courseCode`, nunca por `courseId`.** `stripLocalMeta()` borra los ids autoincrementales de Dexie antes de subir a Supabase, así que del lado del cron ambos serían `undefined` — y `undefined === undefined` daba `true`, con lo que una sola marca de F/R hacía aparecer los 19 cursos como registrados.
-
-**Auth OTP** requiere SMTP custom en Supabase (el default rate-limita brutal). Config Resend en Authentication → Emails → SMTP Settings:
-- Host `smtp.resend.com`, Port `465`, Username `resend`, Password `re_...`
-- Editar template "Magic Link" para incluir `{{ .Token }}` (código, no solo link)
-- Site URL: la URL de tu deploy. Redirect URLs: `https://tu-deploy/**`
-
-**Google OAuth** — crear proyecto en Google Cloud Console, habilitar Classroom API, crear OAuth Client Web con redirect URIs para localhost y prod.
-
-**Para probar el flujo rápido:**
-1. Sube tu `PLANILLA-NOTAS-*.xlsx` en la sección "Importar datos"
-2. Entra a cualquier curso → "Cargar Califica de la plataforma (.xls)" con el Califica de ese curso
-3. Edita notas, marca F/R, exporta Califica
-4. En `/classroom` conecta tu cuenta Google para ver cursos y entregas
-5. Para descargar entregas de un ciclo, usa el link "Descargar entregas" del nav → abre [classroom-rpa](https://classroom-rpa.vercel.app)
+> **El cron consulta por lotes.** En serie, con `maxDuration` de 60 s, fallaba **en
+> silencio** al crecer el número de docentes. Ahora reporta `truncated` y `usersPending`.
 
 ## Estructura
 
 ```
 src/
 ├── app/
-│   ├── page.tsx                      # home: Hoy + Pendientes + Global dashboard + Reportes + Importar + Backup + PWA
-│   ├── auth/page.tsx                 # login OTP email
-│   ├── curso/[code]/page.tsx         # dashboard + editor F/R + planilla + historial
-│   ├── horario/page.tsx              # config de bloques por tipo día
-│   ├── calendario/page.tsx           # mensual con overlay de eventos
-│   ├── pendientes/page.tsx           # to-do completo
-│   ├── classroom/page.tsx            # browse cursos/tareas/entregas
-│   ├── manifest.ts                   # PWA manifest
+│   ├── page.tsx                  # el día: Hoy + Pendientes + Cursos + Asistencia + Reportes
+│   ├── ajustes/                  # materias, cierre, copia, reparación, notificaciones
+│   ├── auth/                     # entrar con código al correo
+│   ├── curso/[code]/             # planilla, F/R por ciclo, estadísticas, historial
+│   ├── horario/                  # rejilla de franjas + "Estos días" (lo temporal)
+│   ├── calendario/               # mensual con tipo de día, ciclo y entregas
+│   ├── pendientes/               # to-do
+│   ├── classroom/                # cursos, tareas, entregas y descarga en ZIP
+│   ├── correos/                  # correos de seguimiento
 │   └── api/
-│       └── classroom/                # login/callback/me/courses/coursework/submissions
+│       ├── classroom/            # login, callback, cursos, tareas, entregas, drive
+│       └── push/                 # subscribe, test y los dos crons
 ├── lib/
-│   ├── constants.ts                  # GRADE_META, SLOTS, escala de notas
-│   ├── formula.ts                    # calcDef (strict + platform)
-│   ├── importer.ts / exporter.ts     # xlsx planilla + Califica
-│   ├── efasExporter.ts               # EFAS consolidado + salón de honor
-│   ├── stats.ts                      # métricas de curso
-│   ├── db.ts                         # Dexie v7 + hooks de sync + helpers
-│   ├── sync.ts                       # push/pull/status Supabase
-│   ├── supabase.ts                   # cliente browser
-│   ├── schedule.ts                   # motor de días D1-D5 + Fijo
-│   ├── holidays-co.ts                # festivos Colombia con Ley Emiliani
-│   ├── backup.ts                     # export/import JSON de Dexie
-│   ├── googleOAuth.ts                # server-only OAuth2 helpers
-│   ├── classroomSession.ts           # tokens en cookie httpOnly
-│   ├── classroomApi.ts               # wrapper Classroom REST v1
-│   └── utils.ts                      # normalizeName, downloadBlob, etc.
-├── components/                       # 25+ componentes client-side
-└── types/index.ts                    # entidades con syncId + updatedAt
+│   ├── constants.ts              # SLOTS_8_10 / SLOTS_11 y la escala de notas
+│   ├── formula.ts                # calcDef (strict + platform)
+│   ├── califica451.ts            # el .xls de todos los cursos: leer y reescribir
+│   ├── califica.ts / exporter.ts # Califica por curso desde la plantilla
+│   ├── importer.ts               # Planilla del año
+│   ├── efasExporter.ts           # EFAS + salón de honor
+│   ├── studentMatch.ts           # a quién corresponde cada fila al importar
+│   ├── pasteNotas.ts             # pegar notas de un Excel: arma el plan
+│   ├── gridNav.ts                # moverse por la cuadrícula con el teclado
+│   ├── schedule.ts               # rotación D1–D5 + Fijo
+│   ├── horarioGrid.ts            # franjas, descansos, turnos y numeración de horas
+│   ├── dayAgenda.ts              # el horario del día + lo temporal de esa fecha
+│   ├── cycles.ts                 # en qué ciclo va cada curso cada día
+│   ├── attendance.ts             # los cuatro estados de asistencia
+│   ├── attendanceExport.ts       # JSON para el autofill de planilla-v2
+│   ├── codalum.ts                # JSON del extractor → Student.codAlum
+│   ├── db.ts                     # Dexie v13 + hooks de sync + helpers
+│   ├── sync.ts / syncId.ts       # subir, bajar y claves estables entre equipos
+│   ├── retention.ts              # poda del historial de ediciones
+│   ├── backup.ts                 # copia en JSON de toda la base
+│   ├── recovery.ts               # reparar el navegador sin tocar los datos
+│   ├── allowedDomain.ts          # solo el dominio del colegio
+│   ├── subjects.ts / courseOrder.ts  # materias y cursos del docente, no constantes
+│   ├── setupSteps.ts             # los pasos que faltan para dejarla lista
+│   ├── submissionsZip.ts / driveExport.ts  # ZIP de entregas y exportar Documentos
+│   ├── emails.ts                 # correos de seguimiento
+│   └── pushCron.ts / reminder.ts # recordatorios
+├── components/                   # 46 componentes de cliente
+└── types/index.ts                # entidades con syncId + updatedAt
 
 public/
-├── templates/Califica-*.xlsx         # bases para el exportador
-├── icon-192.svg / icon-512.svg       # PWA icons
-└── sw.js                             # service worker
+├── templates/Califica-*.xlsx     # bases del exportador por curso
+└── sw.js                         # service worker
 
 supabase/
-├── schema.sql                        # tabla base + RLS
-└── migrations/002_tombstones.sql
+├── schema.sql
+└── migrations/00{2,3,4}_*.sql
 ```
 
-## Lógica de la fórmula (crítico entenderla)
+## La fórmula
 
-Dos cálculos posibles en `formula.ts`:
+Dos cálculos en `formula.ts`:
 
-**`strict`** — lo que hace tu Excel Planilla. Los 0 cuentan como notas reales. Ejemplo: si K = C4:60% + C5:40% con C4=100 y C5=0, la Def de K es 60. Con esta cuenta, mientras no hayas calificado un ciclo la DEF de todos se hunde.
+**`strict`** — lo que hace un Excel normal: los 0 cuentan como notas reales. Si K =
+C4:60 % + C5:40 % con C4=100 y C5=0, K da 60. Con esa cuenta, mientras no se califique
+un ciclo la definitiva de todos se hunde.
 
-**`platform`** (default) — lo que hace la plataforma del colegio. Los 0 se ignoran (no calificado). El mismo ejemplo da K = 100. **Validado 100% contra el panel real** (curso 801, jul-2026, 27/27 matches).
+**`platform`** (el que usa la app) — lo que hace la plataforma del colegio: **los 0 se
+ignoran**, porque `0` significa "sin calificar" y no "sacó cero". El mismo ejemplo da
+K = 100.
 
 1. Por categoría: promedio ponderado reescalando los pesos entre las subnotas > 0
-2. Definitiva: promedio simple de las categorías con Def > 0
-3. Redondeo: half-up (no banker's)
+2. Definitiva: promedio simple de las categorías con resultado > 0
+3. Redondeo: half-up
 
-### Pesos internos por categoría
+**Validado contra el panel real de la plataforma.** No se cambia sin volver a validar.
 
-Cada categoría K/M/U/C/E pesa 20% de la DEF final. Los pesos DENTRO cambian entre 8°–10° y 11°:
+### Pesos internos
+
+Cada categoría K/M/U/C/E pesa 20 % de la definitiva. Los pesos de adentro cambian
+entre 8°–10° y 11°:
 
 | Categoría | 8°–10° | 11° |
 |---|---|---|
@@ -192,131 +247,155 @@ Cada categoría K/M/U/C/E pesa 20% de la DEF final. Los pesos DENTRO cambian ent
 | COMMUNICATION | C3:25 + C4:25 + C5:50 | C3:25 + C4:25 + C6:50 |
 | EV | C7:100 | C7:100 |
 
-## Modelo de datos (Dexie v7)
+> La escala: `0` = sin calificar, `30` = la mínima real, 70 aprueba, 80 es experto,
+> 100 el máximo.
 
-Ver `src/types/index.ts`. Cada `Student` guarda:
-- Metadata (codAlum, nombre, orden, activeFrom, withdrawnAt)
-- `cycles[9]` — para 8°–10° son `{F, R, nota, obs}`; para 11° incluyen también `S1` y `S2` (cada una con F/R/N)
-- `subnotas` — diccionario con 10 o 11 claves según el grado
+## Modelo de datos (Dexie v13)
 
-**Sync metadata** (agregado por hooks automáticamente):
-- `syncId` — UUID estable cross-device
-- `updatedAt` — ISO timestamp del último cambio local (base de LWW)
+Ver `src/types/index.ts`. Cada `Student` guarda metadata (codAlum, nombre, orden,
+retiro), `cycles[9]` con F/R y observación por ciclo — y `S1`/`S2` en 11° —, y
+`subnotas` con 10 u 11 claves según el grado.
 
-**Deletes:** los estudiantes retirados NO se borran, se marcan con `withdrawnAt` (soft). El resto de tablas se borran duro, pero el hook `deleting` encola una tombstone en la tabla local `syncTombstones` que se propaga a Supabase para multi-dispositivo.
+**Metadata de sync**, que ponen los hooks:
 
-**Sync flow:**
-1. Cada escritura Dexie bumpea `updatedAt` (hook `updating`)
-2. `pushAll(userId)` sube todas las filas donde `updatedAt > lastPush`, luego las tombstones
-3. `pullAll(userId)` baja las filas remotas con `updated_at > lastPull`, LWW merge, aplica tombstones remotas como deletes locales
-4. `SyncStatus` en el nav bar dispara sync manual + auto cada 60s + on-write debounce 5s
+- `syncId` — UUID estable entre equipos, **determinista** (`lib/syncId.ts`): el mismo
+  curso o estudiante da el mismo UUID en cualquier dispositivo, así que reimportar no
+  duplica.
+- `updatedAt` — cuándo cambió por última vez, que es la base del last-write-wins.
 
-## Roadmap
+**Relaciones por `courseCode` y `studentSyncId`, nunca por los ids de Dexie**, que son
+locales y se borran antes de subir.
 
-### v1 ✅ (importar / editar / exportar)
-### v2 ✅ (horario + calendario + F/R + EFAS + auth + sync)
-### v3 ✅ (to-do + calendario de entregas + PWA install)
-### v4.0 ✅ (Google Classroom read-only + link a classroom-rpa para descarga de entregas)
+**Borrados:** los estudiantes retirados no se borran, se marcan con `withdrawnAt`. El
+resto se borra de verdad, y el hook `deleting` encola una lápida que viaja a Supabase
+para que el borrado llegue a los otros equipos. Cuando el borrado significa "este
+equipo ya no lo guarda" y no "bórralo en todas partes", va con `withoutTombstone`.
 
-### v3.1 ✅ (Push notifications VAPID — suscripción + test manual)
-### v3.2 ✅ (Cron diario en Vercel enviando recordatorio de clases + F/R pendientes)
-### v3.3 ✅ (Recordatorio enriquecido: entregas del día + pendientes vencidos; lógica extraída a `lib/reminder.ts`)
-### v3.4 ✅ (Cron vespertino: F/R de hoy sin registrar, silencioso si no hay nada)
+**Cómo sincroniza:**
 
-### Descartado
-- **Agente IA calificador con Claude** — quitado en 2026-07-26. La calificación se hace manualmente; la descarga de entregas se delega a [classroom-rpa](https://classroom-rpa.vercel.app).
+1. Cada escritura sube `updatedAt`
+2. Se suben las filas con `updatedAt > lastPush`, y después las lápidas
+3. Se bajan las remotas con `updated_at > lastPull`, se resuelve por fecha y se aplican
+   las lápidas remotas como borrados locales
+4. El estado en la barra dispara sync manual, automático cada 60 s y al escribir (5 s)
 
-## Integración con planilla-v2 (Classroom Live)
+**Se poda el historial de ediciones, no las notas.** `changeLog` guarda 180 días
+(`lib/retention.ts`); las notas y lo archivado no se tocan nunca.
 
-[planilla-v2](https://github.com/devdiegomt/planilla-v2) son userscripts de Tampermonkey que corren sobre Classroom Live, la plataforma del colegio. Dos piezas y esta app en el medio:
+## El horario
+
+Las filas se derivan agrupando los bloques por inicio–fin; no hay tabla de franjas.
+
+- **Las horas se numeran por dónde hay clase.** Numerar "toda fila que no sea descanso"
+  se rompió dos veces: una actividad dentro del descanso, y después un evento con horas
+  propias. En ambos casos la fila se numeraba y corría todo lo siguiente — la 7ª hora
+  terminaba de 8ª.
+- **Las franjas las definen las clases y los descansos, no los eventos.** Un evento cae
+  en la franja con la que más se cruza y solo abre fila propia si no se cruza con
+  ninguna. El chip muestra sus horas cuando no son las de la franja.
+- **El descanso es de la franja**, guardado como un bloque por tipo de día, con su
+  acompañamiento (`note`) propio de cada día.
+- **Dos turnos:** el acompañamiento no dura todo el descanso. La hora de corte
+  (`turnSplit`) es de la franja y el turno (`turn`) de cada día. Se guarda en vez de
+  partir por la mitad porque los turnos no duran lo mismo: el descanso es 15+15 y el
+  almuerzo 25+30.
+- **Lo que se repite y lo que pasa una vez son cosas distintas.** El horario vuelve en
+  cada vuelta D1→D5; una reunión de esta semana o un reemplazo llevan fecha
+  (`CalendarEvent`), salen en su hora dentro del día y se vencen solos.
+- **El próximo D2 no es el martes que viene.** El viernes es Fijo y no consume rotación,
+  así que la vuelta se corre un día por semana. Por eso crear algo temporal desde una
+  celda del horario calcula la fecha con `nextDateOfDayType` y no sumando siete días.
+- **La rotación es continua** entre trimestres. El primer día de cada uno se fuerza a D1
+  desde `/calendario`, y las semanas sin clase se marcan; si no, la numeración de ciclos
+  queda corrida de ahí en adelante.
+
+## La planilla
+
+- **La casilla de nota no es `type="number"`**: ahí las flechas suben y bajan el valor,
+  y calificando lo que se quiere es bajar por la columna. Las flechas cambian de
+  casilla, Enter baja, y ← → solo cambian de columna con el cursor en la punta.
+- **Pegar una columna desde un Excel nunca se aplica de una.** Si lo pegado trae códigos
+  o nombres, empareja por ahí y el orden del Excel deja de importar. Si solo trae
+  números, va por posición — y entonces basta que el Excel esté ordenado distinto para
+  que todo caiga en el estudiante equivocado, en silencio. Por eso siempre hay vista
+  previa. Una celda vacía significa "no toques esa nota", no 0.
+
+## Integración con planilla-v2
+
+[planilla-v2](https://github.com/devdiegomt/planilla-v2) son userscripts que corren
+sobre Classroom Live, la plataforma del colegio.
 
 | | produce | consume |
 |---|---|---|
-| `codalum-extractor` | JSON con COD_ALUM de los 19 cursos | — |
-| **planilla-app** | JSON de asistencia con fecha + bloque | JSON de COD_ALUM |
+| `codalum-extractor` | JSON con los COD_ALUM | — |
+| **planilla-app** | JSON de asistencia | JSON de COD_ALUM |
 | `asistencia-autofill` | marca F/R en la plataforma | JSON de asistencia |
+| `verificar-planilla.mjs` | compara Califica original vs generado | los dos archivos |
 
-El ciclo está cerrado: extraer códigos → registrar F/R en la app → descargar el JSON → autofill con dry-run.
+La app es la pieza del medio porque es la única que sabe **en qué fecha cae cada
+ciclo**: el docente registra F/R por ciclo y la plataforma los quiere por fecha.
 
-La app es la pieza intermedia porque es la única que sabe **en qué fecha y bloque cae cada ciclo**: tú registras F/R por ciclo, la plataforma los quiere por fecha. Esa traducción la hace `courseSessionDates()` con el motor de días D1–D5.
+> **Arrancar por el Califica se ahorra el extractor:** ese archivo trae el COD_ALUM, que
+> la Planilla del año no tiene.
 
-### ✅ Importar COD_ALUM (`ImportCodAlum` en la home)
+**Asistencia: copiar y pegar, no archivos.** El panel del autofill recibe el JSON en un
+`<textarea>`, así que el camino normal es copiar desde el inicio y pegar ahí — sin ZIP,
+sin descomprimir y sin explorador de archivos, y funciona igual en el celular. El ZIP
+queda de respaldo para cuando no hay portapapeles.
 
-`parseCodAlumJson()` valida el archivo y `hydrateCodAlum()` escribe `codAlum` sobre las filas de `students`, con match por curso + nombre normalizado y fuzzy como respaldo para los typos.
+Reglas del export que no son obvias:
 
-> **Por qué en la fila y no en `localStorage`:** el mapa del Califica-451 no sincronizaba entre dispositivos, se perdía al limpiar el navegador y obligaba a refuzzy-matchear en cada exportación. `Student.codAlum` viaja por el sync como cualquier otro campo. El exportador ahora prefiere la fila y deja el mapa como fallback.
-
-La importación es **idempotente**: reimportar el mismo JSON no reescribe ninguna fila, así que no ensucia el sync. El reporte cruza los dos rosters y saca a la luz ingresos nuevos (están en la plataforma, no en la app), probables retiros (al revés), códigos que cambiaron y nombres que difieren.
-
-### ✅ Exportar asistencia (`ExportAttendance`, en el header de cada ciclo)
-
-`buildAttendanceExport()` en `src/lib/attendanceExport.ts` — lógica pura. Mapeo:
-
-| autofill | origen en la app |
-|---|---|
-| `hora` | `ScheduleBlock.block` del curso ese día |
-| `curso` | `Course.code` |
-| `asignatura` | `GRADE_META[grade].materia` en mayúsculas |
-| `marcas[].cod_alum` | `Student.codAlum` |
-| `marcas[].tipo` | `autofillTipo()` sobre `F`/`Fj` |
-
-> **El payload no lleva `fecha`, a propósito.** El campo es opcional en el autofill y omitirlo es lo seguro: la plataforma ya trae la de hoy. Una fecha arrastrada en el JSON dejaría la asistencia en otro día sin que nada lo delate.
->
-> A cambio, **el archivo solo sirve el mismo día de la clase**. Por eso la app sigue resolviendo la fecha de la sesión, ya no como dato sino como comprobación: si el ciclo que exportas no cae hoy, el botón avisa en rojo con la fecha real y te dice que ajustes la fecha en Classroom Live antes de correr el autofill.
-
-Reglas que no son obvias:
-
-- **La ventana es la del `course.trimestre`,** no la del día de hoy: exportar en agosto un ciclo del T2 debe seguir resolviendo fechas del T2.
-- **Una ausencia absorbe al retardo.** No se puede llegar tarde a una clase a la que no se asistió, y la plataforma acepta un solo `tipo` por estudiante.
-- **Solo se reportan los que tienen algo que reportar.** Quien no aparece en `marcas` se asume presente.
-- **Los retirados nunca se exportan.** Los activos sin `codAlum` se excluyen y se listan aparte en la UI: sin código no hay forma de identificarlos en la plataforma.
+- **El JSON no lleva `fecha`, a propósito**: la plataforma pone la de hoy. Una fecha
+  arrastrada dejaría la asistencia en otro día sin que nada lo delate. A cambio, el
+  archivo solo sirve el mismo día de la clase, y el botón avisa en rojo si el ciclo que
+  se exporta no cae hoy.
+- **La ventana es la del trimestre del curso**, no la de hoy.
+- **Una ausencia absorbe al retardo**: no se puede llegar tarde a una clase a la que no
+  se asistió, y la plataforma acepta un solo tipo por estudiante.
+- **Solo se reporta a quien tiene algo que reportar**; el que no aparece se asume presente.
+- **Los retirados nunca se exportan**, y los activos sin código se excluyen y se listan
+  aparte: sin código no hay forma de identificarlos en la plataforma.
 - **11° genera dos archivos por ciclo** (`-S1`, `-S2`), en fechas y bloques distintos.
 
-> **La rotación no es semanal.** D1–D5 + FIJO(viernes) recurre cada 6 días hábiles, así que los D1 del T1 2026 caen 2-feb (lun), 10-feb (mar), 18-feb (mié), 26-feb (jue), 9-mar (lun)… El ciclo 5 de 801 no cae "cinco lunes después". Por eso la app tiene que ser la que resuelva la fecha, y por eso el botón muestra la fecha resuelta **antes** de descargar: el dry-run del autofill mostrará una fecha equivocada igual de convincente que una correcta.
+**Validar un Califica generado:** `node verificar-planilla.mjs original.xls generado.xls`
+en planilla-v2. Código 0 = sin problemas de identidad.
 
-### ✅ Ciclo por día en el calendario (`src/lib/cycles.ts`)
+### Reemplazar Tampermonkey
 
-Cada casilla muestra, además del tipo de día, en qué ciclo van los cursos que se dictan ese día. El popover trae el desglose curso por curso.
+Medido en septiembre de 2026: la pantalla de asistencia **no tiene CSP** y un
+bookmarklet corre ahí. La limitación es de diseño: el "flujo completo" recorre el filtro
+y cada paso recarga la página; un userscript se reinyecta y un favorito no. Por eso como
+bookmarklet se elige el filtro a mano y se usa "Solo marcar". Ver el README de planilla-v2.
 
-> **El ciclo no es global, es por curso.** Se cuenta sobre las sesiones que ese curso tuvo dentro del trimestre, así que dos cursos en tipos de día distintos avanzan a ritmos distintos y una cancelación que pega en un tipo de día no afecta a los demás. No existe "el ciclo de la semana".
+## Operación
 
-> **11° va a media velocidad.** Consume dos sesiones por ciclo, así que dos clases seguidas del mismo curso caen en el mismo ciclo (S1 y S2) — de ahí que dos viernes seguidos sean el mismo ciclo para los 11° del viernes. Por eso la casilla lo reporta aparte (`C4 · 11° C2`) en vez de fundirlo en un rango: el desfase crece todo el trimestre y un `C5–9` es cierto pero no dice nada.
+**El colegio sale a internet por una sola IP.** Las mitigaciones automáticas de Vercel
+la bloquearon por huella TLS (consistente con un proxy que inspecciona TLS) y la app
+devolvía 403 desde el colegio y abría bien desde datos móviles. Se resolvió con una
+regla **Bypass** en Vercel Firewall para esa IP. Vale la pena mirar *Denied* de vez en
+cuando por si aparece otra.
 
-**Semanas sin clase:** hay un marcador de rango en `/calendario` que marca de una todos los días hábiles entre dos fechas. No es comodidad — si las vacaciones no están marcadas, `computeDayTypes` las cuenta como lectivas y la numeración de ciclos queda corrida de ahí en adelante.
+> **Un 403 o un 503 no hacen que `fetch` lance.** El service worker solo caía al caché
+> en el `catch`, así que un bloqueo se mostraba tal cual teniendo la copia guardada — lo
+> peor de los dos mundos en una app local-first. Ahora las fallas del servidor (403, 408,
+> 429, 5xx) también sirven la copia. El 404 queda fuera a propósito: ahí la ruta de
+> verdad no existe.
 
-### ✅ Validación de la cabecera Califica (`src/lib/califica.ts`)
+## Qué falta
 
-El exportador escribe las 10 u 11 notas **posicionalmente**. Antes nadie comprobaba que el orden de logros de la plantilla coincidiera con `SLOTS_8_10` / `SLOTS_11`: si el colegio cambiaba el plan de logros, cada nota caía en el logro equivocado sin ninguna señal. Y las descripciones traen el trimestre embebido (`T2`), así que la plantilla del T3 **será** distinta.
+- [ ] Generalizar `SLOTS_8_10` / `SLOTS_11`, que siguen atados a una materia. Hace falta
+      un Califica de otra asignatura para saber qué varía.
+- [ ] Reconciliar notas contra la plataforma (pide que el extractor conserve las
+      columnas de notas).
+- [ ] Importar el calendario y las circulares del colegio para dejar de teclear entregas.
+- [ ] Historial de los cuatro periodos.
+- [ ] Verificar dominio propio en Resend para envío a muchos docentes.
+- [ ] Resolver conflictos de sync fila por fila.
+- [ ] Un clic para subir la asistencia: hoy exige Tampermonkey porque el panel se pierde
+      al recargar. El camino real a escala es una extensión propia publicada.
 
-Ahora `readCalificaHeader()` localiza la cabecera buscando `COD_ALUM` —no por número de fila— y ubica cada columna por su etiqueta. `validateHeaderAgainstSlots()` compara por posición la columna real (C4, C7…) y la categoría; si algo no cuadra, la exportación **aborta** con el detalle de qué esperaba y qué encontró.
+### Descartado
 
-> El writer también dejó de usar posiciones fijas (fila 14, columna B): ahora todo sale de la cabecera detectada, así que un desplazamiento de la plantilla se detecta en vez de corromper el archivo.
-
-De paso, la plantilla ya traía el **nombre real de cada logro**. Se guarda en `Course.achievements` tras cada exportación y aparece en el tooltip de la grilla, en el popover de observaciones y como columna `Logro` del XLSX de observaciones — donde más se agradece, porque `C2` es *"INGENIERÍA DE PROMPTS"* en 11° pero *"BASIC CSS SELECTORS"* en 8°.
-
-### ✅ Modelo de 4 estados de asistencia
-
-`src/lib/attendance.ts` es la única traducción entre cómo la app guarda una marca (dos banderas: `F` + `Fj`) y cómo la razonan la UI y Classroom Live (un estado de tres: sin marca / injustificada / justificada).
-
-> **Por qué banderas y no un enum:** `cycles` no es índice de Dexie, así que agregar campos opcionales **no necesita migración**, y `undefined` significa exactamente lo que la app asumía antes — injustificada. Un enum habría obligado a migrar cada fila y reescribir los ~12 sitios que ya leían `c.F`, sin ganar nada: el importador del xlsx tampoco trae justificaciones.
-
-- **Invariante:** apagar una marca limpia su justificación. `(F=false, Fj=true)` nunca se persiste.
-- **Consolidación en 11°:** el ciclo queda justificado solo si **todas** las sesiones marcadas lo están — una sin justificar basta para que cuente en contra.
-- **UI:** un botón por celda que cicla `·` → `F` → `FJ` → `·`. Relleno sólido = injustificada, contorno = justificada. Se conserva un control por celda para no perder densidad en cursos de 28.
-- **Estadísticas:** el ranking de "top fallas" pondera solo lo injustificado; mezclarlas escondía a los casos que sí hay que vigilar.
-
-### v4.1+ (candidatos)
-- [x] Asistencia del día curso por curso, con botón de copiar (el ZIP queda de respaldo)
-- [ ] Reconciliar notas contra la plataforma (requiere que `codalum-extractor` conserve las columnas de notas de `ReporteCalificaMatrizProfesor`)
-- [ ] Importar `CalendarioN2` (136) y `CircularesProf` (124) para dejar de teclear entregas y pendientes
-- [ ] Historial de los 4 periodos vía `ConsCalificaDocentesGen` (24)
-- [ ] Verificar dominio propio en Resend para envío multi-usuario
-- [ ] Resolución manual de conflictos de sync per-row
-
-## Notas heredadas del análisis original
-
-- **19 cursos, 539 estudiantes activos** confirmados contra hoja EFAS
-- **Trimestre 2 arrancó 2026-04-29** — actualizar `trim3Start` en `/calendario` cuando arranque T3
-- **Aulas por defecto: "Informática"** — cambiar 10° a "Robótica" cuando arranque T3
-- **La Planilla del docente tiene 3 fórmulas mal en 11°** (Zambrano Guzmán 1101, Zambrano Salazar 1102, Villamil Beltrán 1103). El importador toma las subnotas correctas; el cálculo en la app siempre pasa por `formula.ts`.
-- **Ingresos posteriores al Califica-451** salen con `FALTA_COD_ALUM`. Hoy: Guerrero Montaña Mariana Isabel (903).
+- **Agente IA calificador.** La calificación la hace el docente.
+- **Enlace externo para descargar entregas.** Ahora se descargan desde la app, en un ZIP
+  con una carpeta por estudiante.
