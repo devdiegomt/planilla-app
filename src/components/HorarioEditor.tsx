@@ -6,7 +6,7 @@ import { db, upsertScheduleBlock, deleteScheduleBlock } from '@/lib/db';
 import { sortedCourseCodes } from '@/lib/courseOrder';
 import {
   DAY_TYPES, buildHorarioSlots, blockLabel, hourNumbers, minutesBetween, gapsBetween,
-  type HorarioGap, type HorarioSlot,
+  turnRange, type HorarioGap, type HorarioSlot,
 } from '@/lib/horarioGrid';
 import { computeDayTypes, todayIso } from '@/lib/schedule';
 import { nextDateOfDayType, addDays } from '@/lib/dayAgenda';
@@ -67,9 +67,13 @@ interface BreakDraft {
   title: string;
   startTime: string;
   endTime: string;
+  /** La hora que parte la franja en dos turnos; vacía si no hay turnos. */
+  turnSplit: string;
   days: DayType[];
   /** Dónde te toca ese día: { D1: 'Patio 2', D3: 'Cafetería' }. */
   notes: Partial<Record<DayType, string>>;
+  /** Qué turno te toca ese día. */
+  turns: Partial<Record<DayType, 1 | 2>>;
 }
 
 /** `block` es solo un consecutivo dentro del día; el orden lo da la hora. */
@@ -117,8 +121,10 @@ export function HorarioEditor() {
     title: 'Descanso',
     startTime: gap?.startTime ?? '',
     endTime: gap?.endTime ?? '',
+    turnSplit: '',
     days: [...DAY_TYPES],
     notes: {},
+    turns: {},
   });
 
   const editarDescanso = (slot: HorarioSlot): BreakDraft => ({
@@ -126,9 +132,13 @@ export function HorarioEditor() {
     title: slot.breakLabel ?? 'Descanso',
     startTime: slot.startTime,
     endTime: slot.endTime,
+    turnSplit: slot.turnSplit ?? '',
     days: slot.breakBlocks.map(b => b.dayType),
     notes: Object.fromEntries(
       slot.breakBlocks.filter(b => b.note).map(b => [b.dayType, b.note!]),
+    ),
+    turns: Object.fromEntries(
+      slot.breakBlocks.filter(b => b.turn).map(b => [b.dayType, b.turn!]),
     ),
   });
 
@@ -301,15 +311,26 @@ function BreakChip({
   slot: HorarioSlot;
   onEdit: (slot: HorarioSlot) => void;
 }) {
+  // El acompañamiento no dura todo el descanso: si ese día te toca turno, es
+  // su rango el que hay que ver, no el de la franja.
+  const turno = turnRange(slot, b.turn);
+  const lugar = b.note?.trim();
   return (
     <button
       onClick={() => onEdit(slot)}
-      title={b.note ? `${slot.breakLabel ?? 'Descanso'} · ${b.note}` : slot.breakLabel}
+      title={[slot.breakLabel ?? 'Descanso',
+              turno && `${b.turn}º turno ${turno.startTime}–${turno.endTime}`,
+              lugar].filter(Boolean).join(' · ')}
       className="w-full text-left border border-dashed border-neutral-300 bg-neutral-100
                  rounded-md px-2 py-1 text-xs leading-snug text-neutral-600
                  transition-colors hover:ring-2 hover:ring-neutral-300"
     >
-      {b.note?.trim() || <span className="text-neutral-400">—</span>}
+      {turno && (
+        <div className="text-[11px] text-neutral-500 tabular-nums">
+          {b.turn}º {turno.startTime}–{turno.endTime}
+        </div>
+      )}
+      {lugar || (turno ? null : <span className="text-neutral-400">—</span>)}
     </button>
   );
 }
@@ -680,6 +701,10 @@ function BreakEditor({
   const horasOk = minutos > 0;
   const puedeGuardar = horasOk && !!d.title.trim() && d.days.length > 0;
 
+  const turno1 = turnRange(d, 1);
+  const turno2 = turnRange(d, 2);
+  const corteOk = !!turno1 && !!turno2;
+
   const alternarDia = (dt: DayType) =>
     set({ days: d.days.includes(dt) ? d.days.filter(x => x !== dt) : [...d.days, dt] });
 
@@ -703,6 +728,9 @@ function BreakEditor({
           endTime: d.endTime,
           room: undefined,
           note: d.notes[dt]?.trim() || undefined,
+          turnSplit: corteOk ? d.turnSplit : undefined,
+          // Sin hora de corte no hay turnos, así que el turno guardado sobra.
+          turn: corteOk ? d.turns[dt] : undefined,
         } as ScheduleBlock);
       } else if (prev?.id) {
         await deleteScheduleBlock(prev.id);
@@ -743,8 +771,26 @@ function BreakEditor({
         minutos={minutos} horasOk={horasOk}
       />
 
+      <Campo
+        label="Los turnos se parten a las"
+        hint={
+          corteOk
+            ? `1º turno ${turno1!.startTime}–${turno1!.endTime} · 2º turno ${turno2!.startTime}–${turno2!.endTime}`
+            : 'El acompañamiento no dura todo el descanso. Déjalo vacío si acá no hay turnos.'
+        }
+      >
+        <input
+          type="time"
+          value={d.turnSplit}
+          onChange={e => set({ turnSplit: e.target.value })}
+          className="w-full border rounded px-2 py-1.5"
+        />
+      </Campo>
+
       <div className="space-y-1">
-        <span className="text-xs text-neutral-600">Días y acompañamiento</span>
+        <span className="text-xs text-neutral-600">
+          Días{corteOk ? ', turno y acompañamiento' : ' y acompañamiento'}
+        </span>
         <p className="text-[11px] text-neutral-500">
           Apaga un día si ese descanso te cae a otra hora. En cada uno puedes
           escribir dónde te toca estar; lo que escribas se ve en el horario.
@@ -763,6 +809,30 @@ function BreakEditor({
                 >
                   {dayLabel(dt)}
                 </button>
+                {corteOk && (
+                  <div className="shrink-0 flex rounded-md border overflow-hidden">
+                    {([undefined, 1, 2] as const).map(t => (
+                      <button
+                        key={t ?? 'todo'}
+                        onClick={() => set({ turns: { ...d.turns, [dt]: t } })}
+                        disabled={!activo}
+                        aria-pressed={(d.turns[dt] ?? undefined) === t}
+                        title={
+                          t === undefined
+                            ? 'Todo el descanso'
+                            : `${t}º turno · ${(t === 1 ? turno1! : turno2!).startTime}–${(t === 1 ? turno1! : turno2!).endTime}`
+                        }
+                        className={`w-7 py-1.5 text-xs border-r last:border-r-0 disabled:opacity-40 ${
+                          (d.turns[dt] ?? undefined) === t
+                            ? 'bg-neutral-900 text-white'
+                            : 'bg-white text-neutral-600'
+                        }`}
+                      >
+                        {t ?? '—'}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <input
                   type="text"
                   value={d.notes[dt] ?? ''}

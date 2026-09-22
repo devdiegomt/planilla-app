@@ -46,6 +46,8 @@ export interface HorarioSlot {
   breakBlocks: ScheduleBlock[];
   /** Cómo se llama ('Descanso', 'Almuerzo'). */
   breakLabel?: string;
+  /** La hora que parte el descanso en dos turnos, si los tiene. */
+  turnSplit?: string;
 }
 
 /** Un rato sin franja entre dos franjas: donde normalmente va un descanso. */
@@ -71,6 +73,29 @@ export function minutesBetween(start: string, end: string): number {
 
 export function isBreakBlock(b: ScheduleBlock): boolean {
   return b.kind === 'descanso';
+}
+
+/**
+ * El rato que dura el acompañamiento de ese día.
+ *
+ * El acompañamiento no dura todo el descanso: hay dos turnos, y a cada docente
+ * le toca uno. La hora que los parte es de la franja (`turnSplit`) y el turno
+ * es de cada día, así que con las dos cosas sale el rango real.
+ *
+ * Devuelve null si la franja no tiene turnos, si ese día no tiene turno
+ * asignado, o si la hora de corte quedó fuera del descanso — ahí partirla no
+ * significaría nada y es mejor no inventar un rango.
+ */
+export function turnRange(
+  franja: { startTime: string; endTime: string; turnSplit?: string },
+  turn: 1 | 2 | undefined,
+): { startTime: string; endTime: string } | null {
+  const corte = franja.turnSplit;
+  if (!turn || !corte) return null;
+  if (corte <= franja.startTime || corte >= franja.endTime) return null;
+  return turn === 1
+    ? { startTime: franja.startTime, endTime: corte }
+    : { startTime: corte, endTime: franja.endTime };
 }
 
 /** Minutos en que dos rangos horarios se pisan. 0 si no se tocan. */
@@ -119,6 +144,7 @@ export function buildHorarioSlots(schedule: ScheduleBlock[]): HorarioSlot[] {
       slot.isBreak = true;
       slot.breakBlocks.push(b);
       if (!slot.breakLabel) slot.breakLabel = b.title?.trim() || undefined;
+      if (!slot.turnSplit) slot.turnSplit = b.turnSplit || undefined;
     } else {
       slot.hasClass = true;
       meter(slot, b);
