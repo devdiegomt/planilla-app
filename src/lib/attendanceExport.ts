@@ -14,6 +14,7 @@ import {
   computeDayTypes, todayIso, classesForDayType,
 } from './schedule';
 import { buildCycleContext, sessionDatesOf } from './cycles';
+import { sessionsInCiclo, sessionAt } from './sessions';
 import { autofillTipo, cycleMarkState, sessionMarkState, type AutofillTipo } from './attendance';
 import { subjectFor } from './subjects';
 import type {
@@ -58,7 +59,8 @@ export interface AttendanceExportInput {
    * 11° (dos tipos de día), y en los cursos del viernes cuando al ciclo le
    * caen dos viernes.
    */
-  session?: 1 | 2;
+  /** 1..N cuando el ciclo trae varias clases. */
+  session?: number;
 }
 
 export interface AttendanceExportResult {
@@ -179,9 +181,12 @@ export function buildAttendanceExport(
   );
   const ctx = buildCycleContext(seq, schedule, [course], yearConfig);
 
-  // Cuántas clases tiene ESTE curso en ESTE ciclo: puede ser 1, o 2 cuando el
-  // ciclo trae dos viernes o el curso ocupa dos tipos de día (11°).
+  // Cuántas veces se marca lista en ESTE ciclo. El horario propone —un curso
+  // del Día Fijo trae dos clases cuando al ciclo le caen dos viernes— pero
+  // manda lo que el docente haya corregido: hay materias que ven al curso
+  // varias veces y clases en bloque donde se llama a lista una sola vez.
   const fechas = sessionDatesOf(ctx, course.code, ciclo);
+  const nSesiones = sessionsInCiclo(course, ciclo, fechas);
   if (fechas.length === 0) {
     throw new AttendanceExportError(
       `El ciclo ${ciclo} no tiene ninguna clase de ${course.code} en el trimestre ` +
@@ -189,18 +194,30 @@ export function buildAttendanceExport(
       'en /calendario.',
     );
   }
-  if (fechas.length > 1 && session == null) {
+  if (nSesiones > 1 && session == null) {
     throw new AttendanceExportError(
-      `${course.code} tiene ${fechas.length} clases en el ciclo ${ciclo} ` +
+      `${course.code} tiene ${nSesiones} clases en el ciclo ${ciclo} ` +
       `(${fechas.join(' y ')}). Indica cuál sesión quieres exportar.`,
     );
   }
+  if (session != null && (session < 1 || session > nSesiones)) {
+    throw new AttendanceExportError(
+      `${course.code} tiene ${nSesiones} clase(s) en el ciclo ${ciclo}; ` +
+      `no existe la sesión ${session}.`,
+    );
+  }
   const idxSesion = (session ?? 1) - 1;
+  // Las sesiones y las fechas van en paralelo. Si marcas menos veces de las
+  // clases que dice el horario, las que sobran quedan sin archivo — a
+  // propósito: la plataforma registra por fecha y adivinar cuál era llevaría
+  // la asistencia al día equivocado. La pantalla avisa cuando la fecha de la
+  // sesión no es hoy.
   const fechaIso = fechas[idxSesion];
   if (!fechaIso) {
     throw new AttendanceExportError(
-      `${course.code} solo tiene ${fechas.length} clase(s) en el ciclo ${ciclo}; ` +
-      `no existe la sesión ${session}.`,
+      `La sesión ${session ?? 1} de ${course.code} en el ciclo ${ciclo} no tiene ` +
+      `fecha en el horario (el horario trae ${fechas.length} clase(s)). ` +
+      'Revisa el horario del curso o cuántas veces marcas lista en ese ciclo.',
     );
   }
 
@@ -225,11 +242,10 @@ export function buildAttendanceExport(
     const c = s.cycles.find(x => x.ciclo === ciclo);
     if (!c) continue;
 
-    // Con una sola clase en el ciclo el F/R vive en el ciclo; con dos, cada
-    // clase tiene su propia marca (S1/S2) porque la plataforma las registra
-    // por fecha.
-    const porSesion = fechas.length > 1;
-    const sd = porSesion ? (idxSesion === 0 ? c.S1 : c.S2) : undefined;
+    // Con una sola clase en el ciclo el F/R vive en el ciclo; con varias, cada
+    // clase tiene su propia marca, porque la plataforma las registra por fecha.
+    const porSesion = nSesiones > 1;
+    const sd = porSesion ? sessionAt(c, idxSesion + 1) : undefined;
     const fState = porSesion ? sessionMarkState(sd, 'F') : cycleMarkState(c, 'F');
     const rState = porSesion ? sessionMarkState(sd, 'R') : cycleMarkState(c, 'R');
 

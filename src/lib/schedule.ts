@@ -202,8 +202,8 @@ export function courseSessionDates(
  * Devuelve el número de ciclo (1..cyclesPerTrim) al que corresponde `targetIso`
  * dentro del rango del trimestre. null si no hay clase de ese curso ese día.
  *
- * `sessionsPerCiclo` = 1 para 8°–10° (una sesión = un ciclo), = 2 para 11°
- * (los ciclos consumen dos sesiones cada uno, S1 y S2).
+ * `sessionsPerCiclo` = cuántas clases del curso caben en un ciclo. No lo
+ * decide el grado: ver `lib/sessions`.
  */
 export function cicloForDate(
   targetIso: string,

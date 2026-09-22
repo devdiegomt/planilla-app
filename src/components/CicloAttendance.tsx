@@ -10,6 +10,7 @@ import {
   unconfirmAttendance,
   updateAttendanceObservation,
   toggleArrived,
+  setSessionsInCiclo,
 } from '@/lib/db';
 import {
   cycleMarkState, sessionMarkState, nextMarkState,
@@ -18,6 +19,9 @@ import {
 } from '@/lib/attendance';
 import { computeDayTypes, todayIso } from '@/lib/schedule';
 import { buildCycleContext, sessionDatesOf, currentCiclo } from '@/lib/cycles';
+import {
+  sessionsInCiclo, scheduledSessions, isOverridden, sessionAt,
+} from '@/lib/sessions';
 import { ExportAttendance } from './ExportAttendance';
 import type { Course, Student } from '@/types';
 
@@ -81,7 +85,25 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
     setAutoAjustado(true);
   }, [autoAjustado, cicloActual]);
 
-  const porSesion = sessionDates.length > 1;
+  /*
+   * Cuántas veces se marca lista en este ciclo.
+   *
+   * El horario propone y el docente dispone. Antes salía solo del horario, y
+   * eso dejaba dos juegos de casillas en cursos donde se llama a lista una vez
+   * — y no daba forma de marcar tres o cuatro en las materias que ven al mismo
+   * curso varias veces por ciclo.
+   */
+  const nSesiones = sessionsInCiclo(course, ciclo, sessionDates);
+  const sesiones = useMemo(
+    () => Array.from({ length: nSesiones }, (_, i) => i + 1),
+    [nSesiones],
+  );
+  const porSesion = nSesiones > 1;
+  const propuestas = scheduledSessions(sessionDates);
+  const corregido = isOverridden(course, ciclo, sessionDates);
+
+  const cambiarSesiones = (n: number) =>
+    setSessionsInCiclo(course.id!, ciclo, n === propuestas ? null : n);
 
   useEffect(() => {
     if (initialCiclo != null) { setCiclo(clamp(initialCiclo, 1, 9)); setAutoAjustado(true); }
@@ -103,32 +125,28 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
   );
 
   const markCiclo = marks.find(m => m.session == null);
-  const markS1 = marks.find(m => m.session === 1);
-  const markS2 = marks.find(m => m.session === 2);
 
   const stats = useMemo(() => {
-    let F = 0, Fj = 0, R = 0, Rj = 0, F1 = 0, R1 = 0, F2 = 0, R2 = 0;
+    let F = 0, Fj = 0, R = 0, Rj = 0, llegaron = 0;
+    const porSes = sesiones.map(() => ({ F: 0, R: 0 }));
     for (const s of activos) {
       const c = s.cycles.find(x => x.ciclo === ciclo);
       if (!c) continue;
       if (c.F) { F++; if (c.Fj) Fj++; }
       if (c.R) { R++; if (c.Rj) Rj++; }
-      if (porSesion) {
-        if (c.S1?.F) F1++;
-        if (c.S1?.R) R1++;
-        if (c.S2?.F) F2++;
-        if (c.S2?.R) R2++;
+      let llegoAlguna = false;
+      for (const n of sesiones) {
+        const sd = sessionAt(c, n);
+        if (!sd) continue;
+        if (sd.F) porSes[n - 1].F++;
+        if (sd.R) porSes[n - 1].R++;
+        if (sd.arrived) llegoAlguna = true;
       }
+      // Con varias sesiones basta una para "ya está en el salón".
+      if (porSesion ? llegoAlguna : c.arrived) llegaron++;
     }
-    let llegaron = 0;
-    for (const s of activos) {
-      const c = s.cycles.find(x => x.ciclo === ciclo);
-      if (!c) continue;
-      // Con dos sesiones basta con la primera para "ya está en el salón".
-      if (porSesion ? (c.S1?.arrived || c.S2?.arrived) : c.arrived) llegaron++;
-    }
-    return { F, Fj, R, Rj, F1, R1, F2, R2, llegaron };
-  }, [activos, ciclo, porSesion]);
+    return { F, Fj, R, Rj, porSes, llegaron };
+  }, [activos, ciclo, porSesion, sesiones]);
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -147,34 +165,33 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
           {activos.length} activos
           {stats.llegaron > 0 && ` · ✅ ${stats.llegaron}/${activos.length} en el salón`}
           {porSesion
-            ? ` · S1: ${stats.F1}F/${stats.R1}R · S2: ${stats.F2}F/${stats.R2}R`
+            ? ' · ' + stats.porSes
+                .map((x, i) => `S${i + 1}: ${x.F}F/${x.R}R`).join(' · ')
             : ` · ${stats.F}F${stats.Fj ? ` (${stats.Fj}j)` : ''}`
               + ` · ${stats.R}R${stats.Rj ? ` (${stats.Rj}j)` : ''}`}
         </span>
+
+        <SessionsControl
+          n={nSesiones}
+          propuestas={propuestas}
+          corregido={corregido}
+          fechas={sessionDates}
+          onChange={cambiarSesiones}
+        />
         <div className="ml-auto flex items-start gap-3 flex-wrap justify-end">
           {porSesion ? (
-            <>
-              <div className="flex items-start gap-2">
+            sesiones.map(n => (
+              <div key={n} className="flex items-start gap-2">
                 <ConfirmButton
-                  label="S1" mark={markS1}
-                  onConfirm={() => confirmAttendance(course.id!, ciclo, 1)}
-                  onUndo={() => unconfirmAttendance(course.id!, ciclo, 1)}
+                  label={`S${n}`} mark={marks.find(m => m.session === n)}
+                  onConfirm={() => confirmAttendance(course.id!, ciclo, n)}
+                  onUndo={() => unconfirmAttendance(course.id!, ciclo, n)}
                 />
                 <ExportAttendance
-                  course={course} students={activos} ciclo={ciclo} session={1}
+                  course={course} students={activos} ciclo={ciclo} session={n}
                 />
               </div>
-              <div className="flex items-start gap-2">
-                <ConfirmButton
-                  label="S2" mark={markS2}
-                  onConfirm={() => confirmAttendance(course.id!, ciclo, 2)}
-                  onUndo={() => unconfirmAttendance(course.id!, ciclo, 2)}
-                />
-                <ExportAttendance
-                  course={course} students={activos} ciclo={ciclo} session={2}
-                />
-              </div>
-            </>
+            ))
           ) : (
             <>
               <ConfirmButton
@@ -195,12 +212,10 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
               <th className="p-2 text-left w-8">#</th>
               <th className="p-2 text-left">Estudiante</th>
               {porSesion ? (
-                <>
-                  <th className="p-2 text-center w-14">F1</th>
-                  <th className="p-2 text-center w-14">R1</th>
-                  <th className="p-2 text-center w-14">F2</th>
-                  <th className="p-2 text-center w-14">R2</th>
-                </>
+                sesiones.flatMap(n => [
+                  <th key={`F${n}`} className="p-2 text-center w-14">F{n}</th>,
+                  <th key={`R${n}`} className="p-2 text-center w-14">R{n}</th>,
+                ])
               ) : (
                 <>
                   <th className="p-2 text-center w-16">F</th>
@@ -223,12 +238,12 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
                   <td className="p-2 text-neutral-400">{i + 1}</td>
                   <td className="p-2 whitespace-nowrap">{s.nombre}</td>
                   {porSesion ? (
-                    ([1, 2] as const).flatMap(sess =>
+                    sesiones.flatMap(sess =>
                       (['F', 'R'] as const).map(kind => (
                         <MarkCell
                           key={`${sess}${kind}`}
                           kind={kind}
-                          state={sessionMarkState(sess === 1 ? c?.S1 : c?.S2, kind)}
+                          state={sessionMarkState(sessionAt(c, sess), kind)}
                           onCycle={next => updateSessionAttendance(s.id!, ciclo, sess, kind, next)}
                           student={s.nombre}
                         />
@@ -249,7 +264,7 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
                     student={s.nombre}
                     porSesion={porSesion}
                     arrived={porSesion
-                      ? [!!c?.S1?.arrived, !!c?.S2?.arrived]
+                      ? sesiones.map(n => !!sessionAt(c, n)?.arrived)
                       : [!!c?.arrived]}
                     onToggle={(sess, v) => toggleArrived(s.id!, ciclo, sess, v)}
                   />
@@ -258,8 +273,7 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
                     ciclo={ciclo}
                     porSesion={porSesion}
                     obsCiclo={c?.obs ?? ''}
-                    obsS1={c?.S1?.obs ?? ''}
-                    obsS2={c?.S2?.obs ?? ''}
+                    obsSesiones={sesiones.map(n => sessionAt(c, n)?.obs ?? '')}
                     onSave={(sess, texto) =>
                       updateAttendanceObservation(s.id!, ciclo, sess, texto)}
                   />
@@ -293,6 +307,80 @@ function LegendChip({ cls, label, text }: { cls: string; label: string; text: st
   );
 }
 
+/** 'vie 6 mar' — para ver de qué clase es cada sesión. */
+function fechaCorta(iso: string): string {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('es-CO', {
+    weekday: 'short', day: 'numeric', month: 'short',
+  });
+}
+
+/**
+ * Cuántas veces se marca lista en este ciclo.
+ *
+ * El horario propone y el docente dispone. Por eso el control dice qué propone
+ * el horario y con qué fechas: si a un curso le salen dos clases y solo ves al
+ * grupo una vez, las fechas muestran de dónde salió la segunda — casi siempre
+ * un bloque de más en el horario.
+ */
+function SessionsControl({
+  n, propuestas, corregido, fechas, onChange,
+}: {
+  n: number;
+  propuestas: number;
+  corregido: boolean;
+  fechas: string[];
+  onChange: (n: number) => void | Promise<unknown>;
+}) {
+  const detalle = fechas.length > 0
+    ? `El horario dice ${propuestas} clase(s) en este ciclo: ${fechas.map(fechaCorta).join(' y ')}.`
+    : 'El horario no tiene clases de este curso en el ciclo.';
+
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-neutral-600">
+      {n === 1 ? (
+        <button
+          type="button"
+          onClick={() => onChange(2)}
+          title={detalle}
+          className="px-2 py-1 rounded border hover:bg-white"
+        >
+          ¿Se repite el ciclo?
+        </button>
+      ) : (
+        <>
+          <span title={detalle}>{n} clases</span>
+          <button
+            type="button"
+            onClick={() => onChange(n - 1)}
+            aria-label="Quitar una clase de este ciclo"
+            className="w-6 h-6 rounded border hover:bg-white leading-none"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(n + 1)}
+            aria-label="Añadir otra clase a este ciclo"
+            className="w-6 h-6 rounded border hover:bg-white leading-none"
+          >
+            +
+          </button>
+        </>
+      )}
+      {corregido && (
+        <button
+          type="button"
+          onClick={() => onChange(propuestas)}
+          title={detalle}
+          className="text-[11px] text-neutral-400 underline decoration-dotted hover:text-neutral-700"
+        >
+          según el horario
+        </button>
+      )}
+    </span>
+  );
+}
+
 /**
  * "Ya llegó": chequeo en vivo para ver quién falta por entrar.
  *
@@ -306,10 +394,11 @@ function ArrivedCell({
 }: {
   student: string;
   porSesion: boolean;
+  /** Una por sesión, o una sola si el ciclo se marca de una vez. */
   arrived: boolean[];
-  onToggle: (session: 1 | 2 | null, value: boolean) => void | Promise<unknown>;
+  onToggle: (session: number | null, value: boolean) => void | Promise<unknown>;
 }) {
-  const boton = (idx: number, sess: 1 | 2 | null) => {
+  const boton = (idx: number, sess: number | null) => {
     const on = arrived[idx];
     return (
       <button
@@ -332,7 +421,7 @@ function ArrivedCell({
   return (
     <td className="p-1 text-center">
       <div className="inline-flex gap-0.5">
-        {porSesion ? [boton(0, 1), boton(1, 2)] : boton(0, null)}
+        {porSesion ? arrived.map((_, i) => boton(i, i + 1)) : boton(0, null)}
       </div>
     </td>
   );
@@ -346,46 +435,56 @@ function ArrivedCell({
  * ciclo trae dos clases se piden por separado: son días distintos.
  */
 function ReasonCell({
-  student, ciclo, porSesion, obsCiclo, obsS1, obsS2, onSave,
+  student, ciclo, porSesion, obsCiclo, obsSesiones, onSave,
 }: {
   student: string;
   ciclo: number;
   porSesion: boolean;
   obsCiclo: string;
-  obsS1: string;
-  obsS2: string;
-  onSave: (session: 1 | 2 | null, texto: string) => void | Promise<unknown>;
+  /** Una razón por sesión, en orden. */
+  obsSesiones: string[];
+  onSave: (session: number | null, texto: string) => void | Promise<unknown>;
 }) {
   const [open, setOpen] = useState(false);
   const [d0, setD0] = useState(obsCiclo);
-  const [d1, setD1] = useState(obsS1);
-  const [d2, setD2] = useState(obsS2);
+  const [ds, setDs] = useState<string[]>(obsSesiones);
   const ref = useRef<HTMLTableCellElement | null>(null);
 
-  const hay = porSesion ? !!(obsS1 || obsS2) : !!obsCiclo;
+  const hay = porSesion ? obsSesiones.some(Boolean) : !!obsCiclo;
   const resumen = porSesion
-    ? [obsS1 && `S1: ${obsS1}`, obsS2 && `S2: ${obsS2}`].filter(Boolean).join('\n')
+    ? obsSesiones.map((o, i) => o && `S${i + 1}: ${o}`).filter(Boolean).join('\n')
     : obsCiclo;
 
   // Sincronizar los borradores cuando cambia el dato externo (sync, otro ciclo).
+  // `join` en las dependencias: el arreglo se recrea en cada render y como
+  // dependencia dispararía el efecto siempre, pisando lo que se esté
+  // escribiendo.
+  const externas = obsSesiones.join('\u0000');
   useEffect(() => {
-    if (!open) { setD0(obsCiclo); setD1(obsS1); setD2(obsS2); }
-  }, [open, obsCiclo, obsS1, obsS2]);
+    if (!open) { setD0(obsCiclo); setDs(externas.split('\u0000')); }
+  }, [open, obsCiclo, externas]);
 
   /*
-   * Las dos sesiones se guardan EN SERIE, no en paralelo. Cada escritura hace
-   * un lee-muta-escribe sobre la misma fila del estudiante: dispararlas juntas
+   * Las sesiones se guardan EN SERIE, no en paralelo. Cada escritura hace un
+   * lee-muta-escribe sobre la misma fila del estudiante: dispararlas juntas
    * hacía que la segunda leyera antes de que la primera hubiera guardado, y la
-   * razón de S1 se perdía en silencio.
+   * razón de la primera se perdía en silencio.
    */
   const guardarYCerrar = async () => {
     setOpen(false);
     if (porSesion) {
-      if (d1 !== obsS1) await onSave(1, d1);
-      if (d2 !== obsS2) await onSave(2, d2);
+      for (let i = 0; i < ds.length; i++) {
+        if (ds[i] !== (obsSesiones[i] ?? '')) await onSave(i + 1, ds[i]);
+      }
     } else if (d0 !== obsCiclo) {
       await onSave(null, d0);
     }
+  };
+
+  const cancelar = () => {
+    setD0(obsCiclo);
+    setDs(externas.split('\u0000'));
+    setOpen(false);
   };
 
   useEffect(() => {
@@ -396,16 +495,16 @@ function ReasonCell({
     document.addEventListener('mousedown', fuera);
     return () => document.removeEventListener('mousedown', fuera);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, d0, d1, d2]);
+  }, [open, d0, ds]);
 
   const campo = (label: string, val: string, set: (v: string) => void) => (
-    <label className="block">
+    <label className="block" key={label}>
       {porSesion && <span className="text-[10px] text-neutral-500">{label}</span>}
       <textarea
         value={val}
         onChange={e => set(e.target.value)}
         onKeyDown={e => {
-          if (e.key === 'Escape') { setD0(obsCiclo); setD1(obsS1); setD2(obsS2); setOpen(false); }
+          if (e.key === 'Escape') cancelar();
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) guardarYCerrar();
         }}
         rows={2}
@@ -437,10 +536,9 @@ function ReasonCell({
             <span className="font-medium text-neutral-800">Ciclo {ciclo}</span>
           </div>
           {porSesion ? (
-            <>
-              {campo('Sesión 1', d1, setD1)}
-              {campo('Sesión 2', d2, setD2)}
-            </>
+            ds.map((val, i) =>
+              campo(`Sesión ${i + 1}`, val, v =>
+                setDs(prev => prev.map((x, j) => (j === i ? v : x)))))
           ) : (
             campo('', d0, setD0)
           )}

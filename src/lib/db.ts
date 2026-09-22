@@ -11,10 +11,11 @@ import { planStudentMerge } from './studentMatch';
 import { normalizeName, findFuzzyMatch } from './utils';
 import type { ParsedCodAlum } from './codalum';
 import {
-  justFieldOf, cycleMarkState, sessionMarkState, consolidateSessions,
+  justFieldOf, cycleMarkState, sessionMarkState,
   markDescription, type MarkKind, type MarkState,
 } from './attendance';
 import { MATERIAS_HEREDADAS } from './subjects';
+import { sessionAt, emptySession, withSession, consolidate } from './sessions';
 import {
   cutoffIso, debePodar, RETENCION_CHANGELOG_DIAS,
 } from './retention';
@@ -771,7 +772,7 @@ export async function deleteEvent(id: number) {
  * `session` omitido para 8°–10° (marca el ciclo completo).
  */
 export async function getAttendanceMark(
-  courseId: number, ciclo: number, session?: 1 | 2,
+  courseId: number, ciclo: number, session?: number,
 ) {
   const rows = await db.attendanceMarks
     .where('[courseId+ciclo]').equals([courseId, ciclo])
@@ -781,7 +782,7 @@ export async function getAttendanceMark(
 }
 
 export async function confirmAttendance(
-  courseId: number, ciclo: number, session?: 1 | 2,
+  courseId: number, ciclo: number, session?: number,
 ) {
   const existing = await getAttendanceMark(courseId, ciclo, session);
   const confirmedAt = new Date().toISOString();
@@ -801,7 +802,7 @@ export async function confirmAttendance(
 }
 
 export async function unconfirmAttendance(
-  courseId: number, ciclo: number, session?: 1 | 2,
+  courseId: number, ciclo: number, session?: number,
 ) {
   await db.transaction('rw', db.attendanceMarks, db.syncTombstones, async () => {
     const existing = await getAttendanceMark(courseId, ciclo, session);
@@ -810,14 +811,16 @@ export async function unconfirmAttendance(
 }
 
 /**
- * Actualiza F/R de una sesión específica de 11° y recalcula el consolidado del
- * ciclo. La consolidación de la justificación no es un OR como la de la marca:
- * ver `consolidateSessions`.
+ * Actualiza F/R de una sesión del ciclo y recalcula el consolidado.
+ *
+ * La consolidación de la justificación no es un OR como la de la marca: basta
+ * una sesión sin justificar para que el ciclo cuente en contra. Ver
+ * `consolidate` en lib/sessions.
  */
 export async function updateSessionAttendance(
   studentId: number,
   ciclo: number,
-  session: 1 | 2,
+  session: number,
   field: MarkKind,
   state: MarkState,
 ) {
@@ -825,18 +828,17 @@ export async function updateSessionAttendance(
   if (!s) return;
   const c = s.cycles.find(x => x.ciclo === ciclo);
   if (!c) return;
-  c.S1 ??= { F: false, R: false, N: 0 };
-  c.S2 ??= { F: false, R: false, N: 0 };
-  const target = session === 1 ? c.S1 : c.S2;
+  const target = { ...(sessionAt(c, session) ?? emptySession()) };
   const jField = justFieldOf(field);
   if (sessionMarkState(target, field) === state) return;
 
   target[field] = state !== 'none';
   target[jField] = state === 'justificada';
 
-  const rolled = consolidateSessions([c.S1, c.S2], field);
-  c[field] = rolled.on;
-  c[jField] = rolled.justified;
+  // `withSession` rellena los huecos: marcar la 3 sin haber tocado la 2 no
+  // puede dejar el arreglo corrido, porque el índice ES el número de sesión.
+  c.sessions = withSession(c, session, target);
+  Object.assign(c, consolidate(c.sessions));
 
   await db.transaction('rw', db.students, db.changeLog, async () => {
     await db.students.update(studentId, { cycles: s.cycles });
@@ -866,7 +868,7 @@ export async function updateSessionAttendance(
 export async function updateAttendanceObservation(
   studentId: number,
   ciclo: number,
-  session: 1 | 2 | null,
+  session: number | null,
   text: string,
 ) {
   const s = await db.students.get(studentId);
@@ -881,12 +883,11 @@ export async function updateAttendanceObservation(
     if (prev === next) return;
     c.obs = next;
   } else {
-    c.S1 ??= { F: false, R: false, N: 0 };
-    c.S2 ??= { F: false, R: false, N: 0 };
-    const target = session === 1 ? c.S1 : c.S2;
+    const target = { ...(sessionAt(c, session) ?? emptySession()) };
     prev = target.obs ?? null;
     if (prev === next) return;
     target.obs = next;
+    c.sessions = withSession(c, session, target);
   }
 
   const que = !prev ? '(agregada)' : !next ? '(borrada)' : '(editada)';
@@ -915,7 +916,7 @@ export async function updateAttendanceObservation(
 export async function toggleArrived(
   studentId: number,
   ciclo: number,
-  session: 1 | 2 | null,
+  session: number | null,
   value: boolean,
 ) {
   const s = await db.students.get(studentId);
@@ -926,13 +927,31 @@ export async function toggleArrived(
     if (!!c.arrived === value) return;
     c.arrived = value;
   } else {
-    c.S1 ??= { F: false, R: false, N: 0 };
-    c.S2 ??= { F: false, R: false, N: 0 };
-    const t = session === 1 ? c.S1 : c.S2;
+    const t = { ...(sessionAt(c, session) ?? emptySession()) };
     if (!!t.arrived === value) return;
     t.arrived = value;
+    c.sessions = withSession(c, session, t);
   }
   await db.students.update(studentId, { cycles: s.cycles });
+}
+
+/**
+ * Cuántas veces se marca lista en un ciclo de este curso.
+ *
+ * `n === null` vuelve a lo que diga el horario. Se guarda solo lo corregido,
+ * así que un cambio de horario sigue mandando en los ciclos que no se tocaron.
+ */
+export async function setSessionsInCiclo(
+  courseId: number, ciclo: number, n: number | null,
+) {
+  const c = await db.courses.get(courseId);
+  if (!c) return;
+  const mapa = { ...(c.sessionsByCiclo ?? {}) };
+  if (n == null) delete mapa[ciclo];
+  else mapa[ciclo] = Math.max(1, Math.floor(n));
+  await db.courses.update(courseId, {
+    sessionsByCiclo: Object.keys(mapa).length > 0 ? mapa : undefined,
+  });
 }
 
 // ---- Cierre de trimestre ----

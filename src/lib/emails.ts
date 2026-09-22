@@ -12,7 +12,8 @@
  */
 
 import { NOTA_MIN } from './constants';
-import type { Student, Course, CycleData, EmailLog, Achievement } from '@/types';
+import type { Student, Course, CycleData, EmailLog, Achievement, SessionData } from '@/types';
+import { sessionsOf } from './sessions';
 
 export interface EmailThresholds {
   /** Cuántas notas en el piso para considerarlo reincidencia. */
@@ -68,7 +69,7 @@ export interface EmailCandidate {
 function ocurrencias(c: CycleData, kind: 'F' | 'R'): Ocurrencia[] {
   const jKey = kind === 'F' ? 'Fj' : 'Rj';
   const porSesion: Ocurrencia[] = [];
-  for (const [n, sd] of [[1, c.S1], [2, c.S2]] as const) {
+  for (const [n, sd] of sessionsOf(c).map((x, i): [number, SessionData] => [i + 1, x])) {
     if (sd?.[kind]) {
       porSesion.push({
         ciclo: c.ciclo, session: n,
