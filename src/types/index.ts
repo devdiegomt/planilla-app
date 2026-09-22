@@ -47,9 +47,18 @@ export interface CycleData {
    * del curso, la razón vive en `S1.obs` / `S2.obs` porque son días distintos.
    */
   obs?: string | null;
-  /** Solo en 11°: nota de sesión 1. */
+  /**
+   * Las clases del curso dentro de este ciclo, cuando son más de una.
+   *
+   * Ausente o de un solo elemento = el ciclo se marca de una sola vez, con las
+   * banderas de arriba. Cuántas hay no lo decide el grado: un curso del Día
+   * Fijo puede tener dos cuando al ciclo le caen dos viernes, y hay materias
+   * que ven al mismo curso varias veces por ciclo.
+   */
+  sessions?: SessionData[];
+  /** @deprecated Se leen para no perder lo ya marcado; lo nuevo va en `sessions`. */
   S1?: SessionData;
-  /** Solo en 11°: nota de sesión 2. */
+  /** @deprecated Ver `S1`. */
   S2?: SessionData;
   /**
    * "Ya llegó": chequeo de uso en vivo para ver de un vistazo quién falta por
@@ -113,6 +122,14 @@ export interface Course {
   year: number;                       // 2026
   trimestre: number;                  // 1, 2, 3
   cyclesActive: boolean[];            // 9 items
+  /**
+   * Cuántas clases marcas por ciclo, cuando no es lo que dice el horario.
+   * `{ 4: 2 }` = en el ciclo 4 este curso se marca dos veces.
+   *
+   * Solo guarda lo que el docente corrigió; lo demás sale del horario. Campo
+   * opcional y no indexado, así que no necesita migración de Dexie.
+   */
+  sessionsByCiclo?: Record<number, number>;
   /**
    * Nombres de los logros del trimestre, leídos de la plantilla Califica en la
    * última exportación. Ausente hasta que se exporte por primera vez.
@@ -259,7 +276,8 @@ export interface AttendanceMark {
   /** Relación estable con el curso. */
   courseCode: string;
   ciclo: number;                      // 1..9
-  session?: 1 | 2;                    // solo aplicable a 11°
+  /** 1..N cuando el ciclo trae varias clases; ausente si trae una sola. */
+  session?: number;
   confirmedAt: string;                // ISO datetime
   syncId?: string;
   updatedAt?: string;

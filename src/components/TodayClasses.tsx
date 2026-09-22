@@ -14,6 +14,7 @@ import {
 } from '@/lib/schedule';
 import { blockLabel, turnRange } from '@/lib/horarioGrid';
 import { dayAgenda, type DayAgenda } from '@/lib/dayAgenda';
+import { sessionAt } from '@/lib/sessions';
 import { buildCycleContext, cycleOf, type CycleContext } from '@/lib/cycles';
 import type {
   DayType, ScheduleBlock, Course, Student, AttendanceMark, YearConfig, CalendarEvent,
@@ -170,13 +171,12 @@ function classInfo(block: ScheduleBlock, dateIso: string, ctx: CicloCtx): ClassI
   if (ciclo && ciclo > 0) {
     for (const s of activos) {
       const c = s.cycles.find(x => x.ciclo === ciclo);
-      if (session === 1) {
-        if (c?.S1?.F) fallas++;
-        if (c?.S1?.R) retardos++;
-      } else if (session === 2) {
-        if (c?.S2?.F) fallas++;
-        if (c?.S2?.R) retardos++;
-      } else {
+      // Con sesión, cuenta la de esa clase; sin ella, el consolidado del ciclo.
+      const sd = session != null ? sessionAt(c, session) : null;
+      if (sd) {
+        if (sd.F) fallas++;
+        if (sd.R) retardos++;
+      } else if (session == null) {
         if (c?.F) fallas++;
         if (c?.R) retardos++;
       }

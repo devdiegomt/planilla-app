@@ -159,8 +159,27 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
 - **La rotación es continua:** `computeDayTypes` no la reinicia por trimestre. El primer
   día de cada trimestre se fuerza a D1 desde `/calendario`, y las semanas sin clase se
   marcan; si no, la numeración de ciclos se corre.
-- **Asistencia:** banderas `F`/`Fj`/`R`/`Rj`. Si el ciclo trae dos clases del curso,
-  marcas, razones y confirmación van por sesión (`S1`/`S2`). `arrived` no se exporta.
+- **Asistencia:** banderas `F`/`Fj`/`R`/`Rj`. Si el ciclo trae varias clases del curso,
+  marcas, razones y confirmación van por sesión. `arrived` no se exporta.
+- **Cuántas veces se marca lista en un ciclo no lo decide el grado ni solo el horario**
+  (`lib/sessions.ts`). "Dos si es 11°, una si no" era falso en las dos direcciones; el
+  horario tampoco alcanza: un curso del Día Fijo trae dos clases SOLO en los ciclos
+  donde caen dos viernes, una clase en bloque son dos franjas del mismo día donde se
+  llama a lista una vez (eso ya sale bien, porque las sesiones se cuentan por fecha),
+  y hay materias que ven al mismo curso cuatro veces por ciclo. El horario propone
+  (`scheduledSessions`) y `Course.sessionsByCiclo` guarda **solo lo que el docente
+  corrigió**, así que cambiar el horario sigue mandando en los ciclos que no tocó.
+- **Las sesiones de un ciclo son un arreglo, no `S1`/`S2`.** `CycleData.sessions[]`, con
+  `S1`/`S2` leídas como respaldo para no perder lo ya marcado (`sessionsOf`). El índice
+  ES el número de sesión: `withSession` rellena los huecos, porque marcar la 3 sin haber
+  tocado la 2 no puede dejar el arreglo corrido. `cycles` no es índice de Dexie, así que
+  no hizo falta migración. La consolidación (`consolidate`) no es un OR: una falla en
+  cualquier sesión es falla del ciclo, pero basta UNA sin justificar para que el ciclo
+  cuente en contra.
+- **Sesiones y fechas van en paralelo al exportar.** Si se marca menos veces que las
+  clases que dice el horario, las que sobran quedan sin archivo a propósito: la
+  plataforma registra por fecha y adivinar cuál era llevaría la asistencia al día
+  equivocado.
 - **Solo el dominio del colegio sincroniza.** `lib/allowedDomain.ts` avisa en el
   navegador; la puerta de verdad es la política de RLS
   (`supabase/migrations/004_dominio_institucional.sql`), porque un filtro de cliente se

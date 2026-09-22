@@ -147,8 +147,13 @@ function parseCourse11(aoa: unknown[][], code: string, director: string, trimest
         R: bool(row[base + 1]) || bool(row[base + 4]),
         nota: num(row[base + 6]),
         obs: str(row[base + 7]) ?? null,
-        S1: { F: bool(row[base]),     R: bool(row[base + 1]), N: num(row[base + 2]) },
-        S2: { F: bool(row[base + 3]), R: bool(row[base + 4]), N: num(row[base + 5]) },
+        // La Planilla de 11° trae dos sesiones por ciclo; se guardan como las
+        // dos primeras del arreglo, que es donde vive ahora la asistencia por
+        // clase (cuántas hay lo decide el curso, no el grado).
+        sessions: [
+          { F: bool(row[base]),     R: bool(row[base + 1]), N: num(row[base + 2]) },
+          { F: bool(row[base + 3]), R: bool(row[base + 4]), N: num(row[base + 5]) },
+        ],
       });
     }
 

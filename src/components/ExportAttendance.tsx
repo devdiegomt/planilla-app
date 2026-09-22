@@ -15,7 +15,8 @@ interface Props {
   students: Student[];                 // activos del curso
   ciclo: number;
   /** Requerido en 11°: cada sesión cae en una fecha distinta. */
-  session?: 1 | 2;
+  /** 1..N cuando el ciclo trae varias clases. */
+  session?: number;
 }
 
 /**
