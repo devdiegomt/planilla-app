@@ -123,6 +123,18 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   El texto que se escribe vive en estado aparte del valor guardado, porque si no, borrar
   la casilla la volvía 0 en el acto; el efecto que los sincroniza no pisa lo escrito
   mientras la casilla tiene el foco.
+- **Pegar notas de un Excel nunca se aplica de una** (`lib/pasteNotas.ts`). El
+  portapapeles de Excel es texto plano (filas por salto de línea, celdas por tabulador),
+  así que leerlo es fácil; lo delicado es a quién le toca cada nota. Una columna de puros
+  números no tiene identidad: va por posición, y basta que el Excel esté ordenado distinto
+  —otra alfabetización, un retirado, alguien que llegó después— para que todo lo que sigue
+  caiga en el estudiante equivocado, en silencio. Por eso `planPaste` arma un plan y no
+  escribe: si lo pegado trae códigos o nombres empareja por ahí (y el orden deja de
+  importar), y si no, empareja por posición pero lo dice, y la vista previa lo muestra
+  antes de aplicar. Una celda vacía significa "no toques esa nota", no 0. Las columnas se
+  clasifican por mayoría y mirando si la celda ES un número, no si es una nota válida: con
+  un umbral y con la validez mezclada, una columna con un 120 y un "N/A" dejaba de
+  reconocerse como notas y la app respondía "no encontré notas".
 - **Editar un bloque del horario no puede reenviar su `updatedAt`.** El hook `updating`
   respeta el que venga en el patch —lo necesita el pull, que trae el del servidor—, así
   que pasar la fila entera dejaba la fecha vieja y el push, que sube lo que tenga
