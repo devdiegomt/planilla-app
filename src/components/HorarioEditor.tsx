@@ -54,15 +54,22 @@ function dayLabelLong(dt: DayType) {
 
 type Draft = Omit<ScheduleBlock, 'block'> & { block?: number };
 
-/** Lo que se edita de una franja de descanso: vale para varios días a la vez. */
+/**
+ * Lo que se edita de una franja de descanso.
+ *
+ * La nota va POR DÍA porque el acompañamiento cambia de lugar según el día:
+ * un día en el patio, otro en la cafetería. Con una sola nota para toda la
+ * franja no había dónde escribirlo.
+ */
 interface BreakDraft {
   /** Los bloques que ya existían, para actualizarlos en vez de duplicarlos. */
   original: ScheduleBlock[];
   title: string;
   startTime: string;
   endTime: string;
-  note: string;
   days: DayType[];
+  /** Dónde te toca ese día: { D1: 'Patio 2', D3: 'Cafetería' }. */
+  notes: Partial<Record<DayType, string>>;
 }
 
 /** `block` es solo un consecutivo dentro del día; el orden lo da la hora. */
@@ -110,8 +117,8 @@ export function HorarioEditor() {
     title: 'Descanso',
     startTime: gap?.startTime ?? '',
     endTime: gap?.endTime ?? '',
-    note: '',
     days: [...DAY_TYPES],
+    notes: {},
   });
 
   const editarDescanso = (slot: HorarioSlot): BreakDraft => ({
@@ -119,8 +126,10 @@ export function HorarioEditor() {
     title: slot.breakLabel ?? 'Descanso',
     startTime: slot.startTime,
     endTime: slot.endTime,
-    note: slot.breakBlocks.find(b => b.note)?.note ?? '',
     days: slot.breakBlocks.map(b => b.dayType),
+    notes: Object.fromEntries(
+      slot.breakBlocks.filter(b => b.note).map(b => [b.dayType, b.note!]),
+    ),
   });
 
   /**
@@ -228,8 +237,18 @@ function kindClasses(kind: BlockKind) {
   return 'bg-white border-neutral-200 text-neutral-900';
 }
 
-function BlockChip({ b, onEdit }: { b: ScheduleBlock; onEdit: (b: ScheduleBlock) => void }) {
+function BlockChip({
+  b, slot, onEdit,
+}: {
+  b: ScheduleBlock;
+  /** La franja donde se está dibujando, para saber si sus horas son otras. */
+  slot?: HorarioSlot;
+  onEdit: (b: ScheduleBlock) => void;
+}) {
   const kind = b.kind ?? 'clase';
+  // Un evento puede caer en esta franja sin tener sus mismas horas: se muestran
+  // para no hacerle creer que empieza cuando empieza la hora.
+  const horasPropias = !!slot && (b.startTime !== slot.startTime || b.endTime !== slot.endTime);
   return (
     <button
       onClick={() => onEdit(b)}
@@ -239,6 +258,11 @@ function BlockChip({ b, onEdit }: { b: ScheduleBlock; onEdit: (b: ScheduleBlock)
       <div className={`break-words ${kind === 'clase' ? 'font-medium' : 'text-xs leading-snug'}`}>
         {blockLabel(b)}
       </div>
+      {horasPropias && (
+        <div className="text-[11px] text-neutral-500 tabular-nums">
+          {b.startTime}–{b.endTime}
+        </div>
+      )}
       {b.room && <div className="text-[11px] text-neutral-500 truncate">{b.room}</div>}
       {b.note && <div className="text-[11px] text-neutral-500 truncate">{b.note}</div>}
     </button>
@@ -264,9 +288,35 @@ function EmptyCell({ onAdd, compact }: { onAdd: () => void; compact?: boolean })
 }
 
 /**
+ * El descanso de ESE día dentro de una franja de descanso.
+ *
+ * Se dibuja por día y no solo en el rótulo de la fila porque el acompañamiento
+ * cambia de lugar según el día, y porque si no, apagar un día no se notaba: la
+ * fila se veía igual con el descanso y sin él.
+ */
+function BreakChip({
+  b, slot, onEdit,
+}: {
+  b: ScheduleBlock;
+  slot: HorarioSlot;
+  onEdit: (slot: HorarioSlot) => void;
+}) {
+  return (
+    <button
+      onClick={() => onEdit(slot)}
+      title={b.note ? `${slot.breakLabel ?? 'Descanso'} · ${b.note}` : slot.breakLabel}
+      className="w-full text-left border border-dashed border-neutral-300 bg-neutral-100
+                 rounded-md px-2 py-1 text-xs leading-snug text-neutral-600
+                 transition-colors hover:ring-2 hover:ring-neutral-300"
+    >
+      {b.note?.trim() || <span className="text-neutral-400">—</span>}
+    </button>
+  );
+}
+
+/**
  * El rótulo de la fila. En una franja de clase, el número de hora; en una de
- * descanso, su nombre, que además abre su editor — es el único camino para
- * cambiarla, porque el descanso no vive en ninguna celda.
+ * descanso, su nombre, que además abre su editor.
  */
 function SlotLabel({
   slot, hora, onEditBreak,
@@ -326,13 +376,21 @@ function GridDesktop({
                 </th>
                 {DAY_TYPES.map(dt => {
                   const items = slot.byDay.get(dt) ?? [];
+                  const descanso = slot.breakBlocks.find(b => b.dayType === dt);
                   return (
                     <td key={dt} className="p-1 align-top">
-                      {items.length === 0
-                        ? <EmptyCell onAdd={() => onAdd(dt, slot)} />
-                        : <div className="space-y-1">
-                            {items.map(b => <BlockChip key={b.id} b={b} onEdit={onEdit} />)}
-                          </div>}
+                      {descanso || items.length > 0 ? (
+                        <div className="space-y-1">
+                          {descanso && (
+                            <BreakChip b={descanso} slot={slot} onEdit={onEditBreak} />
+                          )}
+                          {items.map(b => (
+                            <BlockChip key={b.id} b={b} slot={slot} onEdit={onEdit} />
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyCell onAdd={() => onAdd(dt, slot)} />
+                      )}
                     </td>
                   );
                 })}
@@ -399,6 +457,7 @@ function TimelineMobile({
       <ul className="space-y-1.5">
         {slots.map(slot => {
           const items = slot.byDay.get(selectedDay) ?? [];
+          const descanso = slot.breakBlocks.find(b => b.dayType === selectedDay);
           const hueco = huecos.get(slot.key);
           const hora = horas.get(slot.key);
           return [
@@ -423,11 +482,14 @@ function TimelineMobile({
                     {hora}ª hora · {slot.minutes} min
                   </div>
                 ) : null}
-                {items.length === 0
-                  ? <EmptyCell compact onAdd={() => onAdd(selectedDay, slot)} />
-                  : <div className="space-y-1">
-                      {items.map(b => <BlockChip key={b.id} b={b} onEdit={onEdit} />)}
-                    </div>}
+                {descanso || items.length > 0 ? (
+                  <div className="space-y-1">
+                    {descanso && <BreakChip b={descanso} slot={slot} onEdit={onEditBreak} />}
+                    {items.map(b => <BlockChip key={b.id} b={b} slot={slot} onEdit={onEdit} />)}
+                  </div>
+                ) : (
+                  <EmptyCell compact onAdd={() => onAdd(selectedDay, slot)} />
+                )}
               </div>
             </li>,
             hueco ? (
@@ -640,7 +702,7 @@ function BreakEditor({
           startTime: d.startTime,
           endTime: d.endTime,
           room: undefined,
-          note: d.note.trim() || undefined,
+          note: d.notes[dt]?.trim() || undefined,
         } as ScheduleBlock);
       } else if (prev?.id) {
         await deleteScheduleBlock(prev.id);
@@ -681,34 +743,41 @@ function BreakEditor({
         minutos={minutos} horasOk={horasOk}
       />
 
-      <Campo label="Días" hint="Desmarca un día si ese descanso te cae a otra hora.">
-        <div className="grid grid-cols-3 gap-1.5">
+      <div className="space-y-1">
+        <span className="text-xs text-neutral-600">Días y acompañamiento</span>
+        <p className="text-[11px] text-neutral-500">
+          Apaga un día si ese descanso te cae a otra hora. En cada uno puedes
+          escribir dónde te toca estar; lo que escribas se ve en el horario.
+        </p>
+        <div className="space-y-1">
           {DAY_TYPES.map(dt => {
             const activo = d.days.includes(dt);
             return (
-              <button
-                key={dt}
-                onClick={() => alternarDia(dt)}
-                aria-pressed={activo}
-                className={`px-2 py-1.5 rounded-md border text-sm ${
-                  activo ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white'
-                }`}
-              >
-                {dayLabel(dt)}
-              </button>
+              <div key={dt} className="flex items-center gap-2">
+                <button
+                  onClick={() => alternarDia(dt)}
+                  aria-pressed={activo}
+                  className={`shrink-0 w-20 px-2 py-1.5 rounded-md border text-xs ${
+                    activo ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white text-neutral-400'
+                  }`}
+                >
+                  {dayLabel(dt)}
+                </button>
+                <input
+                  type="text"
+                  value={d.notes[dt] ?? ''}
+                  disabled={!activo}
+                  onChange={e => set({ notes: { ...d.notes, [dt]: e.target.value } })}
+                  placeholder={activo ? 'Dónde acompañas' : 'sin descanso a esta hora'}
+                  aria-label={`Acompañamiento del ${dayLabelLong(dt)}`}
+                  className="flex-1 min-w-0 border rounded px-2 py-1.5 text-sm
+                             disabled:bg-neutral-50 disabled:text-neutral-400"
+                />
+              </div>
             );
           })}
         </div>
-      </Campo>
-
-      <Campo label="Nota" hint="Por ejemplo, dónde te toca estar en ese descanso.">
-        <textarea
-          value={d.note}
-          onChange={e => set({ note: e.target.value })}
-          rows={2}
-          className="w-full border rounded px-2 py-1.5"
-        />
-      </Campo>
+      </div>
 
       <Botones onGuardar={guardar} puedeGuardar={puedeGuardar} onClose={onClose}
                onBorrar={esNuevo ? undefined : borrar} />
