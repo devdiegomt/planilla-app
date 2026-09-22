@@ -117,7 +117,10 @@ export function CalendarView() {
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-xs">
+      {/* `[&>*]:min-w-0`: un hijo de grid trae `min-width: auto` y se niega a
+          encogerse por debajo de su contenido, así que una casilla con varios
+          cursos ensanchaba la rejilla y se llevaba la página. */}
+      <div className="grid grid-cols-7 gap-1 text-xs [&>*]:min-w-0">
         {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(d => (
           <div key={d} className="text-center font-medium text-neutral-500 py-1">{d}</div>
         ))}

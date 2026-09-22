@@ -129,7 +129,7 @@ export function ClassroomBrowser({
 
       {err && <p className="text-sm text-red-600">❌ {err}</p>}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3 [&>*]:min-w-0">
         <Panel title={`Cursos (${courses.length})`}>
           {courses.length === 0 ? (
             <p className="text-sm text-neutral-500">Sin cursos activos.</p>
