@@ -186,6 +186,17 @@ export interface ScheduleBlock {
   kind?: BlockKind;                   // ausente = 'clase'
   title?: string;                     // rótulo cuando no es un curso ('RDA', 'Reemplazo 903')
   note?: string;                      // nota libre, también sobre una clase
+  /**
+   * Solo en los descansos: la hora que parte la franja en dos turnos
+   * ('10:35' en un descanso de 10:20 a 10:50). Va repetida en los bloques de
+   * los seis días, igual que `title`, porque los turnos son de la franja.
+   */
+  turnSplit?: string;                 // 'HH:mm'
+  /**
+   * Qué turno te toca acompañar ESE día. Ausente = todo el descanso, que es
+   * lo que vale cuando no hay turnos.
+   */
+  turn?: 1 | 2;
   syncId?: string;
   updatedAt?: string;
 }

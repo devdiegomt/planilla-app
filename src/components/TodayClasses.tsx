@@ -12,7 +12,7 @@ import {
   isClassBlock,
   type DateStatus,
 } from '@/lib/schedule';
-import { blockLabel } from '@/lib/horarioGrid';
+import { blockLabel, turnRange } from '@/lib/horarioGrid';
 import { dayAgenda, type DayAgenda } from '@/lib/dayAgenda';
 import { buildCycleContext, cycleOf, type CycleContext } from '@/lib/cycles';
 import type {
@@ -320,8 +320,14 @@ function ClassRow({ block, info }: { block: ScheduleBlock; info: ClassInfo }) {
  */
 function EntryRow({ block }: { block: ScheduleBlock }) {
   const esDescanso = block.kind === 'descanso';
-  // Aula y nota en un solo texto: como renglones aparte se apretaban a 360px.
-  const detalle = [block.room, block.note].filter(Boolean).join(' · ');
+  // El acompañamiento no dura todo el descanso: si hoy te toca turno, la hora
+  // que sirve es la del turno y no la de la franja.
+  const turno = turnRange(block, block.turn);
+  const detalle = [
+    turno && `${block.turn}º turno ${turno.startTime}–${turno.endTime}`,
+    block.room,
+    block.note,
+  ].filter(Boolean).join(' · ');
   return (
     <li className="flex items-center gap-2 text-sm">
       <span className="shrink-0 text-xs text-neutral-500 tabular-nums w-24">

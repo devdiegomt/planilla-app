@@ -105,6 +105,13 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   (`overlapMinutes`), creando fila propia solo si no se cruza con ninguna. El chip
   muestra sus horas cuando no son las de la franja, para no hacer creer que empieza
   cuando empieza la hora.
+- **El acompañamiento no dura todo el descanso: hay dos turnos.** La hora que los parte
+  (`turnSplit`) es de la franja y va repetida en los seis bloques, como `title`; el turno
+  (`turn`, 1 o 2) es de cada día. `turnRange` saca el rango real y devuelve null si el
+  corte quedó fuera del descanso o en el borde, en vez de inventar un turno de cero. En
+  el colegio: descanso 10:20–10:50 partido a las 10:35, almuerzo 13:15–14:10 partido a
+  las 13:40 — los dos turnos no duran lo mismo, así que el corte se guarda y no se
+  calcula.
 - **El descanso es de la franja y se guarda por tipo de día**, con `title` y **una `note`
   propia por día**: el acompañamiento cambia de lugar según el día. Se edita desde el
   rótulo de la fila y cada día se dibuja en su celda (`BreakChip`). Dibujarlo por día no
