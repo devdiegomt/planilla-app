@@ -221,7 +221,15 @@ function DayCard({
     .toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'short' });
 
   return (
-    <div className="border rounded-lg p-4 bg-white">
+    /*
+     * `min-w-0`: esta tarjeta es hija de un `grid`, y un hijo de grid trae
+     * `min-width: auto` — se niega a encogerse por debajo del ancho mínimo de
+     * su contenido. Como las filas de abajo tienen partes que no ceden (la
+     * hora, la insignia), la tarjeta crecía más que la pantalla y se llevaba
+     * la página con ella: el nombre del curso y las insignias quedaban fuera
+     * del borde derecho.
+     */
+    <div className="border rounded-lg p-4 bg-white min-w-0">
       <div className="flex items-baseline justify-between mb-3">
         <div>
           <div className="text-xs text-neutral-500 uppercase">{label}</div>
@@ -328,28 +336,40 @@ function EntryRow({ block }: { block: ScheduleBlock }) {
     block.room,
     block.note,
   ].filter(Boolean).join(' · ');
+  /*
+   * En una franja el detalle es lo que hay que leer —dónde te toca acompañar,
+   * qué turno— y en el celular, compitiendo en el mismo renglón con la hora y
+   * la insignia, quedaba en "· 2…". Por eso baja a su propio renglón en
+   * pantalla angosta y vuelve al renglón cuando hay espacio.
+   */
   return (
-    <li className="flex items-center gap-2 text-sm">
-      <span className="shrink-0 text-xs text-neutral-500 tabular-nums w-24">
-        {block.startTime}–{block.endTime}
-      </span>
-      {/* Tope en vez de encogerse: si compite con el detalle, "Descanso" se
-          cortaba sobrando espacio. Con el tope, un título largo se trunca al
-          45 % y uno corto se lee entero. */}
-      <span className={`shrink-0 max-w-[45%] truncate ${
-        esDescanso ? 'text-neutral-500' : 'font-medium text-amber-900'
-      }`}>
-        {blockLabel(block)}
-      </span>
+    <li className="text-sm min-w-0">
+      <div className="flex items-center gap-2">
+        <span className="shrink-0 text-xs text-neutral-500 tabular-nums w-24">
+          {block.startTime}–{block.endTime}
+        </span>
+        <span className={`min-w-0 truncate ${
+          esDescanso ? 'text-neutral-500' : 'font-medium text-amber-900'
+        }`}>
+          {blockLabel(block)}
+        </span>
+        {detalle && (
+          <span className="hidden sm:inline text-xs text-neutral-500 truncate min-w-0">
+            · {detalle}
+          </span>
+        )}
+        <span className={`ml-auto shrink-0 whitespace-nowrap text-[10px] px-1.5 py-0.5
+                          rounded font-medium ${
+          esDescanso ? 'bg-neutral-100 text-neutral-600' : 'bg-amber-100 text-amber-800'
+        }`}>
+          {esDescanso ? 'descanso' : 'evento'}
+        </span>
+      </div>
       {detalle && (
-        <span className="text-xs text-neutral-500 truncate min-w-0">· {detalle}</span>
+        <div className="sm:hidden pl-[6.5rem] text-xs text-neutral-500 truncate">
+          {detalle}
+        </div>
       )}
-      <span className={`ml-auto shrink-0 whitespace-nowrap text-[10px] px-1.5 py-0.5
-                        rounded font-medium ${
-        esDescanso ? 'bg-neutral-100 text-neutral-600' : 'bg-amber-100 text-amber-800'
-      }`}>
-        {esDescanso ? 'descanso' : 'evento'}
-      </span>
     </li>
   );
 }

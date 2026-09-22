@@ -49,7 +49,7 @@ export function CourseDashboard({ course }: Props) {
                   tone={stats.expertoPct >= 30 ? 'good' : 'neutral'} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
         <Card title="Distribución">
           <Distribution d={stats.distribution} total={stats.activos} />
         </Card>
@@ -74,7 +74,7 @@ export function CourseDashboard({ course }: Props) {
         </Card>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3 [&>*]:min-w-0">
         <StudentList
           title="En riesgo"
           hint={`DEF ${NOTA_APROBACION}-75`}
@@ -98,7 +98,7 @@ export function CourseDashboard({ course }: Props) {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
         <Card title="Asistencia del trimestre">
           <div className="text-sm space-y-1">
             <div>
@@ -155,7 +155,7 @@ export function CourseDashboard({ course }: Props) {
         </Card>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
         <Card title="Top retardos (injustificados)">
           {att.topRetardos.length === 0 ? (
             <p className="text-sm text-neutral-500">Sin retardos injustificados.</p>

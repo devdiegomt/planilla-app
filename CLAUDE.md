@@ -130,6 +130,17 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   así que la vuelta se corre un día por semana (lun D1, mar D2… lun siguiente D5, mar D1,
   mié D2). Por eso `nextDateOfDayType` sale de `computeDayTypes` y no de sumar 7 días: es
   lo que deja crear algo temporal desde una celda del horario con la fecha ya puesta.
+- **Un hijo de `grid` no se encoge solo: hay que darle `min-w-0`.** Trae
+  `min-width: auto`, así que se niega a bajar del ancho mínimo de su contenido. Con
+  filas que tienen partes que no ceden —la hora con ancho fijo, las insignias—, la
+  tarjeta del día crecía más que la pantalla y **se llevaba la página entera**: en el
+  celular el curso y las insignias quedaban fuera del borde derecho. Pasa en cualquier
+  rejilla con contenido de ancho variable (`[&>*]:min-w-0` cubre todos los hijos de una
+  vez). Verificado renderizando a 360px con Chromium headless: sin el arreglo no se ve
+  ninguna insignia. **El arnés engaña de dos maneras**: si el `.html` se copia a otra
+  carpeta el `href` del CSS se rompe y se mide HTML sin estilos, y si no se reconstruye
+  la hoja las clases nuevas no existen — en los dos casos la captura se ve plausible y
+  es mentira.
 - **La casilla de nota no puede ser `type="number"`** (`PlanillaGrid` + `lib/gridNav.ts`).
   Ahí las flechas suben y bajan el valor, y calificando lo que se quiere es bajar por la
   columna estudiante por estudiante; de paso la rueda del mouse cambiaba la nota al pasar
