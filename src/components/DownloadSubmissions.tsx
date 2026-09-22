@@ -68,6 +68,12 @@ export function DownloadSubmissions({ nombreBase, cargar, agruparPorTrabajo, eti
       const { default: JSZip } = await import('jszip');
       const zip = new JSZip();
       const fallidos: string[] = [];
+      // Google explica el motivo en el cuerpo de la respuesta. Antes solo se
+      // guardaba el número —"(403)"— y con eso no hay forma de saber si falta
+      // un permiso, si el archivo no se comparte o si la API está apagada en
+      // la consola de Google. Se guarda el del primero que falle: cuando algo
+      // está mal, los 60 fallan por lo mismo.
+      let motivo: string | null = null;
       let hechos = 0;
 
       for (const t of trabajos) {
@@ -89,6 +95,11 @@ export function DownloadSubmissions({ nombreBase, cargar, agruparPorTrabajo, eti
               // Un trabajo que no se deja bajar no puede tumbar la descarga
               // entera: se anota y se sigue con el siguiente.
               fallidos.push(`${entrada.ruta} (${r.status})`);
+              if (motivo === null) {
+                motivo = await r.json()
+                  .then((j: { error?: string }) => j.error ?? null)
+                  .catch(() => null);
+              }
               continue;
             }
             zip.file(entrada.ruta, await r.blob());
@@ -101,8 +112,17 @@ export function DownloadSubmissions({ nombreBase, cargar, agruparPorTrabajo, eti
       }
 
       if (fallidos.length > 0) {
-        zip.file('_no-se-pudieron-bajar.txt', fallidos.join('\n') + '\n');
-        setAviso(`${fallidos.length} archivo(s) no se pudieron bajar; están listados dentro del ZIP.`);
+        const encabezado = motivo
+          ? `No se pudieron bajar ${fallidos.length} archivo(s).\n\n` +
+            `Lo que respondió Google:\n  ${motivo}\n\n` +
+            'Archivos:\n'
+          : `No se pudieron bajar ${fallidos.length} archivo(s).\n\n`;
+        zip.file('_no-se-pudieron-bajar.txt', encabezado + fallidos.join('\n') + '\n');
+        // El motivo va también acá: es donde se ve sin descomprimir nada.
+        setAviso(
+          `${fallidos.length} archivo(s) no se pudieron bajar` +
+          (motivo ? `. Google respondió: ${motivo}` : '; están listados dentro del ZIP.'),
+        );
       }
 
       const blob = await zip.generateAsync({ type: 'blob' });
