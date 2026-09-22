@@ -209,8 +209,11 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
         <table className="min-w-full text-sm">
           <thead className="bg-white border-b text-neutral-500">
             <tr>
-              <th className="p-2 text-left w-8">#</th>
-              <th className="p-2 text-left">Estudiante</th>
+              {/* Fijas: con varias sesiones la tabla es más ancha que la
+                  pantalla, y sin esto el nombre se sale del borde y se acaba
+                  marcando F/R sobre filas anónimas. */}
+              <th className="p-2 text-left w-8 sticky left-0 z-10 bg-white">#</th>
+              <th className="p-2 text-left sticky left-8 z-10 bg-white">Estudiante</th>
               {porSesion ? (
                 sesiones.flatMap(n => [
                   <th key={`F${n}`} className="p-2 text-center w-14">F{n}</th>,
@@ -235,8 +238,10 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
               const c = s.cycles.find(x => x.ciclo === ciclo);
               return (
                 <tr key={s.id} className="border-b hover:bg-neutral-50">
-                  <td className="p-2 text-neutral-400">{i + 1}</td>
-                  <td className="p-2 whitespace-nowrap">{s.nombre}</td>
+                  <td className="p-2 text-neutral-400 sticky left-0 z-10 bg-white">{i + 1}</td>
+                  <td className="p-2 whitespace-nowrap sticky left-8 z-10 bg-white">
+                    {s.nombre}
+                  </td>
                   {porSesion ? (
                     sesiones.flatMap(sess =>
                       (['F', 'R'] as const).map(kind => (
@@ -331,53 +336,62 @@ function SessionsControl({
   fechas: string[];
   onChange: (n: number) => void | Promise<unknown>;
 }) {
+  /*
+   * El detalle va a la vista y no en un `title`: en el celular no hay cursor
+   * que muestre un tooltip, y justamente es donde se marca la asistencia.
+   */
   const detalle = fechas.length > 0
-    ? `El horario dice ${propuestas} clase(s) en este ciclo: ${fechas.map(fechaCorta).join(' y ')}.`
-    : 'El horario no tiene clases de este curso en el ciclo.';
+    ? `El horario ve ${propuestas} clase${propuestas === 1 ? '' : 's'} en este ciclo: ` +
+      fechas.map(fechaCorta).join(' · ')
+    : 'El horario no tiene clases de este curso en este ciclo.';
 
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-neutral-600">
-      {n === 1 ? (
-        <button
-          type="button"
-          onClick={() => onChange(2)}
-          title={detalle}
-          className="px-2 py-1 rounded border hover:bg-white"
-        >
-          ¿Se repite el ciclo?
-        </button>
-      ) : (
-        <>
-          <span title={detalle}>{n} clases</span>
+    <div className="w-full sm:w-auto space-y-0.5">
+      <div className="flex items-center gap-1 text-xs text-neutral-600">
+        {n === 1 ? (
           <button
             type="button"
-            onClick={() => onChange(n - 1)}
-            aria-label="Quitar una clase de este ciclo"
-            className="w-6 h-6 rounded border hover:bg-white leading-none"
+            onClick={() => onChange(2)}
+            className="px-2 py-1 rounded border hover:bg-white"
           >
-            −
+            ¿Se repite el ciclo?
           </button>
+        ) : (
+          <>
+            <span>{n} clases</span>
+            <button
+              type="button"
+              onClick={() => onChange(n - 1)}
+              aria-label="Quitar una clase de este ciclo"
+              className="w-6 h-6 rounded border hover:bg-white leading-none"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange(n + 1)}
+              aria-label="Añadir otra clase a este ciclo"
+              className="w-6 h-6 rounded border hover:bg-white leading-none"
+            >
+              +
+            </button>
+          </>
+        )}
+        {corregido && (
           <button
             type="button"
-            onClick={() => onChange(n + 1)}
-            aria-label="Añadir otra clase a este ciclo"
-            className="w-6 h-6 rounded border hover:bg-white leading-none"
+            onClick={() => onChange(propuestas)}
+            className="text-[11px] text-neutral-500 underline decoration-dotted hover:text-neutral-800"
           >
-            +
+            volver a {propuestas}
           </button>
-        </>
-      )}
-      {corregido && (
-        <button
-          type="button"
-          onClick={() => onChange(propuestas)}
-          title={detalle}
-          className="text-[11px] text-neutral-400 underline decoration-dotted hover:text-neutral-700"
-        >
-          según el horario
-        </button>
-      )}
-    </span>
+        )}
+      </div>
+      <p className="text-[11px] text-neutral-400 leading-tight">
+        {detalle}
+        {corregido && ` · lo cambiaste a ${n}.`}
+      </p>
+    </div>
   );
 }
 
