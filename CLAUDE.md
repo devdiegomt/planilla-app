@@ -92,16 +92,26 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   D1→D5; el viernes (FIJO) no consume rotación y pertenece al ciclo en curso, así que un
   ciclo puede traer dos viernes. No asumir `grade === 11 ? 2 : 1` sesiones: usar
   `sessionDatesOf`. Verificado contra el cronograma real del colegio.
-- **Ser descanso es de la franja, no de lo que le caiga adentro** (`lib/horarioGrid.ts`).
-  Las filas del horario se derivan agrupando bloques por inicio–fin, y `hourNumbers`
-  numera las que no son descanso. Antes la franja era descanso solo si TODO lo que
-  había en ella lo era: al poner una actividad en el descanso la fila pasaba a contar
-  como hora, las 7 horas se volvían 8 y la séptima se corría a la octava. Ahora la
-  declara un bloque `kind: 'descanso'` y basta uno. Un descanso se guarda como un
-  bloque por tipo de día (está a la misma hora todos los días) y se edita desde el
-  rótulo de la fila, no desde una celda; `byDay` no lo incluye para no dibujarlo seis
-  veces. `gapsBetween` detecta los ratos libres entre franjas y ofrece crear ahí la
-  franja con las horas ya puestas.
+- **Las horas se numeran por dónde hay clase** (`lib/horarioGrid.ts`). Las filas se
+  derivan agrupando bloques por inicio–fin, y `hourNumbers` cuenta las que tienen al
+  menos una clase (`hasClass`). Numerar "toda fila que no sea descanso" se rompió dos
+  veces: primero con una actividad dentro del descanso, después con un evento de horas
+  propias que abría su propia fila — en ambos casos la fila se numeraba y corría todo lo
+  que venía después (la 4ª pasaba a 5ª, la 7ª terminaba de 8ª). Contando por las clases
+  no hay bloque agregado que pueda robarle el número a una hora.
+- **Las franjas las definen las clases y los descansos, no los eventos.**
+  `buildHorarioSlots` va en dos pases: primero las clases y los descansos crean las
+  filas, y después cada evento cae en la franja con la que más se cruza
+  (`overlapMinutes`), creando fila propia solo si no se cruza con ninguna. El chip
+  muestra sus horas cuando no son las de la franja, para no hacer creer que empieza
+  cuando empieza la hora.
+- **El descanso es de la franja y se guarda por tipo de día**, con `title` y **una `note`
+  propia por día**: el acompañamiento cambia de lugar según el día. Se edita desde el
+  rótulo de la fila y cada día se dibuja en su celda (`BreakChip`). Dibujarlo por día no
+  es cosmético: cuando `byDay` no lo incluía, apagar un día en el editor borraba su
+  bloque pero la fila se veía idéntica, así que la opción parecía no hacer nada.
+  `gapsBetween` detecta los ratos libres entre franjas y ofrece crear ahí la franja con
+  las horas ya puestas.
 - **Lo que se repite y lo que pasa una vez son cosas distintas** (`lib/dayAgenda.ts`).
   `ScheduleBlock` va por tipo de día y vuelve en cada vuelta D1→D5; `CalendarEvent` va
   por fecha, sale en su hora dentro del día y se vence solo. Una reunión de esta semana
