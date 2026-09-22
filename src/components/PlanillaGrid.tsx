@@ -9,6 +9,8 @@ import {
 } from '@/lib/constants';
 import { calcDef } from '@/lib/formula';
 import { nextCell, sanitizeNota, notaValue } from '@/lib/gridNav';
+import { planPaste, type PastePlan } from '@/lib/pasteNotas';
+import { PasteNotasPreview } from './PasteNotasPreview';
 import type { Course } from '@/types';
 
 interface Props {
@@ -32,6 +34,12 @@ function notaCellId(row: number, col: number): string {
  * columna en `data-nota` y el salto busca la de destino por ahí — con refs
  * habría que mantener una matriz que se rearma en cada tecleo, porque guardar
  * la nota vuelve a dibujar la tabla entera.
+ *
+ * También se puede pegar una columna de notas desde un Excel. Nunca se aplica
+ * de una: se arma un plan (`lib/pasteNotas`) y se muestra para revisar, porque
+ * una columna de puros números empareja por posición y basta que el Excel esté
+ * ordenado distinto para que cada nota caiga en otro estudiante sin que nada
+ * se vea raro.
  */
 
 export function PlanillaGrid({ course }: Props) {
@@ -39,6 +47,9 @@ export function PlanillaGrid({ course }: Props) {
     () => db.students.where('courseId').equals(course.id!).sortBy('order'),
     [course.id]
   );
+  // Antes del return temprano de abajo: los hooks no pueden quedar detrás de
+  // un `if`.
+  const [pastePlan, setPastePlan] = useState<PastePlan | null>(null);
 
   if (!students) return <p className="text-sm text-neutral-500">Cargando...</p>;
 
@@ -58,6 +69,34 @@ export function PlanillaGrid({ course }: Props) {
     (n, s) => n + columns.filter(col => (s.subnotas[col.slotKeys[0]] ?? 0) === 0).length,
     0,
   );
+
+  /**
+   * Repartir lo que se pegó desde el Excel.
+   *
+   * Devuelve `true` si se hizo cargo, para que la casilla frene el pegado
+   * normal del navegador. Una sola celda no se intercepta: ahí no hay nada que
+   * repartir y pegar dentro de la casilla es lo correcto.
+   */
+  const pegar = (texto: string, row: number, col: number): boolean => {
+    const plan = planPaste(
+      texto,
+      activos.map((s, i) => ({
+        row: i,
+        id: s.id!,
+        nombre: s.nombre,
+        codAlum: s.codAlum,
+        current: Object.fromEntries(
+          columns.map(c => [c.column, s.subnotas[c.slotKeys[0]] ?? 0]),
+        ),
+      })),
+      columns.map(c => ({ column: c.column, slotKeys: c.slotKeys })),
+      row,
+      col,
+    );
+    if (!plan) return false;
+    setPastePlan(plan);
+    return true;
+  };
 
   return (
     <div className="overflow-x-auto">
@@ -129,6 +168,7 @@ export function PlanillaGrid({ course }: Props) {
                       row={i}
                       col={ci}
                       size={{ rows: activos.length, cols: columns.length }}
+                      onPasteBlock={pegar}
                     />
                   );
                 })}
@@ -156,6 +196,7 @@ export function PlanillaGrid({ course }: Props) {
             &lt; {NOTA_APROBACION}
           </span>
           <span>Flechas para moverte · Enter baja · 📝 para observación</span>
+          <span>Pega una columna del Excel sobre una casilla</span>
         </p>
         <p>
           {columns.length} columnas ({slots.length} slots internos) · {activos.length} activos ·
@@ -165,6 +206,10 @@ export function PlanillaGrid({ course }: Props) {
           </span>
         </p>
       </div>
+
+      {pastePlan && (
+        <PasteNotasPreview plan={pastePlan} onClose={() => setPastePlan(null)} />
+      )}
     </div>
   );
 }
@@ -174,7 +219,7 @@ export function PlanillaGrid({ course }: Props) {
  */
 function NoteCell({
   studentId, studentName, column, achievement, slotKeys, value, observation, isEv,
-  row, col, size,
+  row, col, size, onPasteBlock,
 }: {
   studentId: number;
   studentName: string;
@@ -188,6 +233,8 @@ function NoteCell({
   row: number;
   col: number;
   size: { rows: number; cols: number };
+  /** Reparte lo pegado desde el Excel; true si se hizo cargo. */
+  onPasteBlock: (texto: string, row: number, col: number) => boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(observation);
@@ -221,6 +268,14 @@ function NoteCell({
     // Seleccionado: al llegar, escribir reemplaza en vez de pegarse a lo que
     // ya había (llegar a un 70 y teclear 8 daría 708).
     el.select();
+  };
+
+  const onPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const texto = e.clipboardData.getData('text/plain');
+    if (!texto) return;
+    // Solo se frena el pegado si de verdad hay varios valores que repartir;
+    // si no, pegar dentro de la casilla es lo que se espera.
+    if (onPasteBlock(texto, row, col)) e.preventDefault();
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -309,6 +364,7 @@ function NoteCell({
           data-nota={notaCellId(row, col)}
           value={texto}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           onFocus={e => e.currentTarget.select()}
           onChange={e => {
             const limpio = sanitizeNota(e.target.value);
