@@ -228,6 +228,13 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   código lo evita— sino que falte medio curso o que el archivo sea de otro año.
   El "va en" que se muestra es el promedio de los trimestres con nota, **no la
   definitiva del año**: esa la calcula el colegio y puede no ser un promedio simple.
+  **El importador es relleno, no flujo normal:** `closeTrimester` ya archiva la
+  definitiva en `trimesterSnapshots`, así que quien usa la app desde marzo no lo
+  necesita nunca. `resumenDe` lee en ese orden — trimestre en curso de la app, los
+  pasados del cierre propio, y lo importado solo rellena los que nunca se cerraron acá.
+  Si el cierre y la plataforma difieren se muestran **los dos**: significa que ese
+  Califica no llegó a subirse, y es justo lo que hay que ver en vez de elegir uno en
+  silencio.
 
 ## Califica (notas hacia la plataforma)
 
