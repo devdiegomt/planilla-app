@@ -328,7 +328,8 @@ sobre Classroom Live, la plataforma del colegio.
 | | produce | consume |
 |---|---|---|
 | `codalum-extractor` | JSON con los COD_ALUM | — |
-| **planilla-app** | JSON de asistencia | JSON de COD_ALUM |
+| `historial-extractor` | JSON con la definitiva de cada trimestre | — |
+| **planilla-app** | JSON de asistencia | JSON de COD_ALUM, JSON de historial |
 | `asistencia-autofill` | marca F/R en la plataforma | JSON de asistencia |
 | `verificar-planilla.mjs` | compara Califica original vs generado | los dos archivos |
 
@@ -337,6 +338,17 @@ ciclo**: el docente registra F/R por ciclo y la plataforma los quiere por fecha.
 
 > **Arrancar por el Califica se ahorra el extractor:** ese archivo trae el COD_ALUM, que
 > la Planilla del año no tiene.
+
+**Historial de trimestres: en cuánto lleva la materia cada estudiante.** La app solo
+tiene las notas del trimestre en curso —la plantilla se reemplaza cada trimestre—, y la
+plataforma tiene las anteriores pero las muestra de a un curso y un periodo por vez.
+`historial-extractor` las recorre y la app las junta: en la página del curso, una línea
+`T1 · T2 · T3 → va en` por estudiante. Solo la **definitiva**: el desglose por categoría
+y la asistencia ya están acá de primera mano.
+
+Ojo con "va en": es el promedio de los trimestres que ya tienen nota, para ver cómo
+viene cada uno. **No es la definitiva del año**, que la calcula el colegio y puede no ser
+un promedio simple.
 
 **Asistencia: copiar y pegar, no archivos.** El panel del autofill recibe el JSON en un
 `<textarea>`, así que el camino normal es copiar desde el inicio y pegar ahí — sin ZIP,

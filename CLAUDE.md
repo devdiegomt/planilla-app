@@ -211,6 +211,24 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   dispositivo y aun así no abre. Ahora `fallaDelServidor` (403, 408, 429, 5xx) también
   sirve la copia. El 404 queda fuera a propósito: ahí la ruta de verdad no existe.
 
+- **Las definitivas de trimestres pasados no las puede calcular la app** (`lib/historial.ts`).
+  Sus notas son las del trimestre en curso: la plantilla se reemplaza cada trimestre y
+  las anteriores no quedan. La plataforma sí las guarda, pero solo en
+  `ConsCalificaDocentesGen` (24) y de a un curso y un periodo por vez — las planillas
+  (1096, 1099) solo dan el periodo en curso. Las trae el `historial-extractor` de
+  planilla-v2 y entran por `Student.platformHistory`, campo opcional y no indexado: sin
+  migración ni tocar Supabase. Solo la **definitiva**; el desglose por categoría y la
+  asistencia la app ya los tiene de primera mano y traerlos sería guardar dos veces lo
+  mismo. **No son cuatro periodos: son tres y el final** (`01`, `02`, `03`, `05`; no
+  existe el `04`). Para el trimestre en curso manda siempre la app, aunque lo importado
+  traiga otro valor. El emparejamiento es **solo por código**, nunca por nombre: acá el
+  archivo siempre trae el COD_ALUM, así que el respaldo por nombre que sí necesita la
+  Planilla acá solo agregaría riesgo. Y `planHistorialImport` arma un plan y no escribe,
+  igual que `planPaste`: lo que hay que ver antes no es un cruce de estudiantes —el
+  código lo evita— sino que falte medio curso o que el archivo sea de otro año.
+  El "va en" que se muestra es el promedio de los trimestres con nota, **no la
+  definitiva del año**: esa la calcula el colegio y puede no ser un promedio simple.
+
 ## Califica (notas hacia la plataforma)
 
 - **Flujo principal (home → "Califica de todos los cursos"):** Diego descarga en la

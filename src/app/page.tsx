@@ -1,6 +1,7 @@
 import { GlobalDashboard } from '@/components/GlobalDashboard';
 import { ImportPlanilla } from '@/components/ImportPlanilla';
 import { ImportCodAlum } from '@/components/ImportCodAlum';
+import { ImportHistorial } from '@/components/ImportHistorial';
 import { ImportCalifica451 } from '@/components/ImportCalifica451';
 import { TodayClasses } from '@/components/TodayClasses';
 import { PrimerArranque } from '@/components/PrimerArranque';
@@ -63,6 +64,9 @@ export default function Home() {
         </div>
         <div className="border-t pt-4">
           <ImportCodAlum />
+        </div>
+        <div className="border-t pt-4">
+          <ImportHistorial />
         </div>
       </section>
     </main>
