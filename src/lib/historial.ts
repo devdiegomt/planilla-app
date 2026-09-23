@@ -153,6 +153,13 @@ export interface HistorialPlan {
   };
   /** Lo que conviene mirar antes de aplicar, en palabras. */
   advertencias: string[];
+  /**
+   * Los que no tienen código, por nombre y curso.
+   *
+   * Decir "1 estudiante no tiene código" no sirve de nada: hay 540 y no hay
+   * forma de saber cuál. Con el nombre se arregla en un minuto.
+   */
+  sinCodigo: { courseCode: string; nombre: string }[];
 }
 
 /**
@@ -171,12 +178,16 @@ export function planHistorialImport(
   year: number,
 ): HistorialPlan {
   const porCodigo = new Map<string, Student>();
-  let sinCodigo = 0;
+  const sinCodigoLista: { courseCode: string; nombre: string }[] = [];
   for (const s of students) {
     const cod = (s.codAlum || '').trim();
-    if (!cod) { sinCodigo++; continue; }
+    if (!cod) {
+      if (!s.withdrawnAt) sinCodigoLista.push({ courseCode: s.courseCode, nombre: s.nombre });
+      continue;
+    }
     porCodigo.set(cod, s);
   }
+  const sinCodigo = sinCodigoLista.length;
   const cursosApp = new Set(courseCodes.map((c) => c.trim()));
 
   // Un estudiante puede venir en varias entradas del archivo (una por periodo),
@@ -272,8 +283,10 @@ export function planHistorialImport(
       `${totales.cursosQueFaltan} curso(s) del archivo no existen acá: ${cursos.filter((c) => c.faltaEnApp).map((c) => c.courseCode).join(', ')}. Sus notas no se van a guardar.`);
   }
   if (sinCodigo) {
+    const quienes = sinCodigoLista.map((s) => `${s.nombre} (${s.courseCode})`).join(', ');
     advertencias.push(
-      `${sinCodigo} estudiante(s) de la app no tienen código, así que no hay con qué emparejarlos.`);
+      `Sin código, así que no hay con qué emparejarlos: ${quienes}. ` +
+      'Se arreglan cargando el Califica de ese curso, que trae los códigos.');
   }
   if (totales.noEnApp) {
     advertencias.push(
@@ -288,7 +301,10 @@ export function planHistorialImport(
       `El extractor no pudo leer ${e.curso ?? 'un curso'}${e.periodo ? ' en el periodo ' + (NOMBRE_PERIODO[e.periodo] ?? e.periodo) : ''}: ${e.motivo}`);
   }
 
-  return { year, periodos: archivo.periodos, generadoEn: archivo.generadoEn, cursos, totales, advertencias };
+  return {
+    year, periodos: archivo.periodos, generadoEn: archivo.generadoEn,
+    cursos, totales, advertencias, sinCodigo: sinCodigoLista,
+  };
 }
 
 /** Lo que hay que escribir, listo para Dexie. */

@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -16,6 +16,8 @@ import { ChangeLogView } from '@/components/ChangeLogView';
 import { EventsList } from '@/components/EventsList';
 import { PendientesList } from '@/components/PendientesList';
 import { HistorialTrimestres } from '@/components/HistorialTrimestres';
+import { Seccion, SeccionFija } from '@/components/Seccion';
+import { computeCourseStats } from '@/lib/stats';
 import type { Student } from '@/types';
 
 export default function CoursePage({ params }: { params: Promise<{ code: string }> }) {
@@ -33,6 +35,21 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
       : Promise.resolve<Student[]>([]),
     [course?.id]
   );
+
+  /*
+   * La línea que se ve cuando "Resumen del curso" está plegada. Plegar no puede
+   * significar perder el dato de un vistazo, que es para lo que sirve.
+   *
+   * Va ANTES del return de "Cargando": un hook después de un return temprano se
+   * deja de llamar en cuanto el curso carga, y React corta con "rendered more
+   * hooks than during the previous render". El typecheck no lo ve.
+   */
+  const resumenCurso = useMemo(() => {
+    const vivos = students?.filter(s => !s.withdrawnAt) ?? [];
+    if (!course || vivos.length === 0) return null;
+    const st = computeCourseStats(vivos, course.grade);
+    return `${st.activos} activos · promedio ${st.promedio} · ${st.aprobandoPct}% aprobando`;
+  }, [students, course]);
 
   if (!course) {
     return (
@@ -64,34 +81,39 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
         </div>
       </div>
 
-      <CourseDashboard course={course} />
+      {/*
+        * El orden lo pide el trabajo diario: primero asistencia, después notas.
+        * Lo demás son cosas que se miran de vez en cuando, así que van plegadas
+        * y cada una recuerda cómo la dejaste.
+        */}
+      <Seccion id="asistencia" titulo="Asistencia del ciclo" defaultOpen>
+        <CicloAttendance course={course} initialCiclo={cicloParam} />
+      </Seccion>
 
-      <section>
-        <h2 className="text-sm font-medium text-neutral-500 uppercase tracking-wide mb-2">
-          Próximas entregas y actividades
-        </h2>
-        <EventsList courseCode={course.code} onlyUpcoming limit={10} />
-      </section>
+      {/* Las notas no se pliegan: es a lo que se entra a hacer. */}
+      <SeccionFija titulo="Notas del trimestre">
+        <PlanillaGrid course={course} />
+      </SeccionFija>
 
-      <section>
-        <h2 className="text-sm font-medium text-neutral-500 uppercase tracking-wide mb-2">
-          Pendientes del curso
-        </h2>
-        <PendientesList courseCode={course.code} />
-      </section>
+      <Seccion id="resumen" titulo="Resumen del curso" resumen={resumenCurso}>
+        <CourseDashboard course={course} />
+      </Seccion>
 
-      <section>
-        <h2 className="text-sm font-medium text-neutral-500 uppercase tracking-wide mb-2">
-          Cómo viene cada estudiante
-        </h2>
+      <Seccion id="historial" titulo="Cómo viene cada estudiante">
         <HistorialTrimestres course={course} students={activos} />
-      </section>
+      </Seccion>
 
-      <CicloAttendance course={course} initialCiclo={cicloParam} />
+      <Seccion id="entregas" titulo="Próximas entregas y actividades">
+        <EventsList courseCode={course.code} onlyUpcoming limit={10} />
+      </Seccion>
 
-      <PlanillaGrid course={course} />
+      <Seccion id="pendientes" titulo="Pendientes del curso">
+        <PendientesList courseCode={course.code} />
+      </Seccion>
 
-      <ChangeLogView course={course} />
+      <Seccion id="cambios" titulo="Cambios recientes">
+        <ChangeLogView course={course} />
+      </Seccion>
     </main>
   );
 }
