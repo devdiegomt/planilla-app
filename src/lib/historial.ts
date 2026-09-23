@@ -1,4 +1,4 @@
-import type { Student, Course, PlatformHistory } from '@/types';
+import type { Student, Course, PlatformHistory, TrimesterSnapshot } from '@/types';
 import { calcDef } from './formula';
 import { slotsFor } from './constants';
 
@@ -153,6 +153,13 @@ export interface HistorialPlan {
   };
   /** Lo que conviene mirar antes de aplicar, en palabras. */
   advertencias: string[];
+  /**
+   * Los que no tienen código, por nombre y curso.
+   *
+   * Decir "1 estudiante no tiene código" no sirve de nada: hay 540 y no hay
+   * forma de saber cuál. Con el nombre se arregla en un minuto.
+   */
+  sinCodigo: { courseCode: string; nombre: string }[];
 }
 
 /**
@@ -171,12 +178,16 @@ export function planHistorialImport(
   year: number,
 ): HistorialPlan {
   const porCodigo = new Map<string, Student>();
-  let sinCodigo = 0;
+  const sinCodigoLista: { courseCode: string; nombre: string }[] = [];
   for (const s of students) {
     const cod = (s.codAlum || '').trim();
-    if (!cod) { sinCodigo++; continue; }
+    if (!cod) {
+      if (!s.withdrawnAt) sinCodigoLista.push({ courseCode: s.courseCode, nombre: s.nombre });
+      continue;
+    }
     porCodigo.set(cod, s);
   }
+  const sinCodigo = sinCodigoLista.length;
   const cursosApp = new Set(courseCodes.map((c) => c.trim()));
 
   // Un estudiante puede venir en varias entradas del archivo (una por periodo),
@@ -272,8 +283,10 @@ export function planHistorialImport(
       `${totales.cursosQueFaltan} curso(s) del archivo no existen acá: ${cursos.filter((c) => c.faltaEnApp).map((c) => c.courseCode).join(', ')}. Sus notas no se van a guardar.`);
   }
   if (sinCodigo) {
+    const quienes = sinCodigoLista.map((s) => `${s.nombre} (${s.courseCode})`).join(', ');
     advertencias.push(
-      `${sinCodigo} estudiante(s) de la app no tienen código, así que no hay con qué emparejarlos.`);
+      `Sin código, así que no hay con qué emparejarlos: ${quienes}. ` +
+      'Se arreglan cargando el Califica de ese curso, que trae los códigos.');
   }
   if (totales.noEnApp) {
     advertencias.push(
@@ -288,7 +301,10 @@ export function planHistorialImport(
       `El extractor no pudo leer ${e.curso ?? 'un curso'}${e.periodo ? ' en el periodo ' + (NOMBRE_PERIODO[e.periodo] ?? e.periodo) : ''}: ${e.motivo}`);
   }
 
-  return { year, periodos: archivo.periodos, generadoEn: archivo.generadoEn, cursos, totales, advertencias };
+  return {
+    year, periodos: archivo.periodos, generadoEn: archivo.generadoEn,
+    cursos, totales, advertencias, sinCodigo: sinCodigoLista,
+  };
 }
 
 /** Lo que hay que escribir, listo para Dexie. */
@@ -316,8 +332,22 @@ export interface PeriodoResumen {
   periodo: string;
   etiqueta: string;
   valor: number | null;
-  /** 'app' es el trimestre en curso, que la app calcula; el resto viene de la plataforma. */
-  origen: 'app' | 'plataforma';
+  /**
+   * De dónde salió:
+   *   'app'        — el trimestre en curso, que la app está calculando.
+   *   'cierre'     — lo que la app archivó al cerrar ese trimestre.
+   *   'plataforma' — lo que se trajo de la plataforma.
+   */
+  origen: 'app' | 'cierre' | 'plataforma';
+  /**
+   * El valor de la plataforma cuando NO coincide con el del cierre.
+   *
+   * No se esconde ninguno de los dos: que difieran significa que lo que la app
+   * calculó al cerrar no es lo que quedó registrado en el colegio, y eso suele
+   * querer decir que el Califica no llegó a subirse. Es justo lo que conviene
+   * ver, no promediar ni elegir en silencio.
+   */
+  discrepancia?: number;
 }
 
 export interface ResumenEstudiante {
@@ -335,17 +365,34 @@ export interface ResumenEstudiante {
 /**
  * Arma la línea `T1 · T2 · T3 → va en` de un estudiante.
  *
- * El trimestre en curso sale de la app, que es donde está vivo; los anteriores,
- * de lo importado. Si para el trimestre en curso también hubiera dato de la
- * plataforma, gana la app: es lo que el docente está calificando ahora y la
- * plataforma puede estar desactualizada.
+ * Tres fuentes, en este orden:
+ *
+ *   1. **El trimestre en curso sale de la app**, que es donde está vivo. Aunque
+ *      lo importado traiga otro valor, gana la app: es lo que se está
+ *      calificando ahora y la plataforma puede estar vieja.
+ *   2. **Los anteriores, del cierre de la app** si ese trimestre se cerró acá.
+ *      Es el dato propio, calculado con la fórmula validada, y está aunque no
+ *      haya red.
+ *   3. **Y si no se cerró acá, lo importado de la plataforma.** Ese es el caso
+ *      de quien empieza a usar la app a mitad de año: los trimestres que ya
+ *      pasaron nunca se cerraron en la app y no hay de dónde sacarlos.
+ *
+ * O sea que para quien arranca en marzo y cierra cada trimestre, el importador
+ * no hace falta: la app ya tiene el dato. Es una herramienta de relleno, no
+ * parte del flujo normal.
  */
 export function resumenDe(
   student: Student,
   course: Pick<Course, 'grade' | 'trimestre' | 'year'>,
+  cierres: Pick<TrimesterSnapshot, 'trimestre' | 'year' | 'definitiva'>[] = [],
 ): ResumenEstudiante {
   const hist = student.platformHistory;
   const delAnio = hist && hist.year === course.year ? hist.definitivas : {};
+
+  const porTrimestre = new Map<number, number>();
+  for (const c of cierres) {
+    if (c.year === course.year) porTrimestre.set(c.trimestre, c.definitiva);
+  }
 
   const enCurso = String(course.trimestre).padStart(2, '0');
   const defApp = calcDef(student.subnotas ?? {}, slotsFor(course.grade), 'platform').definitiva;
@@ -353,12 +400,25 @@ export function resumenDe(
   const periodos: PeriodoResumen[] = [];
   for (const p of PERIODOS) {
     if (p === PERIODO_FINAL) continue;
+    const etiqueta = NOMBRE_PERIODO[p];
     if (p === enCurso) {
-      periodos.push({ periodo: p, etiqueta: NOMBRE_PERIODO[p], valor: defApp > 0 ? defApp : null, origen: 'app' });
-    } else if (delAnio[p] != null) {
-      periodos.push({ periodo: p, etiqueta: NOMBRE_PERIODO[p], valor: delAnio[p], origen: 'plataforma' });
+      periodos.push({ periodo: p, etiqueta, valor: defApp > 0 ? defApp : null, origen: 'app' });
+      continue;
+    }
+    const t = trimestreDe(p);
+    const delCierre = t != null ? porTrimestre.get(t) : undefined;
+    const dePlataforma = delAnio[p];
+    if (delCierre != null) {
+      periodos.push({
+        periodo: p, etiqueta, valor: delCierre, origen: 'cierre',
+        ...(dePlataforma != null && dePlataforma !== delCierre ? { discrepancia: dePlataforma } : {}),
+      });
     } else {
-      periodos.push({ periodo: p, etiqueta: NOMBRE_PERIODO[p], valor: null, origen: 'plataforma' });
+      periodos.push({
+        periodo: p, etiqueta,
+        valor: dePlataforma != null ? dePlataforma : null,
+        origen: 'plataforma',
+      });
     }
   }
 

@@ -1,7 +1,4 @@
 import { GlobalDashboard } from '@/components/GlobalDashboard';
-import { ImportPlanilla } from '@/components/ImportPlanilla';
-import { ImportCodAlum } from '@/components/ImportCodAlum';
-import { ImportHistorial } from '@/components/ImportHistorial';
 import { ImportCalifica451 } from '@/components/ImportCalifica451';
 import { TodayClasses } from '@/components/TodayClasses';
 import { PrimerArranque } from '@/components/PrimerArranque';
@@ -54,20 +51,13 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border rounded-lg p-4 bg-neutral-50 space-y-5">
-        <div>
-          <h2 className="font-medium mb-3">Importar datos</h2>
-          <ImportPlanilla />
-        </div>
-        <div className="border-t pt-4">
-          <ImportCalifica451 />
-        </div>
-        <div className="border-t pt-4">
-          <ImportCodAlum />
-        </div>
-        <div className="border-t pt-4">
-          <ImportHistorial />
-        </div>
+      {/*
+        * Acá queda solo el Califica, que es lo que se hace cada semana. La
+        * Planilla del año, los códigos y el historial son de arranque —una vez
+        * al año o una vez y nunca más— y se fueron a /ajustes.
+        */}
+      <section className="border rounded-lg p-4 bg-neutral-50">
+        <ImportCalifica451 />
       </section>
     </main>
   );

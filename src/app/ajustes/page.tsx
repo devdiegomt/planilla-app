@@ -1,4 +1,7 @@
 import { SubjectsConfig } from '@/components/SubjectsConfig';
+import { ImportPlanilla } from '@/components/ImportPlanilla';
+import { ImportCodAlum } from '@/components/ImportCodAlum';
+import { ImportHistorial } from '@/components/ImportHistorial';
 import { CloseTrimester } from '@/components/CloseTrimester';
 import { BackupRestore } from '@/components/BackupRestore';
 import { RepairPanel } from '@/components/RepairPanel';
@@ -17,14 +20,33 @@ export default function AjustesPage() {
       <header>
         <h1 className="text-2xl font-semibold">Ajustes</h1>
         <p className="text-sm text-neutral-500">
-          Materias, cierre de trimestre, copias de seguridad, reparación, instalación
-          y borrado de salida.
+          Puesta a punto, cierre de trimestre, copias de seguridad, reparación,
+          instalación y borrado de salida.
         </p>
       </header>
 
       <section className="border rounded-lg p-4 bg-neutral-50">
         <h2 className="font-medium mb-3">Mis materias</h2>
         <SubjectsConfig />
+      </section>
+
+      {/*
+        * Las tres son de puesta a punto: la Planilla una vez al año, los
+        * códigos cuando entra gente nueva, y el historial una sola vez si se
+        * empezó con el año ya empezado. Ninguna es del trabajo de la semana,
+        * por eso salieron del inicio.
+        */}
+      <section className="border rounded-lg p-4 bg-neutral-50 space-y-5">
+        <div>
+          <h2 className="font-medium mb-3">Traer datos de la plataforma</h2>
+          <ImportPlanilla />
+        </div>
+        <div className="border-t pt-4">
+          <ImportCodAlum />
+        </div>
+        <div className="border-t pt-4">
+          <ImportHistorial />
+        </div>
       </section>
 
       <section className="border rounded-lg p-4 bg-neutral-50">

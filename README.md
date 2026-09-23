@@ -350,6 +350,13 @@ Ojo con "va en": es el promedio de los trimestres que ya tienen nota, para ver c
 viene cada uno. **No es la definitiva del año**, que la calcula el colegio y puede no ser
 un promedio simple.
 
+**El extractor es relleno, no flujo normal.** Cerrar el trimestre en la app ya archiva la
+definitiva de cada estudiante, así que quien la usa desde el inicio del año nunca lo
+necesita: la tabla se llena sola trimestre a trimestre. Existe para el caso contrario —
+empezar con el año ya empezado, con trimestres que nunca se cerraron acá. Si un trimestre
+está cerrado acá **y** traído de la plataforma, y no coinciden, se muestran los dos: eso
+suele significar que ese Califica no llegó a subirse.
+
 **Asistencia: copiar y pegar, no archivos.** El panel del autofill recibe el JSON en un
 `<textarea>`, así que el camino normal es copiar desde el inicio y pegar ahí — sin ZIP,
 sin descomprimir y sin explorador de archivos, y funciona igual en el celular. El ZIP

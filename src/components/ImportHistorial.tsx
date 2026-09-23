@@ -12,6 +12,13 @@ import type { Student } from '@/types';
 /**
  * Trae las definitivas de los trimestres anteriores.
  *
+ * **Es una herramienta de relleno, no parte del flujo normal.** Cerrar el
+ * trimestre en la app ya archiva la definitiva de cada estudiante
+ * (`closeTrimester` → `trimesterSnapshots`), así que a quien la usa desde
+ * marzo no le hace falta esto nunca. Existe para el caso contrario: el año ya
+ * empezado, con trimestres que nunca se cerraron acá y cuya única fuente es la
+ * plataforma.
+ *
  * Se pega, no se sube un archivo: el extractor deja el texto en el portapapeles
  * y así funciona igual en el celular, sin descargar ni buscar en carpetas. El
  * selector de archivo queda de respaldo para cuando el portapapeles no está
@@ -98,8 +105,10 @@ export function ImportHistorial() {
           />
         </div>
         <p className="text-[11px] text-neutral-500 mt-1">
-          Trae la definitiva de cada estudiante en los trimestres que ya cerraron.
-          La app no las tiene: sus notas son las del trimestre en curso.
+          Trae la definitiva de cada estudiante en los trimestres que ya pasaron.
+          <strong className="font-medium"> Solo hace falta una vez</strong>, si
+          empezaste a usar la app con el año ya empezado: a partir de ahí cada
+          trimestre que cierres acá queda guardado solo.
         </p>
       </div>
 
