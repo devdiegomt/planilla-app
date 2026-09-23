@@ -93,8 +93,34 @@ export interface Student {
    * Sale del roster de Google Classroom; ausente hasta que se importe.
    */
   email?: string;
+  /**
+   * Definitivas de trimestres anteriores, traídas de la plataforma.
+   *
+   * La app no las puede calcular: sus notas son las del trimestre en curso, y
+   * las de los anteriores no quedan (la plantilla se reemplaza cada trimestre).
+   * La plataforma sí las guarda, pero solo las muestra de a un curso y un
+   * periodo por vez.
+   *
+   * Es un campo opcional y no indexado, así que el sync lo sube con la fila sin
+   * migración de Dexie ni tocar el servidor — el mismo camino de
+   * `ScheduleBlock.kind` y `YearConfig.subjects`.
+   */
+  platformHistory?: PlatformHistory;
   syncId?: string;                    // UUID estable cross-device (sync)
   updatedAt?: string;                 // ISO datetime del último cambio local
+}
+
+/** Lo que la plataforma sabe de los trimestres que la app ya no tiene. */
+export interface PlatformHistory {
+  /** Año lectivo del que salieron, para no mezclar al cambiar de año. */
+  year: number;
+  /**
+   * Definitiva por periodo, con la clave que usa la plataforma: '01', '02',
+   * '03' y '05' (el final). No existe el '04'.
+   */
+  definitivas: Record<string, number>;
+  /** Cuándo se trajeron, para saber si están viejas. */
+  importedAt: string;                 // ISO datetime
 }
 
 /**

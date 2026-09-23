@@ -5,6 +5,7 @@ import type {
   AttendanceMark, ChangeLog, TrimesterSnapshot, EmailLog,
 } from '@/types';
 import { calcDef } from './formula';
+import { cambiosDelPlan, type HistorialPlan } from './historial';
 import { slotsFor } from './constants';
 import { courseSyncId } from './syncId';
 import { planStudentMerge } from './studentMatch';
@@ -1440,4 +1441,30 @@ export async function maybePruneChangeLog(ahora = new Date()): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Historial de definitivas (lo que trae el extractor de planilla-v2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Escribe el plan que armó `planHistorialImport`.
+ *
+ * El plan ya decidió qué va y qué no; acá solo se guarda. Se separa a propósito
+ * para que la parte delicada —a quién le toca cada nota— viva en un módulo puro
+ * que se puede probar sin navegador, igual que `pasteNotas` y `studentMatch`.
+ *
+ * El hook `updating` pone `updatedAt`, así que el sync se lo lleva solo. Y como
+ * `platformHistory` es un campo opcional y no indexado, no hizo falta una
+ * versión nueva de Dexie ni tocar el servidor.
+ */
+export async function applyHistorialImport(plan: HistorialPlan): Promise<number> {
+  const cambios = cambiosDelPlan(plan, new Date().toISOString());
+  if (cambios.length === 0) return 0;
+  await db.transaction('rw', db.students, db.changeLog, async () => {
+    for (const c of cambios) {
+      await db.students.update(c.studentId, { platformHistory: c.platformHistory });
+    }
+  });
+  return cambios.length;
 }

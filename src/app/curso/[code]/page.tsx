@@ -15,6 +15,7 @@ import { CourseDashboard } from '@/components/CourseDashboard';
 import { ChangeLogView } from '@/components/ChangeLogView';
 import { EventsList } from '@/components/EventsList';
 import { PendientesList } from '@/components/PendientesList';
+import { HistorialTrimestres } from '@/components/HistorialTrimestres';
 import type { Student } from '@/types';
 
 export default function CoursePage({ params }: { params: Promise<{ code: string }> }) {
@@ -77,6 +78,13 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
           Pendientes del curso
         </h2>
         <PendientesList courseCode={course.code} />
+      </section>
+
+      <section>
+        <h2 className="text-sm font-medium text-neutral-500 uppercase tracking-wide mb-2">
+          Cómo viene cada estudiante
+        </h2>
+        <HistorialTrimestres course={course} students={activos} />
       </section>
 
       <CicloAttendance course={course} initialCiclo={cicloParam} />
