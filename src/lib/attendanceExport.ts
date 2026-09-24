@@ -185,7 +185,7 @@ export function buildAttendanceExport(
   // del Día Fijo trae dos clases cuando al ciclo le caen dos viernes— pero
   // manda lo que el docente haya corregido: hay materias que ven al curso
   // varias veces y clases en bloque donde se llama a lista una sola vez.
-  const fechas = sessionDatesOf(ctx, course.code, ciclo);
+  const fechas = sessionDatesOf(ctx, course.code, course.trimestre, ciclo);
   const nSesiones = sessionsInCiclo(course, ciclo, fechas);
   if (fechas.length === 0) {
     throw new AttendanceExportError(

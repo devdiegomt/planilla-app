@@ -70,8 +70,8 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
   }, [yearCfg, schedule, customDays, course]);
 
   const sessionDates = useMemo(
-    () => (ctx ? sessionDatesOf(ctx, course.code, ciclo) : []),
-    [ctx, course.code, ciclo],
+    () => (ctx ? sessionDatesOf(ctx, course.code, course.trimestre, ciclo) : []),
+    [ctx, course.code, course.trimestre, ciclo],
   );
 
   const cicloActual = useMemo(
