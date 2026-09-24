@@ -236,6 +236,20 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   Califica no llegó a subirse, y es justo lo que hay que ver en vez de elegir uno en
   silencio.
 
+- **Preguntar en español no necesita un modelo de lenguaje** (`lib/consulta.ts`). El
+  vocabulario del oficio es chico y cerrado —cursos, grados, notas, categorías, fallas,
+  retardos, trimestres—, así que un intérprete de reglas cubre lo que se pregunta a
+  diario y a cambio funciona sin red, sin costo, al instante y **sin que un solo nombre
+  de estudiante salga del dispositivo**, que con menores es lo que decide si se puede
+  usar. `interpretar` devuelve una consulta o **null**: lo que no entiende lo dice y
+  ofrece ejemplos, nunca una aproximación — una respuesta plausible pero equivocada
+  sobre las notas de alguien es peor que no responder. Al buscar por nombre empareja
+  **por palabra y no por la frase entera** (exigir la frase falla apenas se cuela una
+  palabra de relleno) y si coinciden varios **los muestra todos**: elegir entre dos
+  apellidos iguales sería mostrar las notas del estudiante equivocado. Las fallas y los
+  retardos se cuentan por ciclo, igual que `computeAttendanceStats`, para no tener dos
+  números distintos de lo mismo según la pantalla.
+
 ## Califica (notas hacia la plataforma)
 
 - **Flujo principal (home → "Califica de todos los cursos"):** Diego descarga en la
