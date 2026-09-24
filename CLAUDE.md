@@ -250,6 +250,32 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   retardos se cuentan por ciclo, igual que `computeAttendanceStats`, para no tener dos
   números distintos de lo mismo según la pantalla.
 
+- **El manual de convivencia se cita, no se resume** (`lib/manual.ts`). La respuesta es
+  el artículo TEXTUAL con su ubicación (`Artículo 161 · Capítulo… · TÍTULO…`), nunca
+  "hacé esto": un docente que actúa sobre un resumen equivocado de un debido proceso le
+  hace daño al estudiante y expone al colegio, y un resumen plausible es indistinguible
+  de uno correcto hasta que es tarde. Todo pasa en el dispositivo — el manual es un
+  documento interno del colegio y subirlo a un tercero no es decisión de un docente
+  suelto. **El manual real NUNCA entra al repo**; las pruebas usan un manual inventado
+  que reproduce sus rarezas.
+  Lo que el PDF deja y rompe todo en silencio: **2.591 palabras partidas con guion
+  suave** (`\u00AD` al final de renglón). Sin unirlas, buscar "estudiante" pierde 117 de
+  801 apariciones y "convivencia" 55 de 346 — y no falla ruidosamente, devuelve
+  resultados, solo que no todos. También hay que descartar las líneas del índice (fila
+  de puntos), los números de página sueltos y volver a armar los párrafos que el PDF
+  cortó por ancho de columna, incluido el número de ítem que queda solo en su renglón.
+  El artículo es la unidad (309 en el manual 2026, 307 parseados): es como se cita y
+  como se busca.
+  Al buscar, **cada término pesa por lo raro que es** (IDF): sin eso "estudiante" pesaba
+  igual que "celular" y el artículo más largo —"Deberes de los Estudiantes"— ganaba
+  siempre. Pero **la cobertura se cuenta, no se pondera**: ponderarla devolvía el
+  reglamento del transporte por encima de "Principios del Debido Proceso", porque un
+  término raro pesaba más que dos comunes juntos. Cuántos términos responde es una
+  pregunta; cuánto importan es otra. Los sinónimos del colegio (bullying→acoso,
+  copiar→fraude) se emparejan **quitando la terminación verbal**, no recortando a N
+  letras: el español cambia la vocal al conjugar, así que "pego"/"pega" se separan en la
+  cuarta letra y "copio"/"copia" en la quinta — no hay N que sirva para las dos.
+
 ## Califica (notas hacia la plataforma)
 
 - **Flujo principal (home → "Califica de todos los cursos"):** Diego descarga en la
