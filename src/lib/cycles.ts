@@ -177,12 +177,14 @@ export function buildCycleMap(
  */
 export function buildCourseCicloIndex(
   byDate: Map<string, CourseCycle[]>,
-): Map<string, Map<number, string[]>> {
-  const out = new Map<string, Map<number, string[]>>();
+): Map<string, Map<number, Map<number, string[]>>> {
+  const out = new Map<string, Map<number, Map<number, string[]>>>();
   for (const iso of [...byDate.keys()].sort()) {
     for (const c of byDate.get(iso)!) {
-      let porCiclo = out.get(c.courseCode);
-      if (!porCiclo) { porCiclo = new Map(); out.set(c.courseCode, porCiclo); }
+      let porTrim = out.get(c.courseCode);
+      if (!porTrim) { porTrim = new Map(); out.set(c.courseCode, porTrim); }
+      let porCiclo = porTrim.get(c.trimestre);
+      if (!porCiclo) { porCiclo = new Map(); porTrim.set(c.trimestre, porCiclo); }
       const fechas = porCiclo.get(c.ciclo);
       if (fechas) fechas.push(iso); else porCiclo.set(c.ciclo, [iso]);
     }
@@ -193,8 +195,17 @@ export function buildCourseCicloIndex(
 export interface CycleContext {
   /** fecha → los cursos que se dictan ese día, con su ciclo y sesión. */
   byDate: Map<string, CourseCycle[]>;
-  /** curso → ciclo → fechas de sus clases en ese ciclo. */
-  byCourseCiclo: Map<string, Map<number, string[]>>;
+  /**
+   * curso → trimestre → ciclo → fechas de sus clases en ese ciclo.
+   *
+   * **El trimestre no se puede omitir.** Los ciclos se numeran 1..9 DENTRO de
+   * cada trimestre, así que hay un ciclo 2 en cada uno. Cuando este índice
+   * agrupaba solo por número, "ciclo 2" devolvía las clases de los tres: un
+   * curso de 11° salía con seis clases repartidas entre febrero, mayo y
+   * agosto. Y no era cosmético — de esa lista sale la FECHA que exporta la
+   * asistencia, y de la fecha sale la hora que se manda a la plataforma.
+   */
+  byCourseCiclo: Map<string, Map<number, Map<number, string[]>>>;
 }
 
 /** Punto de entrada único: de aquí salen todos los cálculos de ciclo. */
@@ -208,9 +219,17 @@ export function buildCycleContext(
   return { byDate, byCourseCiclo: buildCourseCicloIndex(byDate) };
 }
 
-/** Fechas de las clases de un curso en un ciclo. Vacío si no hay. */
-export function sessionDatesOf(ctx: CycleContext, courseCode: string, ciclo: number): string[] {
-  return ctx.byCourseCiclo.get(courseCode)?.get(ciclo) ?? [];
+/**
+ * Fechas de las clases de un curso en un ciclo de un trimestre. Vacío si no hay.
+ *
+ * `trimestre` es obligatorio a propósito, por lo mismo que el segundo
+ * parámetro de `slotsFor`: sin él, el que se olvidara de pasarlo recibiría las
+ * clases de los tres trimestres juntas y no habría nada que lo avisara.
+ */
+export function sessionDatesOf(
+  ctx: CycleContext, courseCode: string, trimestre: number, ciclo: number,
+): string[] {
+  return ctx.byCourseCiclo.get(courseCode)?.get(trimestre)?.get(ciclo) ?? [];
 }
 
 /**
@@ -224,14 +243,19 @@ export function sessionDatesOf(ctx: CycleContext, courseCode: string, ciclo: num
 export function currentCiclo(
   ctx: CycleContext, courseCode: string, today: string,
 ): number | null {
-  const porCiclo = ctx.byCourseCiclo.get(courseCode);
-  if (!porCiclo) return null;
+  const porTrim = ctx.byCourseCiclo.get(courseCode);
+  if (!porTrim) return null;
   let mejorFecha: string | null = null;
   let mejorCiclo: number | null = null;
-  for (const [ciclo, fechas] of porCiclo) {
-    for (const f of fechas) {
-      if (f <= today && (mejorFecha === null || f > mejorFecha)) {
-        mejorFecha = f; mejorCiclo = ciclo;
+  // Recorre los tres trimestres, pero la fecha más reciente que no pasó de hoy
+  // está por fuerza en el que va en curso, así que el ciclo que devuelve es el
+  // de ese trimestre — que es como están numerados los ciclos del curso.
+  for (const porCiclo of porTrim.values()) {
+    for (const [ciclo, fechas] of porCiclo) {
+      for (const f of fechas) {
+        if (f <= today && (mejorFecha === null || f > mejorFecha)) {
+          mejorFecha = f; mejorCiclo = ciclo;
+        }
       }
     }
   }

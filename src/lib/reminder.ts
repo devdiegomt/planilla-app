@@ -227,12 +227,16 @@ export function composeAfternoonReminder(
 function lastClassBefore(
   ctx: CycleContext, courseCode: string, iso: string,
 ): CourseCycle | null {
-  const porCiclo = ctx.byCourseCiclo.get(courseCode);
-  if (!porCiclo) return null;
+  const porTrim = ctx.byCourseCiclo.get(courseCode);
+  if (!porTrim) return null;
   let mejor: string | null = null;
-  for (const fechas of porCiclo.values()) {
-    for (const f of fechas) {
-      if (f < iso && (mejor === null || f > mejor)) mejor = f;
+  // El índice va por trimestre y después por ciclo: los ciclos se numeran
+  // 1..9 dentro de cada trimestre, así que hay un ciclo 2 en cada uno.
+  for (const porCiclo of porTrim.values()) {
+    for (const fechas of porCiclo.values()) {
+      for (const f of fechas) {
+        if (f < iso && (mejor === null || f > mejor)) mejor = f;
+      }
     }
   }
   return mejor ? cycleOf(ctx, courseCode, mejor) : null;

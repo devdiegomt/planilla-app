@@ -131,6 +131,14 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   D1→D5; el viernes (FIJO) no consume rotación y pertenece al ciclo en curso, así que un
   ciclo puede traer dos viernes. No asumir `grade === 11 ? 2 : 1` sesiones: usar
   `sessionDatesOf`. Verificado contra el cronograma real del colegio.
+  **Y los ciclos se numeran 1..9 DENTRO de cada trimestre**, así que hay un ciclo 2 en
+  cada uno: `sessionDatesOf` pide el trimestre y es obligatorio. Cuando
+  `buildCourseCicloIndex` agrupaba solo por número, el ciclo 2 devolvía las clases de
+  los tres trimestres juntas — un curso de 11° salía con seis clases entre febrero,
+  mayo y agosto. No era cosmético: de esa lista sale `fechas[idxSesion]`, la fecha que
+  exporta la asistencia, y de la fecha sale el **tipo de día** y con él la **hora** que
+  se manda a la plataforma; además `nSesiones > 1` decide si las marcas viven en el
+  ciclo o por sesión, así que con 6 en vez de 2 se leían de otro lado.
 - **Las horas se numeran por dónde hay clase** (`lib/horarioGrid.ts`). Las filas se
   derivan agrupando bloques por inicio–fin, y `hourNumbers` cuenta las que tienen al
   menos una clase (`hasClass`). Numerar "toda fila que no sea descanso" se rompió dos
