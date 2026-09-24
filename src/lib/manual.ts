@@ -81,8 +81,8 @@ export function parseManual(crudo: string): Articulo[] {
     /*
      * Lo que sigue al "Artículo N." entra al cuerpo como una línea más, no
      * aparte: el PDF corta la frase por ancho de columna, así que "Es el acto
-     * por" y "el cual el GLA selecciona…" son la misma oración. Tratarla como
-     * párrafo propio partía todos los artículos en la primera frase.
+     * por" y "el cual se admite al aspirante…" son la misma oración. Tratarla
+     * como párrafo propio partía todos los artículos en la primera frase.
      */
     const parrafos = unirRenglones([actual.primeraLinea, ...actual.cuerpo]);
     const { titulo, resto } = partirTitulo(parrafos[0] ?? '');
