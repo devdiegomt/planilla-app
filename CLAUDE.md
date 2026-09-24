@@ -108,6 +108,21 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   dice. Y el `cod_mat` de esa pantalla (1035, 2438, 1043, 1045) es **otro espacio de
   ids**, nada que ver con los 2508/2509/2510/3011 del Califica.
 
+- **Llenar la matriz desde la app no puede inventar filas** (`lib/matriz.ts`). La
+  pantalla 831 se edita fila por fila —"Editar" → "Actualizar", unas diez por curso y
+  diecinueve cursos— y el formulario de `/matriz` la edita de una y saca un plan que el
+  script de planilla-v2 aplica allá. Tres cosas que el diseño no puede soltar: **la app
+  nunca inventa un id** (la fila de la plataforma lleva adentro el id de actividad, el
+  del logro y su `cod_mat`; el script los lee de la fila y los devuelve tal cual, y solo
+  viajan los cuatro campos editables); **se empareja por meta y posición, y se
+  verifica** (el plan lleva lo que la app cree que hay hoy en cada fila, y si la
+  pantalla no coincide esa fila no se escribe — la posición sola no es identidad, es el
+  mismo problema que `planPaste`, y lo que la vuelve segura es comprobarla); y **nunca
+  se crean filas** (la plataforma trae ocho casillas por categoría usadas o no, así que
+  estrenar una actividad es llenar una que ya existe; por eso el extractor devuelve las
+  vacías con su posición y no solo contadas). Por lo mismo hay que traer la matriz antes
+  de editarla: la app no puede llenar una que no ha visto.
+
 - **Nada del docente en constantes.** Los cursos, los grados y las materias salen de lo
   que el docente importó o configuró, no de `lib/constants.ts`. Ahí vivían `CURSOS_ORDER`,
   `DIRECTORES` y `GRADE_META`, y ataban la app a un solo profesor. Lo que queda atado son

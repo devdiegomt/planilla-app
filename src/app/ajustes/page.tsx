@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { SubjectsConfig } from '@/components/SubjectsConfig';
 import { ImportPlanilla } from '@/components/ImportPlanilla';
 import { ImportCodAlum } from '@/components/ImportCodAlum';
@@ -50,6 +51,10 @@ export default function AjustesPage() {
         </div>
         <div className="border-t pt-4">
           <ImportActividades />
+          <p className="text-[11px] text-neutral-500 mt-2">
+            Acá solo se traen. Para cambiarlos y mandarlos de vuelta,{' '}
+            <Link href="/matriz" className="underline">edita la matriz de actividades</Link>.
+          </p>
         </div>
       </section>
 

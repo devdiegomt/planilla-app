@@ -23,11 +23,20 @@ import type { Course, Student } from '@/types';
 
 export interface ActividadLeida {
   meta: string;
+  /** La fila número N dentro de su meta, contando las casillas sin usar. */
+  posicion?: number;
   general?: string;
   descripcion: string;
   porcentaje: number;
   ciclo?: string;
   destino?: string;
+}
+
+/** Una de las ocho casillas por categoría que la plataforma trae sin estrenar. */
+export interface CasillaVacia {
+  meta: string;
+  posicion: number;
+  descripcion: string;
 }
 
 export interface CursoLeido {
@@ -37,7 +46,7 @@ export interface CursoLeido {
   materiaNombre?: string;
   periodo?: string;
   actividades: ActividadLeida[];
-  casillasSinUsar?: number;
+  casillasSinUsar?: CasillaVacia[];
 }
 
 export interface ArchivoActividades {
