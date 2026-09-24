@@ -6,7 +6,7 @@ import type {
 } from '@/types';
 import { calcDef } from './formula';
 import { cambiosDelPlan, type HistorialPlan } from './historial';
-import { slotsFor } from './constants';
+import { slotsFor, type SlotDef } from './constants';
 import { courseSyncId } from './syncId';
 import { planStudentMerge } from './studentMatch';
 import { normalizeName, findFuzzyMatch } from './utils';
@@ -15,7 +15,7 @@ import {
   justFieldOf, cycleMarkState, sessionMarkState,
   markDescription, type MarkKind, type MarkState,
 } from './attendance';
-import { MATERIAS_HEREDADAS } from './subjects';
+import { MATERIAS_HEREDADAS, conSlots } from './subjects';
 import { sessionAt, emptySession, withSession, consolidate } from './sessions';
 import {
   cutoffIso, debePodar, RETENCION_CHANGELOG_DIAS,
@@ -686,6 +686,26 @@ export async function upsertYearConfig(cfg: Omit<YearConfig, 'id'>) {
   return (await db.yearConfig.add(cfg)) as number;
 }
 
+/**
+ * Guarda los pesos leídos en la matriz de actividades, solo para los grados
+ * que el docente marcó.
+ *
+ * Va grado por grado y no de una: si un grado se leyó mal, los demás siguen
+ * sirviendo. Devuelve cuántos quedaron guardados.
+ */
+export async function applyActividades(
+  year: number,
+  cambios: { grade: number; slots: SlotDef[] }[],
+): Promise<number> {
+  if (!cambios.length) return 0;
+  const cfg = await getYearConfig(year);
+  if (!cfg) throw new Error('Todavía no hay un año configurado.');
+  let subjects = cfg.subjects;
+  for (const c of cambios) subjects = conSlots(subjects, c.grade, c.slots);
+  await db.yearConfig.update(cfg.id!, { subjects });
+  return cambios.length;
+}
+
 export async function getScheduleForDayType(dayType: string) {
   return db.schedule.where('dayType').equals(dayType).sortBy('block');
 }
@@ -1052,8 +1072,9 @@ export async function closeTrimester(): Promise<CloseReport> {
     'rw',
     db.courses, db.students, db.trimesterSnapshots, db.attendanceMarks, db.syncTombstones,
     async () => {
+      const cfgCierre = await getYearConfig(new Date().getFullYear());
       for (const course of await db.courses.toArray()) {
-        const slots = slotsFor(course.grade);
+        const slots = slotsFor(course.grade, cfgCierre?.subjects);
         const alumnos = await db.students.where('courseId').equals(course.id!).toArray();
 
         for (const s of alumnos) {

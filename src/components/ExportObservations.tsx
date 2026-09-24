@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { exportObservations } from '@/lib/exporter';
 import { downloadBlob } from '@/lib/utils';
 import type { Course, Student } from '@/types';
+import { useSubjects } from '@/lib/useSubjects';
 
 interface Props {
   course: Course;
@@ -16,6 +17,7 @@ interface Props {
  * si ningún activo tiene observaciones aún.
  */
 export function ExportObservations({ course, students }: Props) {
+  const subjects = useSubjects(course.year);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -27,7 +29,7 @@ export function ExportObservations({ course, students }: Props) {
     setBusy(true);
     setMsg(null);
     try {
-      const result = await exportObservations(course, students);
+      const result = await exportObservations(course, students, subjects);
       if (!result) { setMsg('No hay observaciones en este curso.'); return; }
       downloadBlob(result.blob, result.report.filename);
       setMsg(

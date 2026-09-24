@@ -3,7 +3,7 @@
  */
 
 import { calcDef } from './formula';
-import { slotsFor, NOTA_APROBACION, NOTA_EXPERTO, NOTA_MIN } from './constants';
+import { slotsFor, NOTA_APROBACION, NOTA_EXPERTO, NOTA_MIN, type ConSlots } from './constants';
 import type { Student, AttendanceMark } from '@/types';
 
 export interface StudentDef {
@@ -35,9 +35,13 @@ export interface CourseStats {
   perStudent: StudentDef[];
 }
 
-export function computeCourseStats(students: Student[], grade: number): CourseStats {
+export function computeCourseStats(
+  students: Student[],
+  grade: number,
+  subjects: ConSlots[] | undefined,
+): CourseStats {
   const activos = students.filter(s => !s.withdrawnAt);
-  const slots = slotsFor(grade);
+  const slots = slotsFor(grade, subjects);
 
   const perStudent: StudentDef[] = activos.map(s => {
     const d = calcDef(s.subnotas, slots, 'platform');

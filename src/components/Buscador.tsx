@@ -5,6 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { calcDef } from '@/lib/formula';
 import { slotsFor } from '@/lib/constants';
+import { useSubjects } from '@/lib/useSubjects';
 import {
   interpretar, responder, EJEMPLOS,
   type DatoEstudiante, type Respuesta,
@@ -27,6 +28,7 @@ export function Buscador() {
 
   const courses = useLiveQuery(() => db.courses.toArray(), []);
   const students = useLiveQuery(() => db.students.toArray(), []);
+  const subjects = useSubjects();
 
   /*
    * Las fallas y los retardos se cuentan por ciclo, igual que en el resumen del
@@ -39,7 +41,7 @@ export function Buscador() {
     return students.flatMap(s => {
       const curso = porId.get(s.courseId);
       if (!curso) return [];
-      const slots = slotsFor(curso.grade);
+      const slots = slotsFor(curso.grade, subjects);
       const r = calcDef(s.subnotas ?? {}, slots, 'platform');
       let fallas = 0, fallasJust = 0, retardos = 0;
       for (const c of s.cycles ?? []) {

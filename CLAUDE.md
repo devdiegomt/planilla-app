@@ -84,6 +84,30 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   cabe como campo opcional de una tabla que ya sincroniza, sale más barato: el sync sube
   la fila entera como JSON, así que un campo no indexado no necesita migración ni tocar
   Supabase (así se agregaron `ScheduleBlock.kind` y `YearConfig.subjects`).
+- **Los pesos de las subnotas ya no se suponen** (`lib/actividades.ts`). `SLOTS_8_10` y
+  `SLOTS_11` estaban fijos en el código y se habían validado solo de rebote, porque las
+  definitivas que calculaba la app daban igual que las de la plataforma. Leídos de la
+  matriz de actividades (pantalla 831) el 24/09/2026 resultaron **exactos** para los
+  cuatro grados, y cada categoría suma 100 %. Que coincidan no los volvía correctos:
+  son los de **una materia**, y otro docente habría calculado con los de informática sin
+  enterarse. Ahora se traen con el `actividades-extractor` de planilla-v2 y viven en
+  `SubjectConfig.slots`, campo opcional y no indexado dentro de `YearConfig`: sin
+  migración y sin tocar Supabase. Los fijos quedan de respaldo.
+  **El segundo parámetro de `slotsFor` es obligatorio a propósito.** Siendo opcional,
+  cualquier pantalla que se olvidara de pasar las materias calculaba con los fijos en
+  silencio, y dos pantallas mostrando definitivas distintas del mismo estudiante es el
+  peor error que puede tener esta app; siendo obligatorio, el que no tiene de dónde
+  sacarlas escribe `undefined` y se ve en el diff. `useSubjects` es el atajo en los
+  componentes.
+  `planActividades` arma un plan y no escribe, igual que `planPaste`. Lo que hay que ver
+  antes no es un cruce de estudiantes sino si cambian las **columnas**: la clave de un
+  slot (`K1_C4`) lleva su columna adentro, y de ahí salen la rejilla, el Califica y las
+  subnotas ya guardadas. Cambiar un peso es inofensivo y viene marcado; cambiar una
+  columna deja notas escritas sin dónde caer, así que se cuentan y hay que marcarlo a
+  mano. Si dos cursos del mismo grado traen repartos distintos **no se elige uno**: se
+  dice. Y el `cod_mat` de esa pantalla (1035, 2438, 1043, 1045) es **otro espacio de
+  ids**, nada que ver con los 2508/2509/2510/3011 del Califica.
+
 - **Nada del docente en constantes.** Los cursos, los grados y las materias salen de lo
   que el docente importó o configuró, no de `lib/constants.ts`. Ahí vivían `CURSOS_ORDER`,
   `DIRECTORES` y `GRADE_META`, y ataban la app a un solo profesor. Lo que queda atado son

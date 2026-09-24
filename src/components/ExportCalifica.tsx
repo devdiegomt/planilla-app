@@ -126,7 +126,7 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
   }
 
   async function guardarEncabezados(p: PlatformCalifica) {
-    const ms = validateHeaderAgainstSlots(p, course.grade);
+    const ms = validateHeaderAgainstSlots(p, course.grade, yearCfg?.subjects);
     if (ms.length > 0) throw new Error(describeMismatches(ms, course.grade));
     const otroT = p.achievements.find(a => a.trimestre !== trimestre);
     if (p.periodo !== trimestre || otroT) {

@@ -1,6 +1,6 @@
 import type { Student, Course, PlatformHistory, TrimesterSnapshot } from '@/types';
 import { calcDef } from './formula';
-import { slotsFor } from './constants';
+import { slotsFor, type ConSlots } from './constants';
 
 /**
  * El historial de definitivas que trae `historial-extractor` (planilla-v2).
@@ -385,6 +385,7 @@ export function resumenDe(
   student: Student,
   course: Pick<Course, 'grade' | 'trimestre' | 'year'>,
   cierres: Pick<TrimesterSnapshot, 'trimestre' | 'year' | 'definitiva'>[] = [],
+  subjects: ConSlots[] | undefined,
 ): ResumenEstudiante {
   const hist = student.platformHistory;
   const delAnio = hist && hist.year === course.year ? hist.definitivas : {};
@@ -395,7 +396,7 @@ export function resumenDe(
   }
 
   const enCurso = String(course.trimestre).padStart(2, '0');
-  const defApp = calcDef(student.subnotas ?? {}, slotsFor(course.grade), 'platform').definitiva;
+  const defApp = calcDef(student.subnotas ?? {}, slotsFor(course.grade, subjects), 'platform').definitiva;
 
   const periodos: PeriodoResumen[] = [];
   for (const p of PERIODOS) {

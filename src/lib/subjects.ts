@@ -1,4 +1,5 @@
 import type { SubjectConfig, YearConfig } from '@/types';
+import { slotsFor, type SlotDef } from './constants';
 
 /**
  * Las materias del docente, por grado.
@@ -52,4 +53,37 @@ export function normalizeSubjects(subjects: SubjectConfig[]): SubjectConfig[] {
     byGrade.set(s.grade, { ...s, codMat: s.codMat.trim(), materia: s.materia.trim() });
   }
   return [...byGrade.values()].sort((a, b) => a.grade - b.grade);
+}
+
+/**
+ * Los pesos internos de las subnotas de un grado.
+ *
+ * Si el docente trajo la matriz de actividades de la plataforma, son los suyos;
+ * si no, los de las constantes. Medidos el 24/09/2026 contra la pantalla 831,
+ * los fijos resultaron exactos para 8°, 9°, 10° y 11° **de informática**: no
+ * son un error, son los de una materia sola.
+ */
+export function slotsOf(
+  cfg: Pick<YearConfig, 'subjects'> | undefined,
+  grade: number,
+): SlotDef[] {
+  const propios = subjectFor(cfg, grade)?.slots;
+  return slotsFor(grade, cfg?.subjects);
+}
+
+/** Deja los pesos leídos en la materia de ese grado, creándola si no estaba. */
+export function conSlots(
+  subjects: SubjectConfig[] | undefined,
+  grade: number,
+  slots: SlotDef[],
+): SubjectConfig[] {
+  const lista = subjects ?? [];
+  if (lista.some(s => s.grade === grade)) {
+    return lista.map(s => (s.grade === grade ? { ...s, slots } : s));
+  }
+  // Sin pasar por normalizeSubjects a propósito: tira las materias vacías, y
+  // acá la materia todavía puede estarlo. Los pesos del grado son válidos
+  // aunque el docente no haya escrito aún el nombre ni el código.
+  return [...lista, { grade, codMat: '', materia: '', slots }]
+    .sort((a, b) => a.grade - b.grade);
 }

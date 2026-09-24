@@ -21,7 +21,7 @@ import type ExcelJS from 'exceljs';
 import * as XLSX from 'xlsx';
 import type { Achievement } from '@/types';
 import { normalizeName } from './utils';
-import { slotsFor } from './constants';
+import { slotsFor, type ConSlots } from './constants';
 
 export interface AchievementColumn {
   /** Índice de columna en la hoja (1-based, como ExcelJS). */
@@ -323,8 +323,9 @@ export function columnsFromStored(list: Achievement[]): AchievementColumn[] {
 export function validateHeaderAgainstSlots(
   header: { achievements: AchievementColumn[] },
   grade: number,
+  subjects: ConSlots[] | undefined,
 ): HeaderMismatch[] {
-  const slots = slotsFor(grade);
+  const slots = slotsFor(grade, subjects);
   const out: HeaderMismatch[] = [];
 
   if (header.achievements.length !== slots.length) {

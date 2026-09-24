@@ -6,12 +6,14 @@ import { db } from '@/lib/db';
 import { computeCourseStats, computeAttendanceStats, type StudentDef } from '@/lib/stats';
 import { NOTA_APROBACION, NOTA_EXPERTO } from '@/lib/constants';
 import type { Course } from '@/types';
+import { useSubjects } from '@/lib/useSubjects';
 
 interface Props {
   course: Course;
 }
 
 export function CourseDashboard({ course }: Props) {
+  const subjects = useSubjects(course.year);
   const students = useLiveQuery(
     () => db.students.where('courseId').equals(course.id!).toArray(),
     [course.id],
@@ -21,7 +23,10 @@ export function CourseDashboard({ course }: Props) {
     [course.id],
   ) ?? [];
 
-  const stats = useMemo(() => computeCourseStats(students, course.grade), [students, course.grade]);
+  const stats = useMemo(
+    () => computeCourseStats(students, course.grade, subjects),
+    [students, course.grade, subjects],
+  );
   const att = useMemo(
     () => computeAttendanceStats(students, marks, course.id!),
     [students, marks, course.id],

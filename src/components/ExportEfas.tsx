@@ -5,10 +5,12 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { exportEfas, type EfasReport } from '@/lib/efasExporter';
 import { downloadBlob } from '@/lib/utils';
+import { useSubjects } from '@/lib/useSubjects';
 
 export function ExportEfas() {
   const courses = useLiveQuery(() => db.courses.toArray()) ?? [];
   const students = useLiveQuery(() => db.students.toArray()) ?? [];
+  const subjects = useSubjects();
   const trimestreDefault = courses[0]?.trimestre ?? 2;
 
   const [trimestre, setTrimestre] = useState<number>(trimestreDefault);
@@ -20,7 +22,7 @@ export function ExportEfas() {
     setBusy(true); setErr(null);
     try {
       const byCourse = groupBy(students, s => s.courseId);
-      const { blob, report } = await exportEfas(courses, byCourse, trimestre);
+      const { blob, report } = await exportEfas(courses, byCourse, trimestre, subjects);
       downloadBlob(blob, report.filename);
       setLastReport(report);
     } catch (e) {
