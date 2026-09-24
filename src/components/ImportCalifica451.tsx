@@ -12,6 +12,7 @@ import {
 import { courseFromCalificaSheet } from '@/lib/importer';
 import { downloadBlob } from '@/lib/utils';
 import type { Achievement, Course, Student } from '@/types';
+import { useSubjects } from '@/lib/useSubjects';
 
 interface Resultado {
   filename: string;
@@ -30,6 +31,7 @@ interface Resultado {
  * devuelve el mismo archivo con las notas de la app.
  */
 export function ImportCalifica451() {
+  const subjects = useSubjects();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [res, setRes] = useState<Resultado | null>(null);
@@ -91,7 +93,7 @@ export function ImportCalifica451() {
         const ref = hoja && courses.get(hoja.data.curso);
         if (!hoja || !ref) continue;
         const p = hoja.data;
-        if (validateHeaderAgainstSlots(p, g).length > 0) {
+        if (validateHeaderAgainstSlots(p, g, subjects).length > 0) {
           avisos.push(`${g}°: los encabezados no coinciden con el mapeo de logros; no se guardaron.`);
           continue;
         }
@@ -116,7 +118,7 @@ export function ImportCalifica451() {
         const ss = await db.students.where('courseId').equals(c.id).toArray();
         activos.set(c.code, ss.filter(s => !s.withdrawnAt));
       }
-      const cursos = fillPlatformWorkbook(wb, sheets, courses, activos)
+      const cursos = fillPlatformWorkbook(wb, sheets, courses, activos, subjects)
         .sort((a, b) => parseInt(a.curso) - parseInt(b.curso));
 
       const out = writeWorkbookXls(wb);

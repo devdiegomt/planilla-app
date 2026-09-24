@@ -56,8 +56,27 @@ export const NOTA_APROBACION = 70;
 export const NOTA_EXPERTO = 80;
 export const NOTA_MAX = 100;
 
-/** Devuelve los slots de subnotas correctos según el grado del curso. */
-export function slotsFor(grade: number): SlotDef[] {
+/**
+ * Las materias del docente, en lo único que a los slots les importa de ellas.
+ * Se escribe así y no como `SubjectConfig` para no importar `@/types`, que a
+ * su vez importa `SlotDef` de acá.
+ */
+export type ConSlots = { grade: number; slots?: SlotDef[] };
+
+/**
+ * Los slots de subnotas de un grado.
+ *
+ * El segundo parámetro es **obligatorio a propósito**, aunque casi siempre
+ * termine en los valores fijos. Cuando era opcional, cualquier pantalla que se
+ * olvidara de pasar las materias del docente calculaba con los pesos de
+ * informática sin que nada lo avisara — y dos pantallas mostrando definitivas
+ * distintas del mismo estudiante es el peor error que puede tener esta app.
+ * Siendo obligatorio, el que no tiene de dónde sacarlas escribe `undefined` y
+ * eso se ve en el diff.
+ */
+export function slotsFor(grade: number, subjects: ConSlots[] | undefined): SlotDef[] {
+  const propios = subjects?.find(s => s.grade === grade)?.slots;
+  if (propios?.length) return propios;
   return grade === 11 ? SLOTS_11 : SLOTS_8_10;
 }
 
@@ -72,8 +91,8 @@ export interface ColumnDef {
   cats: string[];                     // categorías tocadas (para tooltip: 'K', 'C', ...)
 }
 
-export function columnsFor(grade: number): ColumnDef[] {
-  const slots = slotsFor(grade);
+export function columnsFor(grade: number, subjects: ConSlots[] | undefined): ColumnDef[] {
+  const slots = slotsFor(grade, subjects);
   const map = new Map<string, ColumnDef>();
   for (const s of slots) {
     const col = s.key.split('_')[1];  // 'K1_C4' → 'C4'

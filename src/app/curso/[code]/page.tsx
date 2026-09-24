@@ -19,6 +19,7 @@ import { HistorialTrimestres } from '@/components/HistorialTrimestres';
 import { Seccion, SeccionFija } from '@/components/Seccion';
 import { computeCourseStats } from '@/lib/stats';
 import type { Student } from '@/types';
+import { useSubjects } from '@/lib/useSubjects';
 
 export default function CoursePage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = use(params);
@@ -29,6 +30,7 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
   const cicloParam = parseInt(searchParams.get('ciclo') ?? '') || undefined;
 
   const course = useLiveQuery(() => getCourseByCode(code), [code]);
+  const subjects = useSubjects();
   const students = useLiveQuery<Student[]>(
     () => course?.id
       ? db.students.where('courseId').equals(course.id).sortBy('order')
@@ -47,9 +49,9 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
   const resumenCurso = useMemo(() => {
     const vivos = students?.filter(s => !s.withdrawnAt) ?? [];
     if (!course || vivos.length === 0) return null;
-    const st = computeCourseStats(vivos, course.grade);
+    const st = computeCourseStats(vivos, course.grade, subjects);
     return `${st.activos} activos · promedio ${st.promedio} · ${st.aprobandoPct}% aprobando`;
-  }, [students, course]);
+  }, [students, course, subjects]);
 
   if (!course) {
     return (

@@ -1,4 +1,5 @@
 /** Tipos del dominio de la app. */
+import type { SlotDef } from '@/lib/constants';
 
 /**
  * Justificación de una marca de asistencia.
@@ -272,6 +273,12 @@ export interface SubjectConfig {
   grade: number;
   codMat: string;
   materia: string;
+  /**
+   * Los pesos internos de cada subnota, leídos de la matriz de actividades.
+   * Ausente = se usan los de `SLOTS_8_10` / `SLOTS_11`. Campo opcional y no
+   * indexado: viaja dentro de YearConfig, que ya sincroniza.
+   */
+  slots?: SlotDef[];
 }
 
 export interface YearConfig {

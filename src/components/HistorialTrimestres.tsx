@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { resumenDe, type ResumenEstudiante } from '@/lib/historial';
 import type { Course, Student } from '@/types';
 import { NOTA_APROBACION } from '@/lib/constants';
+import { useSubjects } from '@/lib/useSubjects';
 
 /**
  * En cuánto lleva la materia cada estudiante.
@@ -27,6 +28,7 @@ export function HistorialTrimestres({ course, students }: {
    * plataforma solo rellena los que nunca se cerraron acá — el caso de quien
    * empezó a usar la app a mitad de año.
    */
+  const subjects = useSubjects(course.year);
   const cierres = useLiveQuery(
     () => db.trimesterSnapshots.where('courseCode').equals(course.code).toArray(),
     [course.code],
@@ -40,9 +42,9 @@ export function HistorialTrimestres({ course, students }: {
       porAlumno.set(c.studentSyncId, lista);
     }
     return students.map(s => ({
-      s, r: resumenDe(s, course, porAlumno.get(s.syncId ?? '') ?? []),
+      s, r: resumenDe(s, course, porAlumno.get(s.syncId ?? '') ?? [], subjects),
     }));
-  }, [students, course, cierres]);
+  }, [students, course, cierres, subjects]);
 
   const conHistorial = filas.some(f =>
     f.r.periodos.some(p => p.origen !== 'app' && p.valor != null));

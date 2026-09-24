@@ -11,7 +11,7 @@
 
 import ExcelJS from 'exceljs';
 import type { Course, Student, ExportReport } from '@/types';
-import { CURSO_PALABRAS, slotsFor, columnsFor } from './constants';
+import { CURSO_PALABRAS, slotsFor, columnsFor, type ConSlots } from './constants';
 import type { SubjectConfig } from '@/types';
 import { normalizeName, findFuzzyMatch } from './utils';
 import {
@@ -37,7 +37,9 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
   const cursoNum = parseInt(course.code);
   const cursoPalabras = CURSO_PALABRAS[cursoNum] ?? `CURSO ${cursoNum}`;
   const gradeNum = course.grade;
-  const slots = slotsFor(gradeNum);
+  // Los pesos salen de la materia del docente; `subject` ya viene en los
+  // parámetros, así que no hace falta plomería nueva.
+  const slots = slotsFor(gradeNum, [subject]);
   const nSlots = slots.length;                   // 10 u 11
   const meta = subject;
   const codGru = String(gradeNum).padStart(2, '0').padEnd(5, ' ');
@@ -61,7 +63,7 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
   //    app asume. Se escribe posicionalmente, así que un cambio de plan de
   //    logros mandaría cada nota al logro equivocado sin ninguna señal.
   const header = readCalificaHeader(ws);
-  const mismatches = validateHeaderAgainstSlots(header, gradeNum);
+  const mismatches = validateHeaderAgainstSlots(header, gradeNum, [subject]);
   if (mismatches.length > 0) {
     throw new Error(describeMismatches(mismatches, gradeNum));
   }
@@ -75,7 +77,7 @@ export async function exportCalifica(params: ExportParams): Promise<{ blob: Blob
     `Curso:  ${cursoPalabras}  (${cursoNum})          Materia:${meta.materia}`;
 
   // 1b) Encabezados de logros del trimestre: la plantilla es solo el molde.
-  const encabezados = elegirEncabezados(course, header.achievements, trimestre);
+  const encabezados = elegirEncabezados(course, header.achievements, trimestre, [subject]);
   encabezados.forEach((a, i) => {
     const col = header.firstGradeCol + i;
     ws.getRow(header.headerRow - 1).getCell(col).value = a.desc;
@@ -190,13 +192,14 @@ function elegirEncabezados(
   course: Course,
   plantilla: AchievementColumn[],
   trimestre: number,
+  subjects: ConSlots[] | undefined,
 ): AchievementColumn[] {
   const delTrimestre = (list: AchievementColumn[]) =>
     list.length > 0 && list.every(a => a.trimestre === trimestre);
 
   const guardados = columnsFromStored(course.achievements ?? []);
   if (delTrimestre(guardados)) {
-    const ms = validateHeaderAgainstSlots({ achievements: guardados }, course.grade);
+    const ms = validateHeaderAgainstSlots({ achievements: guardados }, course.grade, subjects);
     if (ms.length > 0) throw new Error(describeMismatches(ms, course.grade));
     return guardados;
   }
@@ -230,8 +233,9 @@ export interface ObsExportReport {
 export async function exportObservations(
   course: Course,
   students: Student[],                 // activos
+  subjects: ConSlots[] | undefined,
 ): Promise<{ blob: Blob; report: ObsExportReport } | null> {
-  const columns = columnsFor(course.grade);
+  const columns = columnsFor(course.grade, subjects);
   const colBySlot = new Map<string, { column: string; cats: string[] }>();
   for (const c of columns) {
     for (const k of c.slotKeys) colBySlot.set(k, { column: c.column, cats: c.cats });

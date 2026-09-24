@@ -16,7 +16,7 @@
 
 import * as XLSX from 'xlsx';
 import type { Course, Student } from '@/types';
-import { slotsFor } from './constants';
+import { slotsFor, type ConSlots } from './constants';
 import {
   validateHeaderAgainstSlots, describeMismatches, type PlatformCalifica,
 } from './califica';
@@ -41,6 +41,7 @@ export function fillPlatformWorkbook(
   sheets: { name: string; data: PlatformCalifica }[],
   courses: Map<string, Course>,
   activosPorCurso: Map<string, Student[]>,
+  subjects: ConSlots[] | undefined,
 ): CourseFillReport[] {
   return sheets.map(({ name, data }) => {
     const rep: CourseFillReport = {
@@ -60,14 +61,14 @@ export function fillPlatformWorkbook(
       rep.omitido = `La hoja es del T${data.periodo} y el curso está en T${course.trimestre}.`;
       return rep;
     }
-    const ms = validateHeaderAgainstSlots(data, course.grade);
+    const ms = validateHeaderAgainstSlots(data, course.grade, subjects);
     if (ms.length > 0) {
       rep.omitido = describeMismatches(ms, course.grade);
       return rep;
     }
 
     const ws = wb.Sheets[name];
-    const slots = slotsFor(course.grade);
+    const slots = slotsFor(course.grade, subjects);
     const activos = activosPorCurso.get(course.code) ?? [];
     const porCodigo = new Map(activos.filter(s => s.codAlum).map(s => [s.codAlum!, s]));
     const usados = new Set<Student>();

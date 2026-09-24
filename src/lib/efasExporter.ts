@@ -7,7 +7,7 @@
 
 import ExcelJS from 'exceljs';
 import type { Course, Student } from '@/types';
-import { NOTA_APROBACION, NOTA_EXPERTO } from './constants';
+import { NOTA_APROBACION, NOTA_EXPERTO, type ConSlots } from './constants';
 import { compareCourseCodes } from './courseOrder';
 import { computeCourseStats } from './stats';
 
@@ -39,6 +39,7 @@ export interface EfasReport {
 export function buildEfasRows(
   courses: Course[],
   studentsByCourse: Map<number, Student[]>,
+  subjects: ConSlots[] | undefined,
 ): { rows: EfasRow[]; totals: Omit<EfasRow, 'curso'>; honor: HonorRow[] } {
   const rows: EfasRow[] = [];
   const honor: HonorRow[] = [];
@@ -48,7 +49,7 @@ export function buildEfasRows(
 
   for (const c of ordered) {
     const students = studentsByCourse.get(c.id!) ?? [];
-    const stats = computeCourseStats(students, c.grade);
+    const stats = computeCourseStats(students, c.grade, subjects);
     rows.push({
       curso: c.code,
       activos: stats.activos,
@@ -84,8 +85,9 @@ export async function exportEfas(
   courses: Course[],
   studentsByCourse: Map<number, Student[]>,
   trimestre: number,
+  subjects: ConSlots[] | undefined,
 ): Promise<{ blob: Blob; report: EfasReport }> {
-  const { rows, totals, honor } = buildEfasRows(courses, studentsByCourse);
+  const { rows, totals, honor } = buildEfasRows(courses, studentsByCourse, subjects);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'planilla-app';

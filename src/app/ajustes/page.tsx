@@ -2,6 +2,7 @@ import { SubjectsConfig } from '@/components/SubjectsConfig';
 import { ImportPlanilla } from '@/components/ImportPlanilla';
 import { ImportCodAlum } from '@/components/ImportCodAlum';
 import { ImportHistorial } from '@/components/ImportHistorial';
+import { ImportActividades } from '@/components/ImportActividades';
 import { CloseTrimester } from '@/components/CloseTrimester';
 import { BackupRestore } from '@/components/BackupRestore';
 import { RepairPanel } from '@/components/RepairPanel';
@@ -46,6 +47,9 @@ export default function AjustesPage() {
         </div>
         <div className="border-t pt-4">
           <ImportHistorial />
+        </div>
+        <div className="border-t pt-4">
+          <ImportActividades />
         </div>
       </section>
 

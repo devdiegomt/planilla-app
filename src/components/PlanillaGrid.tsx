@@ -12,6 +12,7 @@ import { nextCell, sanitizeNota, notaValue } from '@/lib/gridNav';
 import { planPaste, type PastePlan } from '@/lib/pasteNotas';
 import { PasteNotasPreview } from './PasteNotasPreview';
 import type { Course } from '@/types';
+import { useSubjects } from '@/lib/useSubjects';
 
 interface Props {
   course: Course;
@@ -50,12 +51,13 @@ export function PlanillaGrid({ course }: Props) {
   // Antes del return temprano de abajo: los hooks no pueden quedar detrás de
   // un `if`.
   const [pastePlan, setPastePlan] = useState<PastePlan | null>(null);
+  const subjects = useSubjects(course.year);
 
   if (!students) return <p className="text-sm text-neutral-500">Cargando...</p>;
 
   const activos = students.filter(s => !s.withdrawnAt);
-  const slots = slotsFor(course.grade);
-  const columns = columnsFor(course.grade);
+  const slots = slotsFor(course.grade, subjects);
+  const columns = columnsFor(course.grade, subjects);
   // Nombres reales de los logros, si ya se leyeron de la plantilla Califica.
   const titleByColumn = new Map(
     (course.achievements ?? [])

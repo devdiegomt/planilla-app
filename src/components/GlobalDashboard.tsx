@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { computeCourseStats } from '@/lib/stats';
 import { compareCourseCodes, gradesOf } from '@/lib/courseOrder';
 import type { Course, Student } from '@/types';
+import { useSubjects } from '@/lib/useSubjects';
 
 interface CourseCard {
   course: Course;
@@ -21,6 +22,7 @@ interface CourseCard {
 export function GlobalDashboard() {
   const courses = useLiveQuery(() => db.courses.toArray()) ?? [];
   const students = useLiveQuery(() => db.students.toArray()) ?? [];
+  const subjects = useSubjects();
 
   const cards: CourseCard[] = useMemo(() => {
     const byCourse = new Map<number, Student[]>();
@@ -29,7 +31,7 @@ export function GlobalDashboard() {
       if (arr) arr.push(s); else byCourse.set(s.courseId, [s]);
     }
     return courses.map(c => {
-      const stats = computeCourseStats(byCourse.get(c.id!) ?? [], c.grade);
+      const stats = computeCourseStats(byCourse.get(c.id!) ?? [], c.grade, subjects);
       return {
         course: c,
         activos: stats.activos,
