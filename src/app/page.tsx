@@ -1,4 +1,5 @@
 import { GlobalDashboard } from '@/components/GlobalDashboard';
+import { Buscador } from '@/components/Buscador';
 import { ImportCalifica451 } from '@/components/ImportCalifica451';
 import { TodayClasses } from '@/components/TodayClasses';
 import { PrimerArranque } from '@/components/PrimerArranque';
@@ -37,7 +38,15 @@ export default function Home() {
 
       <section>
         <h2 className="font-medium mb-3">Cursos</h2>
-        <GlobalDashboard />
+        {/*
+        * Arriba de todo: es lo primero que se hace al abrir la app con una duda
+        * puntual, y bajarlo lo convertiría en algo que hay que ir a buscar.
+        */}
+      <section>
+        <Buscador />
+      </section>
+
+      <GlobalDashboard />
       </section>
 
       <section className="border rounded-lg p-4 bg-neutral-50 space-y-5">
