@@ -192,7 +192,7 @@ export function HorarioEditor() {
       </div>
 
       {slots.length === 0 ? (
-        <p className="border rounded-lg p-6 text-sm text-neutral-500 text-center">
+        <p className="tarjeta p-6 text-sm text-neutral-500 text-center">
           Empieza con “Nueva franja”: defines la hora de inicio y fin, y después
           vas llenando cada día.
         </p>
@@ -377,7 +377,7 @@ function GridDesktop({
   huecos: Map<string, HorarioGap>;
 }) {
   return (
-    <div className="hidden sm:block border rounded-lg overflow-x-auto">
+    <div className="hidden sm:block tarjeta overflow-x-auto">
       <table className="w-full table-fixed text-sm border-collapse">
         <thead>
           <tr className="bg-neutral-50 border-b">
@@ -466,7 +466,7 @@ function TimelineMobile({
             aria-pressed={selectedDay === dt}
             className={`shrink-0 px-3 py-1.5 rounded-md text-sm border ${
               selectedDay === dt
-                ? 'bg-neutral-900 text-white border-neutral-900'
+                ? 'boton-primario border-acento'
                 : 'bg-white text-neutral-700'
             }`}
           >
@@ -616,7 +616,7 @@ function BlockEditor({
               onClick={() => set({ kind: k })}
               aria-pressed={kind === k}
               className={`px-2 py-1.5 rounded-md border text-sm capitalize ${
-                kind === k ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white'
+                kind === k ? 'boton-primario border-acento' : 'bg-white'
               }`}
             >
               {k}
@@ -804,7 +804,7 @@ function BreakEditor({
                   onClick={() => alternarDia(dt)}
                   aria-pressed={activo}
                   className={`shrink-0 w-20 px-2 py-1.5 rounded-md border text-xs ${
-                    activo ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white text-neutral-400'
+                    activo ? 'boton-primario border-acento' : 'bg-white text-neutral-400'
                   }`}
                 >
                   {dayLabel(dt)}
@@ -824,7 +824,7 @@ function BreakEditor({
                         }
                         className={`w-7 py-1.5 text-xs border-r last:border-r-0 disabled:opacity-40 ${
                           (d.turns[dt] ?? undefined) === t
-                            ? 'bg-neutral-900 text-white'
+                            ? 'boton-primario'
                             : 'bg-white text-neutral-600'
                         }`}
                       >

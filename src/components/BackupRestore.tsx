@@ -50,7 +50,7 @@ export function BackupRestore() {
         <button
           disabled={busy}
           onClick={doExport}
-          className="px-4 py-1.5 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
+          className="px-4 py-1.5 rounded-md boton-primario text-sm disabled:opacity-40"
         >
           Descargar copia
         </button>

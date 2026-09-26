@@ -239,7 +239,7 @@ export function EmailGenerator() {
           const { cuerpo } = course ? renderizar(c) : { cuerpo: '' };
           const voz = vozDe(c);
           return (
-            <div key={c.studentSyncId} className="border rounded-lg overflow-hidden">
+            <div key={c.studentSyncId} className="tarjeta overflow-hidden">
               <div className="px-3 py-2 bg-neutral-50 border-b flex items-center gap-2 flex-wrap">
                 <span className="font-medium">{c.nombre}</span>
                 {c.email && <span className="text-xs text-neutral-500">{c.email}</span>}
@@ -278,7 +278,7 @@ export function EmailGenerator() {
                   </select>
                   <button
                     onClick={() => copiar(c)}
-                    className="px-2 py-1 rounded bg-neutral-900 text-white text-xs"
+                    className="px-2 py-1 rounded boton-primario text-xs"
                   >
                     {copiado === c.studentSyncId ? '✓ Copiado' : 'Copiar'}
                   </button>

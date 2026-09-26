@@ -36,7 +36,7 @@ export function ChangeLogView({ course }: Props) {
   };
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="tarjeta overflow-hidden">
       <header
         className="px-4 py-2.5 bg-neutral-50 border-b flex items-center justify-between cursor-pointer select-none"
         onClick={() => setOpen(o => !o)}

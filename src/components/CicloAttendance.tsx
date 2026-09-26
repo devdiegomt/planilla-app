@@ -171,7 +171,7 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
   }, [activos, ciclo, porSesion, sesiones]);
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="tarjeta overflow-hidden">
       <header className="px-4 py-3 bg-neutral-50 border-b flex items-center gap-3 flex-wrap">
         <span className="text-sm font-medium">Asistencia · Ciclo</span>
         <select
@@ -619,7 +619,7 @@ function ReasonCell({
             <button
               type="button"
               onClick={guardarYCerrar}
-              className="text-[11px] px-2 py-0.5 rounded bg-neutral-900 text-white"
+              className="text-[11px] px-2 py-0.5 rounded boton-primario"
             >
               Guardar
             </button>
@@ -697,7 +697,7 @@ function ConfirmButton({
   return (
     <button
       onClick={() => onConfirm()}
-      className="px-3 py-1 rounded-md bg-neutral-900 text-white text-xs font-medium"
+      className="px-3 py-1 rounded-md boton-primario text-xs font-medium"
     >
       Confirmar {label}
     </button>

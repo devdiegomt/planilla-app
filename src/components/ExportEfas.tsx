@@ -68,7 +68,7 @@ export function ExportEfas() {
         <button
           disabled={busy}
           onClick={generate}
-          className="px-4 py-1.5 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
+          className="px-4 py-1.5 rounded-md boton-primario text-sm disabled:opacity-40"
         >
           {busy ? 'Generando...' : `Generar EFAS T${trimestre}`}
         </button>
@@ -80,7 +80,7 @@ export function ExportEfas() {
       {err && <p className="text-sm text-red-600">❌ {err}</p>}
 
       {lastReport && (
-        <div className="border rounded-lg overflow-hidden text-sm">
+        <div className="tarjeta overflow-hidden text-sm">
           <div className="bg-neutral-50 px-3 py-2 border-b flex items-baseline justify-between">
             <span className="font-medium">✅ {lastReport.filename}</span>
             <span className="text-xs text-neutral-500">

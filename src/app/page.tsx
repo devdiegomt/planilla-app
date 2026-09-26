@@ -49,7 +49,7 @@ export default function Home() {
       <GlobalDashboard />
       </section>
 
-      <section className="border rounded-lg p-4 bg-neutral-50 space-y-5">
+      <section className="panel p-4 space-y-5">
         <div>
           <h2 className="font-medium mb-3">Asistencia para Classroom Live</h2>
           <ExportDayAttendance />
@@ -65,7 +65,7 @@ export default function Home() {
         * Planilla del año, los códigos y el historial son de arranque —una vez
         * al año o una vez y nunca más— y se fueron a /ajustes.
         */}
-      <section className="border rounded-lg p-4 bg-neutral-50">
+      <section className="panel p-4">
         <ImportCalifica451 />
       </section>
     </main>

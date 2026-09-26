@@ -21,12 +21,12 @@ export default function EquipoPage() {
         descripcion="Lo que vale solo para el celular o el computador en el que estás."
       />
 
-      <section className="border rounded-lg p-4 bg-neutral-50">
+      <section className="panel p-4">
         <h2 className="font-medium mb-3">Instalar la app</h2>
         <PwaInstall />
       </section>
 
-      <section className="border rounded-lg p-4 bg-neutral-50">
+      <section className="panel p-4">
         <h2 className="font-medium mb-3">Avisos</h2>
         <PushSetup />
       </section>

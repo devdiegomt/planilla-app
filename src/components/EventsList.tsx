@@ -75,7 +75,7 @@ export function EventsList({
           {onlyUpcoming ? 'Sin próximas entregas.' : 'Sin eventos.'}
         </p>
       ) : (
-        <ul className="divide-y divide-neutral-100 border rounded-lg overflow-hidden">
+        <ul className="divide-y divide-neutral-100 tarjeta overflow-hidden">
           {visible.map(e => <EventRow key={e.id} ev={e} showCourse={!courseCode} />)}
           {hidden > 0 && (
             <li className="p-2 text-center text-xs text-neutral-500">
@@ -189,7 +189,7 @@ function NewEventForm({
       <button
         type="submit"
         disabled={!title.trim() || !date}
-        className="px-3 py-1 rounded bg-neutral-900 text-white text-sm disabled:opacity-40"
+        className="px-3 py-1 rounded boton-primario text-sm disabled:opacity-40"
       >
         Añadir
       </button>

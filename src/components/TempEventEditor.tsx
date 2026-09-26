@@ -87,7 +87,7 @@ export function TempEventEditor({
               onClick={() => set({ kind: t.valor })}
               aria-pressed={kind === t.valor}
               className={`px-1.5 py-1.5 rounded-md border text-xs ${
-                kind === t.valor ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white'
+                kind === t.valor ? 'boton-primario border-neutral-900' : 'bg-white'
               }`}
             >
               {t.texto}
@@ -214,11 +214,11 @@ export function TempEventsPanel({ dias = 14 }: { dias?: number }) {
       </div>
 
       {proximos.length === 0 ? (
-        <p className="border rounded-lg p-4 text-sm text-neutral-500 text-center">
+        <p className="tarjeta p-4 text-sm text-neutral-500 text-center">
           Nada fuera de lo normal en los próximos {dias} días.
         </p>
       ) : (
-        <ul className="divide-y divide-neutral-100 border rounded-lg overflow-hidden">
+        <ul className="divide-y divide-neutral-100 tarjeta overflow-hidden">
           {proximos.map(ev => {
             const enCurso = ev.date <= hoy && hoy <= eventLastDate(ev);
             return (

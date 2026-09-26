@@ -44,11 +44,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             orden (ver lib/recovery.ts). */}
         <script dangerouslySetInnerHTML={{ __html: BOOT_GUARD_SCRIPT }} />
       </head>
-      <body className="min-h-screen bg-white text-neutral-900 antialiased">
+      <body className="min-h-screen antialiased">
         <SessionProvider>
           {/* z-50: la barra es el chrome de la app y debe quedar por encima de
               las columnas fijas de la planilla (z-10) y de sus popovers (z-30). */}
-          <header className="border-b bg-white sticky top-0 z-50">
+          <header className="border-b border-borde bg-superficie/85 backdrop-blur sticky top-0 z-50">
             <div className="max-w-5xl mx-auto px-3 sm:px-6 py-1 sm:py-3 flex items-center gap-2 sm:gap-4 text-sm">
               <MainNav />
               <div className="ml-auto flex items-center gap-2 shrink-0">

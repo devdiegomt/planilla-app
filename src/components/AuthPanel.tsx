@@ -86,7 +86,7 @@ export function AuthPanel() {
   if (user) return <p className="text-sm text-neutral-500">Redirigiendo…</p>;
 
   return (
-    <div className="border rounded-lg p-4 bg-white space-y-4">
+    <div className="tarjeta p-4 space-y-4">
       {step === 'email' && (
         <form onSubmit={sendCode} className="space-y-3">
           <label className="text-sm block">
@@ -105,7 +105,7 @@ export function AuthPanel() {
           <button
             type="submit"
             disabled={busy || !email.trim()}
-            className="w-full px-4 py-2 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
+            className="w-full px-4 py-2 rounded-md boton-primario text-sm disabled:opacity-40"
           >
             {busy ? 'Enviando…' : 'Enviar código'}
           </button>
@@ -144,7 +144,7 @@ export function AuthPanel() {
           <button
             type="submit"
             disabled={busy || code.length < 6}
-            className="w-full px-4 py-2 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
+            className="w-full px-4 py-2 rounded-md boton-primario text-sm disabled:opacity-40"
           >
             {busy ? 'Verificando…' : 'Confirmar'}
           </button>

@@ -1,3 +1,89 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * El sistema visual.
+ *
+ * Por qué se veía plana, medido sobre el propio código: **nueve sombras en
+ * toda la app**, ningún fondo de página, y 66 `bg-white` junto a 70
+ * `bg-neutral-50` — tarjetas blancas sobre una página blanca, separadas apenas
+ * por una línea de un píxel. No le faltaba color: le faltaba que las cosas se
+ * despegaran unas de otras.
+ *
+ * Tres decisiones, en orden de efecto:
+ *
+ *   1. **La página deja de ser blanca.** Con un fondo apenas tibio, cada
+ *      tarjeta blanca pasa a ser una tarjeta sin dibujarle nada encima.
+ *   2. **Hay dos niveles y no uno.** Lo que sobresale (`.tarjeta`) y lo que se
+ *      hunde (`.panel`). Esa distinción ya estaba en el código —lo blanco
+ *      sobresalía, lo gris se hundía— y se conserva en vez de aplanarla.
+ *   3. **El botón principal deja de ser negro.** El negro era lo que le daba
+ *      ese aire de herramienta a medio terminar.
+ *
+ * El acento es un verde profundo, por el árbol del colegio, y es UNA variable:
+ * cambiar `--acento` cambia toda la app.
+ */
+@layer base {
+  :root {
+    /* Superficies, de atrás hacia adelante. */
+    --fondo: 43 33% 97%;            /* la página */
+    --superficie: 0 0% 100%;        /* lo que sobresale */
+    --hundido: 43 22% 95%;          /* lo que va un nivel abajo */
+    --borde: 40 12% 87%;
+
+    /* Tinta. */
+    --tinta: 210 20% 14%;
+    --tinta-suave: 215 12% 42%;
+    --tinta-tenue: 215 10% 58%;
+
+    /* Acento. */
+    --acento: 157 46% 26%;
+    --acento-claro: 157 38% 94%;
+    --acento-tinta: 0 0% 100%;
+  }
+
+  body {
+    background-color: hsl(var(--fondo));
+    color: hsl(var(--tinta));
+    /* Las notas se leen en columna: que los dígitos no bailen de ancho. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1, h2, h3 { letter-spacing: -0.011em; }
+}
+
+@layer components {
+  /* Lo que sobresale del fondo. Reemplaza al `border rounded-lg bg-white`. */
+  .tarjeta {
+    background-color: hsl(var(--superficie));
+    border: 1px solid hsl(var(--borde));
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 2px hsl(var(--tinta) / 0.04),
+                0 1px 3px hsl(var(--tinta) / 0.06);
+  }
+
+  /*
+   * Lo que va DENTRO de una tarjeta y se lee un nivel más abajo: una vista
+   * previa, un bloque de ajustes, un resumen. Era `bg-neutral-50` con borde.
+   * Sin sombra a propósito: lo hundido no proyecta.
+   */
+  .panel {
+    background-color: hsl(var(--hundido));
+    border: 1px solid hsl(var(--borde));
+    border-radius: 0.75rem;
+  }
+
+  .hundido { background-color: hsl(var(--hundido)); }
+
+  .boton-primario {
+    background-color: hsl(var(--acento));
+    color: hsl(var(--acento-tinta));
+    border-radius: 0.5rem;
+    font-weight: 500;
+    box-shadow: 0 1px 2px hsl(var(--acento) / 0.25);
+    transition: background-color .15s ease;
+  }
+  .boton-primario:hover:not(:disabled) { background-color: hsl(var(--acento) / 0.88); }
+  .boton-primario:disabled { opacity: .45; box-shadow: none; }
+}
