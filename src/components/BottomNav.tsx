@@ -7,12 +7,15 @@ import { HomeIcon, NAV_LINKS } from './nav-icons';
 /**
  * Navegación de móvil, fija abajo.
  *
- * Los ocho destinos no caben en la fila de arriba a 375px: los `<Link>` se
- * encogen, los `<svg>` tienen `shrink-0` y terminan pisándose entre sí. Abajo
- * hay una fila entera para seis pestañas (~60px cada una, sobre el mínimo
- * táctil de 44px) y además queda al alcance del pulgar.
+ * Los destinos no caben en la fila de arriba a 375px: los `<Link>` se encogen,
+ * los `<svg>` tienen `shrink-0` y terminan pisándose entre sí. Abajo hay una
+ * fila entera, y además queda al alcance del pulgar.
  *
- * Ajustes no está acá: vive en el menú de `NavMenu`.
+ * Son **cinco** pestañas (~72px cada una, sobre el mínimo táctil de 44px).
+ * Eran seis: Classroom y Correos se mudaron a `/mas`, que es el cajón que
+ * puede crecer sin apretar la barra.
+ *
+ * Ajustes no está acá: se entra por "Más" y por el menú de `NavMenu`.
  *
  * `env(safe-area-inset-bottom)` deja libre la barra de gestos de Android/iOS;
  * sin eso la última fila de pestañas queda debajo del indicador del sistema.

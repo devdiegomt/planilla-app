@@ -37,6 +37,11 @@ export function ChecklistIcon() {
   );
 }
 
+/*
+ * CapIcon y MailIcon ya no están en la barra —Classroom y Correos se mudaron a
+ * /mas— pero se quedan dibujados: son los íconos de esos dos destinos y es
+ * donde van a hacer falta cuando la lista de "Más" los lleve.
+ */
 export function CapIcon() {
   return (
     <Svg>
@@ -68,14 +73,30 @@ export function GearIcon() {
   );
 }
 
+export function MoreIcon() {
+  return (
+    <Svg>
+      <circle cx="5" cy="12" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="19" cy="12" r="1.6" />
+    </Svg>
+  );
+}
+
 /**
- * Las cinco secciones de contenido. En la barra inferior se les antepone
- * Inicio; `short` es la etiqueta de móvil, donde cada pestaña tiene ~60px.
+ * Los destinos de la barra. En la de abajo se les antepone Inicio; `short` es
+ * la etiqueta de móvil, donde cada pestaña tiene ~60px.
+ *
+ * **Son cuatro y no seis a propósito.** Classroom y Correos estaban acá arriba
+ * y no son de todos los días para todo el mundo: a Diego los estudiantes le
+ * entregan por Classroom, pero a otro docente puede no servirle de nada. Con
+ * los dos en la barra, lo que se usa a diario compartía sitio con lo que se
+ * usa a veces — y no quedaba dónde poner lo que venga después. Ahora viven en
+ * `/mas`, que es el cajón que puede crecer sin apretar la barra.
  */
 export const NAV_LINKS = [
   { href: '/horario',    label: 'Horario',    short: 'Horario',  Icon: ClockIcon },
   { href: '/calendario', label: 'Calendario', short: 'Calend.',  Icon: CalendarIcon },
   { href: '/pendientes', label: 'Pendientes', short: 'Pend.',    Icon: ChecklistIcon },
-  { href: '/classroom',  label: 'Classroom',  short: 'Class.',   Icon: CapIcon },
-  { href: '/correos',    label: 'Correos',    short: 'Correos',  Icon: MailIcon },
+  { href: '/mas',        label: 'Más',        short: 'Más',      Icon: MoreIcon },
 ] as const;
