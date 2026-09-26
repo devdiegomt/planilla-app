@@ -136,6 +136,18 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   vacías con su posición y no solo contadas). Por lo mismo hay que traer la matriz antes
   de editarla: la app no puede llenar una que no ha visto.
 
+- **Con la base vacía el inicio no es el inicio** (`components/Inicio.tsx`). Sin un solo
+  curso, las siete secciones del inicio están vacías o no pueden hacer nada —pendientes
+  sin pendientes, EFAS sin a quién sumar, asistencia sin a quién marcar— y el único
+  camino de entrada quedaba al final de la página. Con `cursos === 0` se muestra solo
+  `Bienvenida`, que tiene **una sola cosa que hacer** y el importador ahí mismo, no
+  detrás de un enlace. El resto aparece cuando ya existe un curso.
+  Mientras Dexie responde (`cursos === undefined`) no se pinta nada: mostrar la
+  bienvenida y cambiarla medio segundo después es peor que esperar.
+  Los `href` de `setupSteps` apuntan a rutas reales y conviene comprobarlo contra el
+  árbol de `src/app`: el paso de materias seguía apuntando a `/ajustes` después de que
+  esa pantalla pasara a ser un índice.
+
 - **Nada del docente en constantes.** Los cursos, los grados y las materias salen de lo
   que el docente importó o configuró, no de `lib/constants.ts`. Ahí vivían `CURSOS_ORDER`,
   `DIRECTORES` y `GRADE_META`, y ataban la app a un solo profesor. Lo que queda atado son
