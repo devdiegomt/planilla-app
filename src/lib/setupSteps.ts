@@ -22,10 +22,19 @@ export interface SetupState {
   bloquesHorario: number;
   estudiantes: number;
   estudiantesConCodigo: number;
+  /**
+   * Cuántos grados tienen los pesos de SU matriz, traídos de la plataforma.
+   *
+   * No es un "ya lo hice" que el docente marque: sale de que
+   * `SubjectConfig.slots` exista, o sea de que la matriz llegó de verdad. Un
+   * paso que solo se puede marcar a mano no dice nada sobre el estado de la
+   * app; este sí.
+   */
+  gradosConMatriz: number;
 }
 
 export interface SetupStep {
-  id: 'califica' | 'anio' | 'materias' | 'horario' | 'codigos';
+  id: 'califica' | 'anio' | 'materias' | 'horario' | 'codigos' | 'matriz';
   titulo: string;
   /** Qué desbloquea. Sin esto la lista es una orden sin motivo. */
   porque: string;
@@ -67,6 +76,25 @@ export function setupSteps(s: SetupState): SetupStep[] {
       porque: 'Qué dictas en cada tipo de día. Es lo que arma "Clases de hoy".',
       href: '/horario',
       done: s.bloquesHorario > 0,
+      bloqueadoPor: hayCursos ? undefined : 'califica',
+    },
+    {
+      /*
+       * El paso que a Diego no le hacía falta y a cualquier otro docente sí.
+       *
+       * Sin la matriz propia, la app calcula las definitivas con los pesos de
+       * Informática — que son los únicos que trae fijos. Para Diego dan bien
+       * porque son los suyos; para otro profesor darían mal **en silencio**, y
+       * ese es el peor error que puede tener esta app. De la matriz sale además
+       * qué ciclos llevan nota y cuáles son formativos.
+       */
+      id: 'matriz',
+      titulo: 'Trae tu matriz de actividades',
+      porque: 'Cuánto pesa cada nota EN TU MATERIA y en qué ciclo cae. Sin esto la '
+        + 'app calcula con los pesos de otra asignatura, y las definitivas te '
+        + 'darían distinto sin que nada lo avise.',
+      href: '/plataforma',
+      done: hayCursos && s.gradosConMatriz > 0,
       bloqueadoPor: hayCursos ? undefined : 'califica',
     },
     {

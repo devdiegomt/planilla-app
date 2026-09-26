@@ -10,10 +10,15 @@ import { setupSteps, setupCompleto, type SetupStep } from '@/lib/setupSteps';
 /**
  * Lista de primer arranque.
  *
- * Desaparece sola cuando los cinco pasos están hechos, así que para una base
- * ya configurada el inicio no cambia. No se puede descartar a mano: si falta
- * un paso, falta de verdad — sin códigos no sale la asistencia, y sin materias
- * no sale el Califica.
+ * Desaparece sola cuando los pasos están hechos, así que para una base ya
+ * configurada el inicio no cambia. No se puede descartar a mano: si falta un
+ * paso, falta de verdad — sin códigos no sale la asistencia, sin materias no
+ * sale el Califica, y sin la matriz propia las definitivas salen calculadas
+ * con los pesos de otra asignatura.
+ *
+ * **Cada paso se marca solo, mirando los datos.** Ninguno es un "ya lo hice"
+ * que el docente pulse: un paso que solo se puede marcar a mano no dice nada
+ * sobre el estado de la app, y esta lista existe justamente para decir eso.
  */
 export function PrimerArranque() {
   const year = new Date().getFullYear();
@@ -40,6 +45,11 @@ export function PrimerArranque() {
     bloquesHorario: schedule,
     estudiantes: students.length,
     estudiantesConCodigo: students.filter(s => s.codAlum).length,
+    // Los grados que ya tienen los pesos de SU matriz. Sale del dato, no de
+    // que alguien haya marcado una casilla.
+    gradosConMatriz: grados.filter(
+      g => (yearCfg?.subjects ?? []).some(m => m.grade === g && (m.slots?.length ?? 0) > 0),
+    ).length,
   });
 
   if (setupCompleto(steps)) return null;

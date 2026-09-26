@@ -27,11 +27,15 @@ export default async function PlataformaPage() {
       />
 
       <section className="panel p-4 space-y-2 text-sm">
-        <h2 className="font-medium">Se arrastra, no se instala</h2>
+        <h2 className="font-medium">Se arrastra una vez, y ya</h2>
         <p className="text-tinta-suave">
           Cada botón de abajo se arrastra a la barra de favoritos del navegador y
-          queda ahí. Después se abre la pantalla de la plataforma y se pulsa el
-          favorito. No hace falta instalar ninguna extensión.
+          queda ahí para siempre. Después abres la plataforma y lo pulsas. No hay
+          nada que instalar, ni permisos que dar.
+        </p>
+        <p className="text-tinta-suave">
+          Se hace <span className="font-medium">desde el computador</span>: en el
+          celular no hay barra de favoritos a la que arrastrar.
         </p>
         <p className="text-tinta-suave">
           Si no ves la barra de favoritos, en Chrome se muestra con{' '}
@@ -90,10 +94,9 @@ export default async function PlataformaPage() {
 
       <section className="panel p-4 space-y-3">
         <div>
-          <h2 className="font-medium">Estos dos todavía piden la extensión</h2>
+          <h2 className="font-medium">Lo único que va aparte</h2>
           <p className="text-sm text-tinta-suave mt-1">
-            Van recorriendo la plataforma pantalla por pantalla, y un favorito se
-            pierde en la primera recarga.
+            Y no es porque no se pueda: es porque conviene verlo.
           </p>
         </div>
         <ul className="space-y-3">

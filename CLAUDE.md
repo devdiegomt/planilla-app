@@ -225,6 +225,42 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   `--allow-file-access-from-files`): el `--window-size` de este Chromium headless se
   queda en 500 sin importar lo que se le pida. En los cuatro casos la captura se ve
   plausible y es mentira.
+- **Lo que decide si algo puede ser favorito ya no es si el script recorre**
+  (`lib/bookmarklets.ts`). Era eso mientras un favorito muriera en la primera recarga.
+  El **marco** de planilla-v2 lo cambia: mete la plataforma en un iframe del mismo
+  origen y reinyecta el script en cada carga de adentro, que es **lo único que hacía
+  Tampermonkey**. Confirmado contra la plataforma el 26/09/2026. Los que recorren van
+  envueltos (`conMarco: true` trae también `recon/marco.js` y arma
+  `var FUENTE = <script>;` + marco, la MISMA envoltura que el generador de allá); el
+  extractor de actividades no lo necesita, porque recorre con `fetch`.
+  Con eso **ningún camino de lectura pide instalar nada**, y eso es lo que hace
+  contable la historia para otro docente: todo se arrastra. El único que queda fuera es
+  el que **escribe** la matriz, y a propósito — verlo ir fila por fila es parte de lo
+  que lo hace seguro.
+  **`==UserScript==` no distingue el envuelto del suelto**: en el envuelto va dentro de
+  la cadena `FUENTE`, así que esa comprobación pasa con los dos — y el suelto es justo
+  el que obliga a poner los filtros a mano. Se reconoce por `var FUENTE = "` más
+  `__glaMarco`. La prueba se vio fallar quitándole el envoltorio a la asistencia.
+  De paso, el arnés: decodificar `href.slice(0, 400)` **parte un escape por la mitad** y
+  `decodeURIComponent` lanza. Reventó en el tercer favorito; los dos primeros habían
+  pasado de casualidad porque el corte les caía en un sitio inocente.
+
+- **Ningún paso de "Primeros pasos" se marca a mano** (`lib/setupSteps.ts`). Todos
+  salen de los datos, porque un paso que solo se puede tachar a mano no dice nada
+  sobre el estado de la app — y esa lista existe justamente para decir eso. Por eso
+  "trae tu matriz" se da por hecho cuando algún grado tiene `SubjectConfig.slots`, que
+  es la huella de que la matriz llegó de verdad, y no con una casilla.
+  **Ese paso es el que a Diego no le hacía falta y a cualquier otro docente sí:** sin
+  su matriz, la app calcula las definitivas con los pesos de Informática, que son los
+  únicos fijos. Para Diego dan bien porque son los suyos; para otro darían mal **en
+  silencio**, que es el peor error que puede tener esta app.
+
+- **Que la app no exija cuenta no se ve por ningún lado** (`components/Bienvenida.tsx`).
+  Ninguna ruta pide sesión —es local-first, y la cuenta solo sincroniza—, pero arriba
+  hay un botón de "Iniciar sesión", y quien lo ve da por hecho que hay que registrarse
+  antes de empezar. Con el correo limitado a una dirección mientras no haya dominio
+  propio, creerlo alcanza para no pasar del primer minuto. Se dice en la bienvenida.
+
 - **El favorito no se puede escribir como un `<a href>` normal** (`lib/bookmarklets.ts`
   + `components/FavoritoArrastrable.tsx`). **React 19 bloquea los `href` que empiezan
   por `javascript:`** y los reemplaza por `href="javascript:throw new Error('React has
