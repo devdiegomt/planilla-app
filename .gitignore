@@ -5,3 +5,7 @@ out/
 .env*
 .DS_Store
 next-env.d.ts
+
+# Caché incremental de TypeScript: lo reescribe cada `npx tsc`, así que
+# versionado ensucia todos los diffs sin aportar nada. Se regenera solo.
+*.tsbuildinfo
