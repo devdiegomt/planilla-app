@@ -15,6 +15,7 @@ import { CourseDashboard } from '@/components/CourseDashboard';
 import { ChangeLogView } from '@/components/ChangeLogView';
 import { EventsList } from '@/components/EventsList';
 import { PendientesList } from '@/components/PendientesList';
+import { Deberes } from '@/components/Deberes';
 import { HistorialTrimestres } from '@/components/HistorialTrimestres';
 import { Seccion, SeccionFija } from '@/components/Seccion';
 import { computeCourseStats } from '@/lib/stats';
@@ -120,7 +121,11 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
       </Seccion>
 
       <Seccion id="pendientes" titulo="Pendientes del curso">
-        <PendientesList courseCode={course.code} />
+        {/* Lo que la app ve de ESTE curso, y debajo lo anotado a mano. */}
+        <div className="space-y-4">
+          <Deberes courseCode={course.code} />
+          <PendientesList courseCode={course.code} />
+        </div>
       </Seccion>
 
       <Seccion id="cambios" titulo="Cambios recientes">
