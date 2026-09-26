@@ -225,6 +225,45 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   `--allow-file-access-from-files`): el `--window-size` de este Chromium headless se
   queda en 500 sin importar lo que se le pida. En los cuatro casos la captura se ve
   plausible y es mentira.
+- **El modo oscuro no tiene un solo `dark:`, y es a propósito** (`globals.css` +
+  `lib/tema.ts`). La app usa más de setecientas clases de color —`text-neutral-500`
+  sale 204 veces—; escribir la variante oscura de cada una serían setecientas
+  oportunidades de olvidarse de una, y la que se olvide queda **texto oscuro sobre
+  fondo oscuro, que es invisible, no feo**. En vez de eso la escala entera sale de
+  variables (`bg-neutral-50` apunta a `--n50`) y en oscuro se **invierte**: las
+  setecientas voltean solas. Vale también para los estados, porque los dos extremos
+  se invierten juntos: `bg-amber-50 text-amber-800` sigue siendo "fondo tenue con
+  texto fuerte" en los dos temas. Las tripletas van `R G B` sin `rgb()` para no
+  perder los modificadores de opacidad (`bg-superficie/85`).
+  **Los valores oscuros van en UN solo bloque.** "Seguir al sistema" no se resuelve
+  con `@media (prefers-color-scheme: dark)` sino con el guion de arranque, que mira
+  la preferencia y escribe `data-tema`. Con `@media` harían falta dos listas —una
+  para el sistema y otra para la elección manual— y dos listas que hay que mantener
+  iguales divergen: basta agregar un tono a una para que el interruptor manual se
+  vea bien y el automático no, que es el modo de fallar que nadie prueba. El precio
+  es que el tema del sistema no cambia solo con la app abierta, y eso lo cubre
+  `seguirAlSistema` (un `matchMedia`, montado en el layout y no en Configuración,
+  porque el cambio puede pasar en cualquier pantalla).
+  **`data-tema` lleva el tema efectivo, nunca la elección**; la elección
+  (`sistema`/`claro`/`oscuro`) vive en `localStorage` y **no se sincroniza**: el
+  mismo docente puede querer oscuro en el celular de noche y claro en el computador
+  del salón. Como el guion escribe el atributo antes de hidratar, `<html>` lleva
+  `suppressHydrationWarning`; sin eso React avisa del desajuste, **no lo repara**, y
+  el aviso tapa los desajustes de verdad.
+  **Invertir la escala se muerde la cola en un solo punto: la tinta sobre un relleno
+  fuerte.** `bg-red-600` en claro es un rojo oscuro y en oscuro uno claro, así que el
+  `text-white` de la F de falla y de los botones de borrar pasaba de 4.83:1 a 3.15:1.
+  Por eso existe `--sobre-color`, que nombra la intención ("la tinta que más contraste
+  haga contra este relleno") en vez del color. No quedan `text-white` en `src/`.
+  La revisión que sostiene todo esto es de datos, no de mirar capturas: se cruzan los
+  pares (texto, fondo) que aparecen en un mismo `className` contra las dos paletas y
+  se exige que **oscuro no agregue ni un par nuevo por debajo de 4.5:1** (los que hay
+  son de antes y son decorativos: los `—` de "sin dato", el punto de "sin marca").
+  Y el que revisa también miente: con la clave entrecomillada `'sobre-color'` el
+  parser no la mapeaba, así que **ningún par suyo se medía** y la prueba de mutación
+  —poner el token mal a propósito— pasó en verde. Una revisión que no se ve fallar
+  no dice nada.
+
 - **En el celular el nombre del estudiante se comía la rejilla** (`lib/nombres.ts`).
   Medido a 360px: la columna del nombre ocupaba **281px de 360 —el 78%— y no se veía
   ninguna nota**. Es una tabla ancha en pantalla angosta, y la respuesta es la de

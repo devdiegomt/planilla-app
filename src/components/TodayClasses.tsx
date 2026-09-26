@@ -427,7 +427,7 @@ function PendingBanner({ items }: { items: ClassInfo[] }) {
           <Link
             key={ci.block.id}
             href={`/curso/${ci.block.courseCode}?ciclo=${ci.ciclo}`}
-            className="text-xs bg-white border border-amber-300 rounded px-2 py-1 hover:bg-amber-100 text-amber-900"
+            className="text-xs bg-superficie border border-amber-300 rounded px-2 py-1 hover:bg-amber-100 text-amber-900"
           >
             {ci.block.courseCode} · C{ci.ciclo}{ci.session ? `·S${ci.session}` : ''}
           </Link>

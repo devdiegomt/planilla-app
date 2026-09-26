@@ -87,7 +87,7 @@ export function TempEventEditor({
               onClick={() => set({ kind: t.valor })}
               aria-pressed={kind === t.valor}
               className={`px-1.5 py-1.5 rounded-md border text-xs ${
-                kind === t.valor ? 'boton-primario border-neutral-900' : 'bg-white'
+                kind === t.valor ? 'boton-primario border-neutral-900' : 'bg-superficie'
               }`}
             >
               {t.texto}

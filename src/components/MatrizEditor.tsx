@@ -147,7 +147,7 @@ export function MatrizEditor() {
         <button
           onClick={() => traer(texto)}
           disabled={!texto.trim() || !courses}
-          className="text-sm px-3 py-1.5 rounded-lg border bg-white disabled:opacity-50"
+          className="text-sm px-3 py-1.5 rounded-lg border bg-superficie disabled:opacity-50"
         >
           Traer
         </button>
@@ -180,7 +180,7 @@ export function MatrizEditor() {
             <button
               onClick={guardarEnLaApp}
               disabled={busy || !sano}
-              className="text-sm px-3 py-1.5 rounded-lg border bg-white disabled:opacity-50"
+              className="text-sm px-3 py-1.5 rounded-lg border bg-superficie disabled:opacity-50"
             >
               {busy ? 'Guardando…' : 'Guardar en la app'}
             </button>
@@ -313,7 +313,7 @@ function TablaGrado({ g, trimestre, contraLaApp, problemas, onEditar }: {
                     <select
                       value={f.columna}
                       onChange={e => onEditar(i, { columna: e.target.value })}
-                      className="border rounded px-1 py-0.5 bg-white"
+                      className="border rounded px-1 py-0.5 bg-superficie"
                       aria-label={`Columna de ${f.meta} fila ${f.posicion}`}
                     >
                       <option value="">—</option>
@@ -325,7 +325,7 @@ function TablaGrado({ g, trimestre, contraLaApp, problemas, onEditar }: {
                       value={f.titulo}
                       onChange={e => onEditar(i, { titulo: e.target.value })}
                       placeholder={f.vacia ? 'sin estrenar' : ''}
-                      className="border rounded px-1 py-0.5 w-full bg-white"
+                      className="border rounded px-1 py-0.5 w-full bg-superficie"
                       aria-label={`Título de ${f.meta} fila ${f.posicion}`}
                     />
                   </td>
@@ -343,7 +343,7 @@ function TablaGrado({ g, trimestre, contraLaApp, problemas, onEditar }: {
                         const v = e.target.value.replace(/[^\d]/g, '');
                         onEditar(i, { porcentaje: v === '' ? 0 : parseInt(v) });
                       }}
-                      className="border rounded px-1 py-0.5 w-full text-right bg-white"
+                      className="border rounded px-1 py-0.5 w-full text-right bg-superficie"
                       aria-label={`Porcentaje de ${f.meta} fila ${f.posicion}`}
                     />
                   </td>
@@ -351,7 +351,7 @@ function TablaGrado({ g, trimestre, contraLaApp, problemas, onEditar }: {
                     <select
                       value={f.ciclo}
                       onChange={e => onEditar(i, { ciclo: e.target.value })}
-                      className="border rounded px-1 py-0.5 bg-white"
+                      className="border rounded px-1 py-0.5 bg-superficie"
                       aria-label={`Ciclo de ${f.meta} fila ${f.posicion}`}
                     >
                       <option value="">—</option>
@@ -362,7 +362,7 @@ function TablaGrado({ g, trimestre, contraLaApp, problemas, onEditar }: {
                     <select
                       value={f.destino}
                       onChange={e => onEditar(i, { destino: e.target.value })}
-                      className="border rounded px-1 py-0.5 bg-white"
+                      className="border rounded px-1 py-0.5 bg-superficie"
                       aria-label={`Destino de ${f.meta} fila ${f.posicion}`}
                     >
                       <option value="">—</option>

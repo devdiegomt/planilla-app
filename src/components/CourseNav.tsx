@@ -44,7 +44,7 @@ export function CourseNav({ code, ciclo }: Props) {
 
   const href = (c: string) => (ciclo ? `/curso/${c}?ciclo=${ciclo}` : `/curso/${c}`);
 
-  const boton = 'w-9 h-9 flex items-center justify-center rounded-md border bg-white '
+  const boton = 'w-9 h-9 flex items-center justify-center rounded-md border bg-superficie '
     + 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 disabled:opacity-30';
 
   if (!prev || !next) return null;

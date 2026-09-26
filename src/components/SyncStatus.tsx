@@ -121,7 +121,7 @@ export function SyncStatus() {
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 border rounded-md bg-white shadow-md min-w-[280px] z-20 text-sm"
+          className="absolute right-0 top-full mt-1 border rounded-md bg-superficie shadow-md min-w-[280px] z-20 text-sm"
           onMouseLeave={() => setOpen(false)}
         >
           <div className="px-3 py-2 border-b space-y-1">
@@ -160,7 +160,7 @@ export function SyncStatus() {
           <button
             disabled={busy}
             onClick={() => doSync(false)}
-            className="w-full text-left px-3 py-2 hover:bg-neutral-50 text-neutral-800 disabled:opacity-40 disabled:hover:bg-white"
+            className="w-full text-left px-3 py-2 hover:bg-neutral-50 text-neutral-800 disabled:opacity-40 disabled:hover:bg-superficie"
           >
             {busy ? 'Sincronizando…' : 'Sincronizar ahora'}
           </button>

@@ -265,13 +265,13 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
 
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
-          <thead className="bg-white border-b text-neutral-500">
+          <thead className="bg-superficie border-b text-neutral-500">
             <tr>
               {/* Fijas: con varias sesiones la tabla es más ancha que la
                   pantalla, y sin esto el nombre se sale del borde y se acaba
                   marcando F/R sobre filas anónimas. */}
-              <th className="p-2 text-left w-8 sticky left-0 z-10 bg-white">#</th>
-              <th className="p-2 text-left sticky left-8 z-10 bg-white">Estudiante</th>
+              <th className="p-2 text-left w-8 sticky left-0 z-10 bg-superficie">#</th>
+              <th className="p-2 text-left sticky left-8 z-10 bg-superficie">Estudiante</th>
               {porSesion ? (
                 sesiones.flatMap(n => [
                   <th key={`F${n}`} className="p-2 text-center w-14">F{n}</th>,
@@ -296,8 +296,8 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
               const c = s.cycles.find(x => x.ciclo === ciclo);
               return (
                 <tr key={s.id} className="border-b hover:bg-neutral-50">
-                  <td className="p-2 text-neutral-400 sticky left-0 z-10 bg-white">{i + 1}</td>
-                  <td className="p-2 whitespace-nowrap sticky left-8 z-10 bg-white">
+                  <td className="p-2 text-neutral-400 sticky left-0 z-10 bg-superficie">{i + 1}</td>
+                  <td className="p-2 whitespace-nowrap sticky left-8 z-10 bg-superficie">
                     {s.nombre}
                   </td>
                   {porSesion ? (
@@ -349,10 +349,10 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
 
       <div className="px-4 py-2 border-t bg-neutral-50 flex items-center gap-3 flex-wrap text-[11px] text-neutral-600">
         <span>Click para ciclar:</span>
-        <LegendChip cls="bg-white border-neutral-200 text-neutral-300" label="·" text="sin marca" />
-        <LegendChip cls="bg-red-600 border-red-600 text-white" label="F" text="falla injustificada" />
+        <LegendChip cls="bg-superficie border-neutral-200 text-neutral-300" label="·" text="sin marca" />
+        <LegendChip cls="bg-red-600 border-red-600 text-sobre-color" label="F" text="falla injustificada" />
         <LegendChip cls="bg-red-50 border-red-400 text-red-700" label="FJ" text="falla justificada" />
-        <LegendChip cls="bg-amber-500 border-amber-500 text-white" label="R" text="retardo injustificado" />
+        <LegendChip cls="bg-amber-500 border-amber-500 text-sobre-color" label="R" text="retardo injustificado" />
         <LegendChip cls="bg-amber-50 border-amber-400 text-amber-700" label="RJ" text="retardo justificado" />
       </div>
     </div>
@@ -410,7 +410,7 @@ function SessionsControl({
           <button
             type="button"
             onClick={() => onChange(2)}
-            className="px-2 py-1 rounded border hover:bg-white"
+            className="px-2 py-1 rounded border hover:bg-superficie"
           >
             ¿Se repite el ciclo?
           </button>
@@ -421,7 +421,7 @@ function SessionsControl({
               type="button"
               onClick={() => onChange(n - 1)}
               aria-label="Quitar una clase de este ciclo"
-              className="w-6 h-6 rounded border hover:bg-white leading-none"
+              className="w-6 h-6 rounded border hover:bg-superficie leading-none"
             >
               −
             </button>
@@ -429,7 +429,7 @@ function SessionsControl({
               type="button"
               onClick={() => onChange(n + 1)}
               aria-label="Añadir otra clase a este ciclo"
-              className="w-6 h-6 rounded border hover:bg-white leading-none"
+              className="w-6 h-6 rounded border hover:bg-superficie leading-none"
             >
               +
             </button>
@@ -483,7 +483,7 @@ function ArrivedCell({
         className={`w-7 h-7 rounded border text-[13px] leading-none transition-colors ${
           on
             ? 'bg-green-50 border-green-400'
-            : 'bg-white border-neutral-200 text-transparent hover:border-neutral-400'
+            : 'bg-superficie border-neutral-200 text-transparent hover:border-neutral-400'
         }`}
       >
         ✅
@@ -601,7 +601,7 @@ function ReasonCell({
       </button>
 
       {open && (
-        <div className="absolute z-30 top-full right-0 mt-1 w-60 bg-white border border-neutral-300
+        <div className="absolute z-30 top-full right-0 mt-1 w-60 bg-superficie border border-neutral-300
                         rounded-md shadow-lg p-2 text-left space-y-1.5">
           <div className="text-[10px] text-neutral-500 flex justify-between">
             <span className="truncate max-w-[150px]" title={student}>{student}</span>
@@ -645,13 +645,13 @@ function MarkCell({
 }) {
   const palette: Record<MarkState, string> = kind === 'F'
     ? {
-        none: 'bg-white border-neutral-200 text-neutral-300 hover:border-neutral-400',
-        injustificada: 'bg-red-600 border-red-600 text-white',
+        none: 'bg-superficie border-neutral-200 text-neutral-300 hover:border-neutral-400',
+        injustificada: 'bg-red-600 border-red-600 text-sobre-color',
         justificada: 'bg-red-50 border-red-400 text-red-700',
       }
     : {
-        none: 'bg-white border-neutral-200 text-neutral-300 hover:border-neutral-400',
-        injustificada: 'bg-amber-500 border-amber-500 text-white',
+        none: 'bg-superficie border-neutral-200 text-neutral-300 hover:border-neutral-400',
+        injustificada: 'bg-amber-500 border-amber-500 text-sobre-color',
         justificada: 'bg-amber-50 border-amber-400 text-amber-700',
       };
 

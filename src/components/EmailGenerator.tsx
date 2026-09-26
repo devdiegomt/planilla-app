@@ -271,7 +271,7 @@ export function EmailGenerator() {
                     value={voz}
                     onChange={e => setVozManual(m => ({ ...m, [c.studentSyncId]: e.target.value as Voz }))}
                     title="A quién va dirigido el texto"
-                    className="border rounded px-1.5 py-1 text-xs bg-white"
+                    className="border rounded px-1.5 py-1 text-xs bg-superficie"
                   >
                     <option value="estudiante">Al estudiante (tú)</option>
                     <option value="acudiente">Al acudiente (usted)</option>
@@ -284,7 +284,7 @@ export function EmailGenerator() {
                   </button>
                   <button
                     onClick={() => marcarEnviado(c)}
-                    className="px-2 py-1 rounded border text-xs bg-white hover:bg-neutral-50"
+                    className="px-2 py-1 rounded border text-xs bg-superficie hover:bg-neutral-50"
                     title="No volverá a listarse hasta que acumule más"
                   >
                     Marcar enviado

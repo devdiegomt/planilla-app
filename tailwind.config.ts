@@ -1,51 +1,71 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * Los tokens viven en `globals.css` como variables; acá se les da nombre para
- * poder usarlos como clases de Tailwind (`bg-superficie`, `text-tinta-suave`).
+ * Los tokens viven en `globals.css` como variables; acá se les da nombre.
  *
- * `neutral` se redefine a propósito: la app ya tenía 136 usos de `bg-white` y
- * `bg-neutral-50`, y reapuntarlos desde acá cambia el tono de todo sin tocar
- * doscientas clases a mano. El gris pasa a tener una pizca de tibieza, que es
- * lo que lo saca del gris de plantilla.
+ * **La escala de color entera apunta a variables**, y eso es lo que hace
+ * posible el modo oscuro sin escribir un solo `dark:`. La app usa más de
+ * setecientas clases de color; `bg-neutral-50` no apunta a un gris claro sino
+ * a `--n50`, y en oscuro esa variable vale un gris oscuro. Las setecientas
+ * voltean solas.
+ *
+ * Las tripletas van con `<alpha-value>` para que los modificadores de opacidad
+ * sigan sirviendo: la cabecera usa `bg-superficie/85`.
  */
+const v = (nombre: string) => `rgb(var(--${nombre}) / <alpha-value>)`;
+
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        fondo: 'hsl(var(--fondo))',
-        superficie: 'hsl(var(--superficie))',
-        hundido: 'hsl(var(--hundido))',
-        borde: 'hsl(var(--borde))',
+        fondo: v('fondo'),
+        superficie: v('superficie'),
+        hundido: v('hundido'),
+        borde: v('borde'),
+        'sobre-color': v('sobre-color'),
         tinta: {
-          DEFAULT: 'hsl(var(--tinta))',
-          suave: 'hsl(var(--tinta-suave))',
-          tenue: 'hsl(var(--tinta-tenue))',
+          DEFAULT: v('tinta'),
+          suave: v('tinta-suave'),
+          tenue: v('tinta-tenue'),
         },
         acento: {
-          DEFAULT: 'hsl(var(--acento))',
-          claro: 'hsl(var(--acento-claro))',
-          tinta: 'hsl(var(--acento-tinta))',
+          DEFAULT: v('acento'),
+          claro: v('acento-claro'),
+          tinta: v('acento-tinta'),
         },
         neutral: {
-          50:  '#faf9f7',
-          100: '#f3f1ed',
-          200: '#e7e4dd',
-          300: '#d4d0c7',
-          400: '#a3a096',
-          500: '#78756c',
-          600: '#5b5952',
-          700: '#454340',
-          800: '#2b2a28',
-          900: '#1a1a19',
-          950: '#0f0f0e',
+          50: v('n50'), 100: v('n100'), 200: v('n200'), 300: v('n300'),
+          400: v('n400'), 500: v('n500'), 600: v('n600'), 700: v('n700'),
+          800: v('n800'), 900: v('n900'), 950: v('n950'),
+        },
+        // Los estados. Solo los tonos que la app usa de verdad: definir los
+        // once de cada familia sería inventar diez valores por color que nadie
+        // va a mirar nunca, y cada uno es una decisión que puede estar mal.
+        amber: {
+          50: v('a50'), 100: v('a100'), 200: v('a200'), 300: v('a300'),
+          400: v('a400'), 500: v('a500'), 600: v('a600'), 700: v('a700'),
+          800: v('a800'), 900: v('a900'),
+        },
+        red: {
+          50: v('r50'), 100: v('r100'), 200: v('r200'), 300: v('r300'),
+          400: v('r400'), 500: v('r500'), 600: v('r600'), 700: v('r700'),
+          800: v('r800'), 900: v('r900'),
+        },
+        green: {
+          50: v('v50'), 100: v('v100'), 200: v('v200'), 300: v('v300'),
+          400: v('v400'), 500: v('v500'), 700: v('v700'), 800: v('v800'),
+          900: v('v900'),
+        },
+        blue: {
+          50: v('z50'), 100: v('z100'), 500: v('z500'),
+          700: v('z700'), 800: v('z800'),
         },
       },
       borderRadius: { lg: '0.75rem', md: '0.5rem' },
       boxShadow: {
-        tarjeta: '0 1px 2px rgba(26,26,25,.04), 0 1px 3px rgba(26,26,25,.06)',
-        alzado: '0 2px 4px rgba(26,26,25,.05), 0 4px 12px rgba(26,26,25,.08)',
+        tarjeta: '0 1px 2px rgb(0 0 0 /.04), 0 1px 3px rgb(0 0 0 /.06)',
+        alzado: '0 2px 4px rgb(0 0 0 /.05), 0 4px 12px rgb(0 0 0 /.08)',
       },
     },
   },

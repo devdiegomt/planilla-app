@@ -161,7 +161,7 @@ export function RepairPanel() {
         <button
           onClick={diagnose}
           disabled={busy}
-          className="px-3 py-1.5 rounded border bg-white disabled:opacity-40"
+          className="px-3 py-1.5 rounded border bg-superficie disabled:opacity-40"
         >
           {busy ? 'Trabajando…' : 'Rediagnosticar'}
         </button>
@@ -237,7 +237,7 @@ export function RepairPanel() {
         <button
           onClick={rebuildServer}
           disabled={busy || !user}
-          className="px-3 py-1.5 rounded bg-red-600 text-white text-xs disabled:opacity-40"
+          className="px-3 py-1.5 rounded bg-red-600 text-sobre-color text-xs disabled:opacity-40"
         >
           Vaciar el servidor y volver a subir todo
         </button>

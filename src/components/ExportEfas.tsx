@@ -96,7 +96,7 @@ export function ExportEfas() {
           )}
           <div className="overflow-x-auto max-h-64">
             <table className="min-w-full text-xs">
-              <thead className="bg-white sticky top-0">
+              <thead className="bg-superficie sticky top-0">
                 <tr className="border-b text-neutral-500">
                   <th className="p-1.5 text-left">Curso</th>
                   <th className="p-1.5 text-right">N</th>

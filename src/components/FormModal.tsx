@@ -22,7 +22,7 @@ export function FormModal({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="relative w-full sm:max-w-md bg-white rounded-t-xl sm:rounded-xl border shadow-lg
+        className="relative w-full sm:max-w-md bg-superficie rounded-t-xl sm:rounded-xl border shadow-lg
                    p-4 space-y-3 max-h-[85vh] overflow-y-auto
                    pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-4"
       >
