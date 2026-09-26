@@ -43,7 +43,7 @@ export function setupSteps(s: SetupState): SetupStep[] {
       titulo: 'Importa tu Califica',
       porque: 'El archivo que bajas de la plataforma. De ahí salen tus cursos, tus '
         + 'estudiantes y sus códigos, todo de una. Lo demás depende de esto.',
-      href: '/',
+      href: '/#califica',
       done: hayCursos,
     },
     {
@@ -57,7 +57,7 @@ export function setupSteps(s: SetupState): SetupStep[] {
       id: 'materias',
       titulo: 'Configura tus materias',
       porque: 'El Califica y la asistencia llevan el nombre y el código de la asignatura.',
-      href: '/ajustes',
+      href: '/ajustes/materias',
       done: hayCursos && s.gradosSinMateria.length === 0,
       bloqueadoPor: hayCursos ? undefined : 'califica',
     },
@@ -74,7 +74,7 @@ export function setupSteps(s: SetupState): SetupStep[] {
       titulo: 'Confirma los códigos de tus estudiantes',
       porque: 'Son lo que la plataforma usa para identificarlos al subir notas y '
         + 'asistencia. Vienen en el Califica, así que este paso suele marcarse solo.',
-      href: '/',
+      href: '/#califica',
       done: s.estudiantes > 0 && s.estudiantesConCodigo > 0,
       bloqueadoPor: hayCursos ? undefined : 'califica',
     },
