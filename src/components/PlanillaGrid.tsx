@@ -13,6 +13,7 @@ import { planPaste, type PastePlan } from '@/lib/pasteNotas';
 import { PasteNotasPreview } from './PasteNotasPreview';
 import type { Course } from '@/types';
 import { useSubjects } from '@/lib/useSubjects';
+import { nombresCortos } from '@/lib/nombres';
 
 interface Props {
   course: Course;
@@ -56,6 +57,16 @@ export function PlanillaGrid({ course }: Props) {
   if (!students) return <p className="text-sm text-neutral-500">Cargando...</p>;
 
   const activos = students.filter(s => !s.withdrawnAt);
+  /*
+   * El nombre corto de la columna fija.
+   *
+   * En el celular el nombre completo se llevaba casi todo el ancho y de las
+   * notas no quedaba nada a la vista. `nombresCortos` garantiza que no haya
+   * dos etiquetas iguales dentro del curso: acortar hasta que dos filas se
+   * llamen igual sería calificar al estudiante equivocado sin ninguna señal.
+   */
+  const cortos = nombresCortos(activos.map(s => s.nombre));
+
   const slots = slotsFor(course.grade, subjects);
   const columns = columnsFor(course.grade, subjects);
   // Nombres reales de los logros, si ya se leyeron de la plantilla Califica.
@@ -105,8 +116,13 @@ export function PlanillaGrid({ course }: Props) {
       <table className="min-w-full text-sm">
         <thead>
           <tr className="border-b bg-neutral-50 text-left">
-            <th className="p-2 sticky left-0 z-10 bg-neutral-50">#</th>
-            <th className="p-2 sticky left-8 z-10 bg-neutral-50">Estudiante</th>
+            {/*
+              * El "#" se esconde en el celular: son 32px de la zona fija, que
+              * es justo lo que hace falta para que se vea una nota más.
+              */}
+            <th className="p-2 sticky left-0 z-10 bg-neutral-50 hidden sm:table-cell">#</th>
+            <th className="p-2 sticky left-0 sm:left-8 z-10 bg-neutral-50
+                           w-[88px] sm:w-auto">Estudiante</th>
             {columns.map(col => {
               const isEv = col.cats.length === 1 && col.cats[0] === 'E';
               const logro = titleByColumn.get(col.column);
@@ -135,7 +151,8 @@ export function PlanillaGrid({ course }: Props) {
                 </th>
               );
             })}
-            <th className="p-2 text-center bg-neutral-100">DEF</th>
+            <th className="p-2 text-center bg-neutral-100 sticky right-0 z-10
+                           border-l sm:static">DEF</th>
           </tr>
         </thead>
         <tbody>
@@ -150,8 +167,18 @@ export function PlanillaGrid({ course }: Props) {
                     popover), así que sin z-index explícito ganaban el orden de
                     pintado por ir después en el DOM y se deslizaban por encima
                     del nombre en móvil. */}
-                <td className="p-2 sticky left-0 z-10 bg-white text-neutral-500">{i + 1}</td>
-                <td className="p-2 sticky left-8 z-10 bg-white whitespace-nowrap">{s.nombre}</td>
+                <td className="p-2 sticky left-0 z-10 bg-white text-neutral-500
+                               hidden sm:table-cell">{i + 1}</td>
+                <td
+                  className="p-2 sticky left-0 sm:left-8 z-10 bg-white whitespace-nowrap
+                             w-[88px] max-w-[88px] sm:max-w-none overflow-hidden
+                             text-ellipsis border-r sm:border-r-0"
+                  title={s.nombre}
+                >
+                  {/* Corto en el celular, entero en pantalla grande. */}
+                  <span className="sm:hidden">{cortos[i]}</span>
+                  <span className="hidden sm:inline">{s.nombre}</span>
+                </td>
                 {columns.map((col, ci) => {
                   const value = s.subnotas[col.slotKeys[0]] ?? 0;
                   const observation = s.noteObservations?.[col.column] ?? '';
@@ -174,7 +201,8 @@ export function PlanillaGrid({ course }: Props) {
                     />
                   );
                 })}
-                <td className={`p-2 text-center bg-neutral-50 ${defColor}`}>
+                <td className={`p-2 text-center bg-neutral-50 sticky right-0 z-10
+                                border-l sm:static ${defColor}`}>
                   {def.definitiva}
                 </td>
               </tr>
@@ -378,7 +406,7 @@ function NoteCell({
           // recién cambiada mostraba la nota vieja por un parpadeo.
           onBlur={() => setTexto(String(notaValue(texto)))}
           aria-label={`${studentName} · ${column}`}
-          className={`w-12 text-center border rounded p-1 ${inputColor}`}
+          className={`w-10 sm:w-12 text-center border rounded p-1 ${inputColor}`}
         />
         <button
           type="button"
