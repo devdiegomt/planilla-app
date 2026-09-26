@@ -159,9 +159,12 @@ export function ExportCalifica({ course, students, trimestre }: Props) {
       <button
         onClick={handleExport}
         disabled={busy}
-        className="rounded-md bg-neutral-900 text-white px-4 py-2 text-sm font-medium hover:bg-neutral-700 disabled:opacity-50"
+        className="rounded-md bg-neutral-900 text-white px-4 py-2 text-sm font-medium
+                   whitespace-nowrap hover:bg-neutral-700 disabled:opacity-50"
       >
-        {busy ? 'Procesando...' : `Generar Califica del curso ${course.code}`}
+        {/* Sin el número del curso: está en el título, dos líneas más arriba,
+            y era lo que volvía la etiqueta demasiado larga para un celular. */}
+        {busy ? 'Procesando...' : 'Generar Califica'}
       </button>
 
       <div className="text-xs text-neutral-600">

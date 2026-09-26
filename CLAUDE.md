@@ -184,7 +184,12 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   celular el curso y las insignias quedaban fuera del borde derecho. Pasa en cualquier
   rejilla con contenido de ancho variable (`[&>*]:min-w-0` cubre todos los hijos de una
   vez). Verificado renderizando a 360px con Chromium headless: sin el arreglo no se ve
-  ninguna insignia. **El arnés engaña de dos maneras**: si el `.html` se copia a otra
+  ninguna insignia. **Le volvió a pasar al encabezado del curso**: una sola fila con
+  `justify-between` y dos botones que no ceden ancho —"Generar Califica del curso 1102"
+  no se parte en nada angosto— dejaba el botón 80px por fuera del borde y 116px de
+  alto, montado sobre el título. Se arregla apilando en el celular
+  (`flex-col sm:flex-row`), dejando envolver los botones y acortando la etiqueta: el
+  número del curso ya está en el título. **El arnés engaña de dos maneras**: si el `.html` se copia a otra
   carpeta el `href` del CSS se rompe y se mide HTML sin estilos, y si no se reconstruye
   la hoja las clases nuevas no existen — en los dos casos la captura se ve plausible y
   es mentira.
@@ -282,6 +287,22 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   Si el cierre y la plataforma difieren se muestran **los dos**: significa que ese
   Califica no llegó a subirse, y es justo lo que hay que ver en vez de elegir uno en
   silencio.
+
+- **El EFAS de un trimestre pasado no sale de la planilla** (`lib/efasExporter.ts`).
+  `buildEfasRows` ni siquiera recibía el trimestre: el selector solo cambiaba el título
+  del archivo, así que elegir T1 generaba el T3 con el rótulo equivocado — peor que no
+  dejar elegir. Las notas de la planilla son siempre las del trimestre en curso.
+  Ahora cada definitiva sale de **`definitivaDe`** (`lib/historial.ts`), que es **la
+  única regla de precedencia de la app** y por eso vive sola: la usan la línea
+  `T1 · T2 · T3` de la pantalla del curso y el EFAS. Con dos copias, dos pantallas
+  mostrarían números distintos del mismo estudiante.
+  **`valor: null` no es 0.** Un estudiante sin nota de T1 no está perdiendo T1: es que
+  ese trimestre no se cerró acá ni se importó. Quedan fuera de todas las cuentas y se
+  cuentan aparte (`sinDato`); contarlos como 0 hundiría el promedio y el porcentaje de
+  aprobación del curso con gente que nadie calificó mal. Si no hay ninguna nota del
+  trimestre pedido, el export se detiene y lo dice.
+  El total promedia **por estudiante y no por curso**: sumando definitivas y no
+  promedios, un curso de 12 no pesa igual que uno de 30.
 
 - **Preguntar en español no necesita un modelo de lenguaje** (`lib/consulta.ts`). El
   vocabulario del oficio es chico y cerrado —cursos, grados, notas, categorías, fallas,

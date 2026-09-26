@@ -6,14 +6,24 @@
  */
 
 import ExcelJS from 'exceljs';
-import type { Course, Student } from '@/types';
+import type { Course, Student, TrimesterSnapshot } from '@/types';
 import { NOTA_APROBACION, NOTA_EXPERTO, type ConSlots } from './constants';
 import { compareCourseCodes } from './courseOrder';
-import { computeCourseStats } from './stats';
+import { definitivaDe } from './historial';
 
 export interface EfasRow {
   curso: string;
   activos: number;
+  /**
+   * Activos de ese curso que NO tienen definitiva en el trimestre pedido.
+   *
+   * Quedan FUERA de todas las cuentas. No hay dato no es lo mismo que cero: un
+   * estudiante sin nota de T1 no está perdiendo T1 — es que ese trimestre no
+   * se cerró en la app ni se importó de la plataforma. Contarlos como 0
+   * hundiría el promedio del curso y el porcentaje de aprobación con
+   * estudiantes que nadie calificó mal.
+   */
+  sinDato: number;
   aprobando: number;
   aprobandoPct: number;
   experto: number;
@@ -35,46 +45,82 @@ export interface EfasReport {
   honor: HonorRow[];
 }
 
-/** Calcula las filas EFAS + la lista de salón de honor a partir de los cursos. */
+/**
+ * Calcula las filas EFAS + el salón de honor, **para el trimestre pedido**.
+ *
+ * Antes salía siempre del trimestre en curso: `buildEfasRows` ni siquiera
+ * recibía el trimestre, así que el selector solo cambiaba el título del
+ * archivo. Elegir T1 generaba el T3 con el rótulo equivocado, que es peor que
+ * no dejar elegir.
+ *
+ * Ahora cada definitiva sale de `definitivaDe`, la misma regla que usa la
+ * línea `T1 · T2 · T3` de la pantalla del curso: el trimestre en curso lo
+ * calcula la app, los pasados salen del cierre propio, y lo importado de la
+ * plataforma solo rellena los que nunca se cerraron acá.
+ */
 export function buildEfasRows(
   courses: Course[],
   studentsByCourse: Map<number, Student[]>,
   subjects: ConSlots[] | undefined,
+  trimestre: number,
+  /** Cierres archivados, agrupados por `studentSyncId`. */
+  cierresByStudent: Map<string, Pick<TrimesterSnapshot, 'trimestre' | 'year' | 'definitiva'>[]>,
 ): { rows: EfasRow[]; totals: Omit<EfasRow, 'curso'>; honor: HonorRow[] } {
   const rows: EfasRow[] = [];
   const honor: HonorRow[] = [];
   const ordered = [...courses].sort((a, b) => compareCourseCodes(a.code, b.code));
 
-  let totalActivos = 0, totalAprob = 0, totalExp = 0, sumPromWeighted = 0;
+  let totalActivos = 0, totalAprob = 0, totalExp = 0, totalSinDato = 0, sumaDefs = 0;
 
   for (const c of ordered) {
-    const students = studentsByCourse.get(c.id!) ?? [];
-    const stats = computeCourseStats(students, c.grade, subjects);
+    const activos = (studentsByCourse.get(c.id!) ?? []).filter(s => !s.withdrawnAt);
+
+    const conDef: { nombre: string; def: number }[] = [];
+    let sinDato = 0;
+    for (const s of activos) {
+      const d = definitivaDe(s, c, trimestre, cierresByStudent.get(s.syncId ?? '') ?? [], subjects);
+      if (d.valor == null || d.valor <= 0) { sinDato++; continue; }
+      conDef.push({ nombre: s.nombre, def: d.valor });
+    }
+
+    const n = conDef.length;
+    const aprobando = conDef.filter(x => x.def >= NOTA_APROBACION).length;
+    const experto = conDef.filter(x => x.def >= NOTA_EXPERTO).length;
+    const suma = conDef.reduce((a, x) => a + x.def, 0);
+
     rows.push({
       curso: c.code,
-      activos: stats.activos,
-      aprobando: stats.aprobando,
-      aprobandoPct: stats.aprobandoPct,
-      experto: stats.experto,
-      expertoPct: stats.expertoPct,
-      promedio: stats.promedio,
+      activos: n,
+      sinDato,
+      aprobando,
+      aprobandoPct: n ? Math.round((aprobando / n) * 100) : 0,
+      experto,
+      expertoPct: n ? Math.round((experto / n) * 100) : 0,
+      promedio: n ? Math.round(suma / n) : 0,
     });
-    for (const e of stats.expertos) {
-      honor.push({ curso: c.code, nombre: e.student.nombre, def: e.def });
+
+    for (const e of conDef.filter(x => x.def >= NOTA_EXPERTO).sort((a, b) => b.def - a.def)) {
+      honor.push({ curso: c.code, nombre: e.nombre, def: e.def });
     }
-    totalActivos += stats.activos;
-    totalAprob += stats.aprobando;
-    totalExp += stats.experto;
-    sumPromWeighted += stats.promedio * stats.activos;
+
+    totalActivos += n;
+    totalAprob += aprobando;
+    totalExp += experto;
+    totalSinDato += sinDato;
+    // El total promedia sobre los estudiantes, no sobre los cursos: sumando
+    // las definitivas y no los promedios, un curso de 12 no pesa igual que
+    // uno de 30.
+    sumaDefs += suma;
   }
 
   const totals: Omit<EfasRow, 'curso'> = {
     activos: totalActivos,
+    sinDato: totalSinDato,
     aprobando: totalAprob,
     aprobandoPct: totalActivos ? Math.round((totalAprob / totalActivos) * 100) : 0,
     experto: totalExp,
     expertoPct: totalActivos ? Math.round((totalExp / totalActivos) * 100) : 0,
-    promedio: totalActivos ? Math.round(sumPromWeighted / totalActivos) : 0,
+    promedio: totalActivos ? Math.round(sumaDefs / totalActivos) : 0,
   };
 
   return { rows, totals, honor };
@@ -86,8 +132,10 @@ export async function exportEfas(
   studentsByCourse: Map<number, Student[]>,
   trimestre: number,
   subjects: ConSlots[] | undefined,
+  cierresByStudent: Map<string, Pick<TrimesterSnapshot, 'trimestre' | 'year' | 'definitiva'>[]>,
 ): Promise<{ blob: Blob; report: EfasReport }> {
-  const { rows, totals, honor } = buildEfasRows(courses, studentsByCourse, subjects);
+  const { rows, totals, honor } = buildEfasRows(
+    courses, studentsByCourse, subjects, trimestre, cierresByStudent);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'planilla-app';

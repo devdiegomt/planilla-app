@@ -65,19 +65,29 @@ export default function CoursePage({ params }: { params: Promise<{ code: string 
 
   return (
     <main className="max-w-full mx-auto p-4 sm:p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      {/*
+        * En el celular el encabezado va en dos pisos.
+        *
+        * Era una sola fila con `justify-between`, y los dos botones de la
+        * derecha no ceden ancho —"Generar Califica del curso 1102" no se parte
+        * en nada angosto—, así que a 360px el botón se salía del borde y se
+        * montaba sobre el título. `min-w-0` en los dos lados por lo de siempre:
+        * un hijo de flex trae `min-width: auto` y se niega a bajar del ancho
+        * de su contenido.
+        */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
+        <div className="min-w-0">
           <Link href="/" className="text-sm text-neutral-500 hover:underline">← Cursos</Link>
-          <div className="flex items-center gap-3 mt-1">
+          <div className="flex items-center gap-3 mt-1 min-w-0">
             <CourseNav code={course.code} ciclo={cicloParam} />
-            <h1 className="text-xl font-semibold flex items-center gap-2">
+            <h1 className="text-xl font-semibold flex items-center gap-2 min-w-0">
               {course.code}
               {/* El Califica no trae el director: se escribe acá cuando haga falta. */}
               <DirectorField course={course} />
             </h1>
           </div>
         </div>
-        <div className="flex items-start gap-2">
+        <div className="flex flex-wrap items-start gap-2 min-w-0 sm:justify-end">
           <ExportObservations course={course} students={activos} />
           <ExportCalifica course={course} students={activos} trimestre={course.trimestre} />
         </div>
