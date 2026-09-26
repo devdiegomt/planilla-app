@@ -225,6 +225,32 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   `--allow-file-access-from-files`): el `--window-size` de este Chromium headless se
   queda en 500 sin importar lo que se le pida. En los cuatro casos la captura se ve
   plausible y es mentira.
+- **El favorito no se puede escribir como un `<a href>` normal** (`lib/bookmarklets.ts`
+  + `components/FavoritoArrastrable.tsx`). **React 19 bloquea los `href` que empiezan
+  por `javascript:`** y los reemplaza por `href="javascript:throw new Error('React has
+  blocked a javascript: URL…')"`. Comprobado en esta app: el botón se ve idéntico, se
+  arrastra igual de bien y **no hace nada**. Por eso el enlace va con
+  `dangerouslySetInnerHTML`, que es el único camino que lo deja pasar entero, y por eso
+  su estilo es una clase de CSS y no de Tailwind: el HTML en crudo no pasa por el
+  `className` de React. La prueba que sostiene esto se vio fallar — escrito como un `<a>`
+  normal, el favorito mide 0 KB y lleva el `throw` adentro.
+  **Los scripts se traen del otro repo al compilar, no se copian.** Una copia se queda
+  vieja en silencio, y entonces el favorito hace algo distinto de lo que el script
+  arreglado hace, que es el error que nadie nota. Se traen de la rama principal de
+  planilla-v2 —que **no se llama `main`**, sino `claude/classroom-live-scraper-vurq1i`—
+  y la página queda estática con el script adentro (164 B de JS de cliente, 281 KB de
+  HTML). Si la traída falla, la pantalla enseña el camino manual en vez de tumbar el
+  despliegue, y la comprobación mira que el HTML generado NO traiga ese mensaje.
+  Verificado que lo embebido es idéntico byte a byte a lo que está en el repositorio,
+  que compila como JavaScript y que termina en `void 0;` — sin eso el navegador ve que
+  el script devuelve algo y abandona la página para mostrar ese valor.
+  **Cuáles pueden ser favorito no se elige: lo decide si el script recorre.** Un favorito
+  se inyecta una vez y muere en la siguiente recarga, así que mientras un script navegue
+  la pantalla haciendo clic queda a medias. Hoy entran la asistencia (con "Solo marcar",
+  que no navega) y el extractor de actividades (que recorre con `fetch` desde el
+  26/09/2026). El de historial todavía navega, y el autofill de la matriz navega **a
+  propósito**, porque verlo escribir fila por fila es parte de lo que lo hace seguro.
+
 - **Pendientes son dos listas, y la de arriba no se puede tachar** (`lib/deberes.ts`
   + `components/Deberes.tsx`). Era una lista escrita a mano y nada más, que deja
   afuera lo único que la app sí sabe sola: que una clase ya se dictó y su F/R sigue
