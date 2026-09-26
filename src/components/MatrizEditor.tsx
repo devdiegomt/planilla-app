@@ -4,11 +4,12 @@ import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, applyActividades, getYearConfig } from '@/lib/db';
 import { parseActividades, type CursoLeido } from '@/lib/actividades';
+import { slotsOf } from '@/lib/subjects';
 import {
   filasDeCurso, validarMatriz, slotsDeFilas, cambiosDeGrado, descripcionDe,
-  totalCambios, jsonParaPlataforma,
+  totalCambios, jsonParaPlataforma, comparaConLaApp,
   DESTINOS, CICLOS, COLUMNAS,
-  type FilaMatriz, type PlanMatriz,
+  type FilaMatriz, type PlanMatriz, type ContraLaApp,
 } from '@/lib/matriz';
 
 /**
@@ -158,6 +159,7 @@ export function MatrizEditor() {
           key={g.grado}
           g={g}
           trimestre={trimestre}
+          contraLaApp={comparaConLaApp(g.filas, slotsOf(cfg, g.grado))}
           problemas={problemas.find(p => p.grado === g.grado)?.lista ?? []}
           onEditar={(i, patch) => editar(g.grado, i, patch)}
         />
@@ -235,9 +237,19 @@ export function MatrizEditor() {
   );
 }
 
-function TablaGrado({ g, trimestre, problemas, onEditar }: {
+const CONTRA_APP: Record<ContraLaApp, { texto: string; clase: string }> = {
+  igual: { texto: 'Coincide con lo que la app usa para calificar', clase: 'text-green-700' },
+  pesos: { texto: 'Los porcentajes no son los que la app está usando', clase: 'text-amber-700' },
+  estructura: {
+    texto: 'Cambia a qué nota va cada actividad; la app todavía usa otra repartición',
+    clase: 'text-amber-800',
+  },
+};
+
+function TablaGrado({ g, trimestre, contraLaApp, problemas, onEditar }: {
   g: PorGrado;
   trimestre: number;
+  contraLaApp: ContraLaApp;
   problemas: string[];
   onEditar: (i: number, patch: Partial<FilaMatriz>) => void;
 }) {
@@ -255,6 +267,16 @@ function TablaGrado({ g, trimestre, problemas, onEditar }: {
           {g.cursos.length ? g.cursos.join(', ') : 'ningún curso de este grado en la app'}
         </span>
       </div>
+
+      {/*
+        * Cómo va contra lo que la app usa para calificar. Antes esto era una
+        * pantalla aparte en Configuración que solo comparaba; acá se ve
+        * mientras se edita, que es cuando sirve.
+        */}
+      <p className={`text-[12px] ${CONTRA_APP[contraLaApp].clase}`}>
+        {contraLaApp === 'igual' ? '✔' : '⚠'} {CONTRA_APP[contraLaApp].texto}
+        {contraLaApp !== 'igual' && ' — "Guardar en la app" lo pone al día.'}
+      </p>
 
       {problemas.length > 0 && (
         <ul className="text-[12px] text-red-700 space-y-0.5">

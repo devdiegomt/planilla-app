@@ -13,6 +13,7 @@ import { courseFromCalificaSheet } from '@/lib/importer';
 import { downloadBlob } from '@/lib/utils';
 import type { Achievement, Course, Student } from '@/types';
 import { useSubjects } from '@/lib/useSubjects';
+import { RevisionCodigos } from './RevisionCodigos';
 
 interface Resultado {
   filename: string;
@@ -179,6 +180,13 @@ export function ImportCalifica451() {
             Códigos: {res.codigos.hydrated} escritos · {res.codigos.alreadyCorrect} ya estaban
             {res.encabezados.length > 0 && <> · Encabezados guardados: {res.encabezados.join(', ')}</>}
           </p>
+
+          {/*
+            * Quién no cuadró. Antes esto solo se veía trayendo un archivo del
+            * extractor de códigos, que era una segunda puerta para lo mismo y
+            * encima la que necesita Tampermonkey.
+            */}
+          <RevisionCodigos r={res.codigos} />
           {[...res.avisos, ...res.errores.map(e => `${e.name}: ${e.message}`)].map((a, i) => (
             <p key={i} className="text-xs text-amber-800">⚠️ {a}</p>
           ))}

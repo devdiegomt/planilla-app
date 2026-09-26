@@ -19,8 +19,13 @@ const DESTINOS: Destino[] = [
   },
   {
     href: '/ajustes/traer',
-    titulo: 'Traer datos de la plataforma',
-    descripcion: 'Tu Planilla, los códigos, las notas de trimestres pasados y los porcentajes.',
+    titulo: 'Notas de trimestres anteriores',
+    descripcion: 'Solo si empezaste a usar la app con el año ya empezado.',
+  },
+  {
+    href: '/matriz',
+    titulo: 'Matriz de actividades',
+    descripcion: 'Cuánto pesa cada nota y en qué ciclo cae. Se trae, se edita y se manda de vuelta.',
   },
   {
     href: '/ajustes/cierre',
