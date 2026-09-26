@@ -202,10 +202,32 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   no se parte en nada angosto— dejaba el botón 80px por fuera del borde y 116px de
   alto, montado sobre el título. Se arregla apilando en el celular
   (`flex-col sm:flex-row`), dejando envolver los botones y acortando la etiqueta: el
-  número del curso ya está en el título. **El arnés engaña de dos maneras**: si el `.html` se copia a otra
-  carpeta el `href` del CSS se rompe y se mide HTML sin estilos, y si no se reconstruye
-  la hoja las clases nuevas no existen — en los dos casos la captura se ve plausible y
-  es mentira.
+  número del curso ya está en el título. **El arnés engaña de cuatro maneras**, todas
+  comprobadas: si el `.html` se copia a otra carpeta el `href` del CSS se rompe y se
+  mide HTML sin estilos; si no se reconstruye la hoja las clases nuevas no existen;
+  **las clases que solo usa el arnés tampoco existen** si su `.html` no entra al
+  `--content` (midiendo la rejilla, el input salió de 183px en vez de 63 porque su clase
+  de ancho no estaba en la hoja); y **una caja de 360px no es un viewport de 360px**, así
+  que las clases `sm:` se aplican igual y lo que se mide es la versión de escritorio.
+  Para medir móvil de verdad va dentro de un `<iframe width="360">` (con
+  `--allow-file-access-from-files`): el `--window-size` de este Chromium headless se
+  queda en 500 sin importar lo que se le pida. En los cuatro casos la captura se ve
+  plausible y es mentira.
+- **En el celular el nombre del estudiante se comía la rejilla** (`lib/nombres.ts`).
+  Medido a 360px: la columna del nombre ocupaba **281px de 360 —el 78%— y no se veía
+  ninguna nota**. Es una tabla ancha en pantalla angosta, y la respuesta es la de
+  siempre: primera columna fija y acotada, el resto se desplaza, y la DEF pegada a la
+  derecha para no recorrer toda la fila hasta el resultado. Quedan 4 de 8 notas a la
+  vista sin desplazar.
+  Para angostar la columna hay que acortar el nombre, y ahí está lo que no se puede
+  negociar: **el nombre corto tiene que identificar a UNA persona del curso.** Si dos
+  filas dicen "APONTE", calificar la de arriba creyendo que es la de abajo no deja
+  ninguna señal. Por eso `nombresCortos` no corta a lo fijo: empieza por el primer
+  apellido y **alarga solo a quien choca** (`APONTE` → `APONTE R.` → `APONTE R. M.`),
+  repitiendo mientras queden iguales, porque alargar a uno puede resolver su choque y no
+  el de los otros dos. A dos personas con el nombre idéntico les devuelve el nombre
+  entero: en la rejilla las separa el número de fila.
+
 - **La casilla de nota no puede ser `type="number"`** (`PlanillaGrid` + `lib/gridNav.ts`).
   Ahí las flechas suben y bajan el valor, y calificando lo que se quiere es bajar por la
   columna estudiante por estudiante; de paso la rueda del mouse cambiaba la nota al pasar
