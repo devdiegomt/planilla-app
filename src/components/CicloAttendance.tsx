@@ -22,6 +22,8 @@ import { buildCycleContext, sessionDatesOf, currentCiclo } from '@/lib/cycles';
 import {
   sessionsInCiclo, scheduledSessions, isOverridden, sessionAt,
 } from '@/lib/sessions';
+import { ciclosConNota, slotsDelCiclo, slotsFor } from '@/lib/constants';
+import { useSubjects } from '@/lib/useSubjects';
 import { ExportAttendance } from './ExportAttendance';
 import type { Course, Student } from '@/types';
 
@@ -93,6 +95,26 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
    * — y no daba forma de marcar tres o cuatro en las materias que ven al mismo
    * curso varias veces por ciclo.
    */
+  /*
+   * En qué ciclos se saca nota, según la matriz de actividades del docente.
+   *
+   * No todos los ciclos son calificables: cada materia tiene su matriz, y hay
+   * ciclos que son formativos (se da clase, se pasa lista, pero no sale nota).
+   * La matriz ya lo dice —cada actividad trae su ciclo— así que no hay nada
+   * que preguntar aparte.
+   *
+   * `null` significa que este docente no ha traído su matriz. Ahí no se marca
+   * nada: decirle que sus nueve ciclos son formativos sería inventar.
+   */
+  const subjects = useSubjects(course.year);
+  const slots = useMemo(() => slotsFor(course.grade, subjects), [subjects, course.grade]);
+  const conNota = useMemo(() => ciclosConNota(slots), [slots]);
+  const delCiclo = useMemo(() => slotsDelCiclo(slots, ciclo), [slots, ciclo]);
+  const tituloDeColumna = useMemo(
+    () => new Map((course.achievements ?? []).map(a => [a.column, a.title])),
+    [course.achievements],
+  );
+
   const nSesiones = sessionsInCiclo(course, ciclo, sessionDates);
   const sesiones = useMemo(
     () => Array.from({ length: nSesiones }, (_, i) => i + 1),
@@ -158,7 +180,9 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
           className="border rounded px-2 py-1 text-sm"
         >
           {Array.from({ length: 9 }, (_, i) => i + 1).map(n => (
-            <option key={n} value={n}>{n}</option>
+            <option key={n} value={n}>
+              {n}{conNota && !conNota.has(n) ? ' · sin nota' : ''}
+            </option>
           ))}
         </select>
         <span className="text-xs text-neutral-500">
@@ -204,6 +228,40 @@ export function CicloAttendance({ course, initialCiclo }: Props) {
           )}
         </div>
       </header>
+
+      {/*
+        * Qué nota se saca en este ciclo.
+        *
+        * Sale de la matriz de actividades: cada actividad trae su ciclo. Es lo
+        * que convierte "ciclo 4" en algo que significa trabajo concreto, en vez
+        * de un número. Y un ciclo sin ninguna actividad es formativo — se da
+        * clase y se pasa lista, pero no sale nota.
+        *
+        * Si el docente no trajo su matriz, `conNota` es null y acá no se
+        * muestra nada: la app no inventa en qué ciclo va cada nota.
+        */}
+      {conNota && (
+        <p className={`px-4 py-2 text-[12px] border-b ${
+          delCiclo.length ? 'bg-neutral-50 text-neutral-600' : 'bg-amber-50 text-amber-800'}`}>
+          {delCiclo.length === 0
+            ? <>Ciclo formativo: acá no se saca nota. Se pasa lista igual.</>
+            : <>
+                Nota de este ciclo:{' '}
+                {delCiclo.map((sl, i) => {
+                  const col = sl.key.split('_')[1];
+                  const titulo = tituloDeColumna.get(col);
+                  return (
+                    <span key={sl.key}>
+                      {i > 0 && ' · '}
+                      <span className="font-medium">{col}</span>
+                      {titulo ? ` ${titulo}` : ` (${sl.cat})`}
+                      {sl.destino ? ` — ${sl.destino}` : ''}
+                    </span>
+                  );
+                })}
+              </>}
+        </p>
+      )}
 
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">

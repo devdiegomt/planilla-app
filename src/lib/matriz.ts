@@ -167,10 +167,15 @@ export function slotsDeFilas(filas: FilaMatriz[]): SlotDef[] {
   return usadas.map(f => {
     const n = (vistos.get(f.cat) ?? 0) + 1;
     vistos.set(f.cat, n);
+    const ciclo = parseInt(f.ciclo);
     return {
       key: f.cat === 'E' ? `EV_${f.columna}` : `${f.cat}${n}_${f.columna}`,
       cat: f.cat,
       weight: f.porcentaje / 100,
+      // El ciclo y el destino viajan con el slot: es lo que después deja saber
+      // en qué ciclo va cada nota, y cuáles no llevan ninguna.
+      ...(Number.isFinite(ciclo) && ciclo > 0 ? { ciclo } : {}),
+      ...(f.destino ? { destino: f.destino } : {}),
     };
   });
 }

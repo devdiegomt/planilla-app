@@ -15,8 +15,28 @@ export const CURSO_PALABRAS: Record<number, string> = {
   1103: 'UNDECIMO TRES',    1104: 'UNDECIMO CUATRO',
 };
 
-/** Categoría + peso interno para cada subnota, en el orden que aparecen en el Califica. */
-export type SlotDef = { key: string; cat: 'K'|'M'|'U'|'C'|'E'; weight: number };
+/**
+ * Categoría + peso interno para cada subnota, en el orden que aparecen en el
+ * Califica.
+ *
+ * `ciclo` y `destino` salen de la matriz de actividades de la plataforma y son
+ * **opcionales a propósito**: las constantes de abajo no los traen, y un
+ * docente que nunca importó su matriz no los va a tener. Donde no hay ciclo,
+ * la app se comporta como siempre — no inventa que una nota va en el ciclo 1.
+ *
+ * Con ellos, en cambio, la app sabe en qué ciclo se saca cada nota. Y de ahí
+ * sale lo otro: **un ciclo sin ninguna nota es formativo**. No hace falta
+ * preguntarlo aparte; la matriz ya lo dice.
+ */
+export type SlotDef = {
+  key: string;
+  cat: 'K'|'M'|'U'|'C'|'E';
+  weight: number;
+  /** 1..9, de la columna Ciclo de la matriz. Ausente si no se importó. */
+  ciclo?: number;
+  /** 'Casa' | 'Clase' | 'Casa-Clase', de la matriz. */
+  destino?: string;
+};
 
 /** Mapeo de subnotas para 8°–10° (10 slots → columnas log_XX). */
 export const SLOTS_8_10: SlotDef[] = [
@@ -110,3 +130,22 @@ export function columnsFor(grade: number, subjects: ConSlots[] | undefined): Col
   );
 }
 
+
+/**
+ * Los ciclos en los que se saca alguna nota, según la matriz del docente.
+ *
+ * Devuelve **null** cuando ningún slot trae ciclo, que es el caso de quien no
+ * importó su matriz. Null significa "no se sabe", y no es lo mismo que "en
+ * ninguno": con null la app no marca nada, en vez de decirle a todo el mundo
+ * que sus nueve ciclos son formativos.
+ */
+export function ciclosConNota(slots: SlotDef[]): Set<number> | null {
+  const conCiclo = slots.filter(s => s.ciclo != null && s.ciclo > 0);
+  if (conCiclo.length === 0) return null;
+  return new Set(conCiclo.map(s => s.ciclo!));
+}
+
+/** Las notas que se sacan en un ciclo. Vacío si ese ciclo no lleva nota. */
+export function slotsDelCiclo(slots: SlotDef[], ciclo: number): SlotDef[] {
+  return slots.filter(s => s.ciclo === ciclo);
+}
