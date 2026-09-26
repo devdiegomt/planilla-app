@@ -182,4 +182,30 @@
   }
   .boton-primario:hover:not(:disabled) { background-color: rgb(var(--acento) / 0.88); }
   .boton-primario:disabled { opacity: .45; }
+
+  /*
+   * El botón que se arrastra a la barra de favoritos.
+   *
+   * Va en CSS y no en clases de Tailwind porque el enlace se escribe como HTML
+   * en crudo: React 19 bloquea los `href` que empiezan por `javascript:`, así
+   * que el favorito no se puede construir como un `<a>` normal (ver
+   * `components/FavoritoArrastrable.tsx`). El HTML en crudo no pasa por el
+   * `className` de React, así que lleva una clase de verdad.
+   *
+   * `cursor: grab` porque lo que hay que hacer con él es arrastrarlo, no
+   * pulsarlo: pulsándolo desde acá no pasa nada.
+   */
+  .favorito-arrastrable {
+    display: inline-block;
+    background-color: rgb(var(--acento));
+    color: rgb(var(--acento-tinta));
+    padding: 0.55rem 1.1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+    cursor: grab;
+    user-select: none;
+  }
+  .favorito-arrastrable:active { cursor: grabbing; }
 }

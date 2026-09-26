@@ -23,6 +23,11 @@ const DESTINOS: Destino[] = [
     descripcion: 'Solo si empezaste a usar la app con el año ya empezado.',
   },
   {
+    href: '/plataforma',
+    titulo: 'Plataforma del colegio',
+    descripcion: 'Los botones que pasan la asistencia y traen tu matriz, sin instalar nada.',
+  },
+  {
     href: '/matriz',
     titulo: 'Matriz de actividades',
     descripcion: 'Cuánto pesa cada nota y en qué ciclo cae. Se trae, se edita y se manda de vuelta.',

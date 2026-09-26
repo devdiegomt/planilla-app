@@ -20,6 +20,11 @@ const DESTINOS: Destino[] = [
     descripcion: 'Escribe a los acudientes de un curso o de quienes van perdiendo.',
   },
   {
+    href: '/plataforma',
+    titulo: 'Plataforma del colegio',
+    descripcion: 'Pasar la asistencia y traer tu matriz, sin instalar nada.',
+  },
+  {
     href: '/matriz',
     titulo: 'Matriz de actividades',
     descripcion: 'Qué actividad va en cada casilla, cuánto pesa y en qué ciclo cae.',
