@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { exportEfas, type EfasReport } from '@/lib/efasExporter';
+import type { TrimesterSnapshot } from '@/types';
 import { downloadBlob } from '@/lib/utils';
 import { useSubjects } from '@/lib/useSubjects';
 
@@ -11,6 +12,11 @@ export function ExportEfas() {
   const courses = useLiveQuery(() => db.courses.toArray()) ?? [];
   const students = useLiveQuery(() => db.students.toArray()) ?? [];
   const subjects = useSubjects();
+  // Los cierres de trimestres anteriores. Son lo que permite generar el EFAS
+  // de un trimestre que ya pasó: las notas de la planilla son las del que
+  // está en curso, porque la plantilla se reemplaza cada trimestre.
+  const cierres = useLiveQuery<TrimesterSnapshot[]>(
+    () => db.trimesterSnapshots.toArray(), []) ?? [];
   const trimestreDefault = courses[0]?.trimestre ?? 2;
 
   const [trimestre, setTrimestre] = useState<number>(trimestreDefault);
@@ -22,7 +28,15 @@ export function ExportEfas() {
     setBusy(true); setErr(null);
     try {
       const byCourse = groupBy(students, s => s.courseId);
-      const { blob, report } = await exportEfas(courses, byCourse, trimestre, subjects);
+      const byStudent = groupBy(cierres, c => c.studentSyncId);
+      const { blob, report } = await exportEfas(
+        courses, byCourse, trimestre, subjects, byStudent);
+      if (report.totals.activos === 0) {
+        throw new Error(
+          `No hay ninguna nota del trimestre ${trimestre}. Si ese trimestre no lo ` +
+          'cerraste en la app, trae sus notas desde Ajustes antes de generar el EFAS.',
+        );
+      }
       downloadBlob(blob, report.filename);
       setLastReport(report);
     } catch (e) {
@@ -73,12 +87,20 @@ export function ExportEfas() {
               Total {lastReport.totals.activos} · {lastReport.totals.aprobandoPct}% aprob · {lastReport.totals.expertoPct}% ≥80 · {lastReport.honor.length} en salón de honor
             </span>
           </div>
+          {lastReport.totals.sinDato > 0 && (
+            <p className="px-3 py-2 text-xs text-amber-800 bg-amber-50 border-b">
+              ⚠ {lastReport.totals.sinDato} estudiante(s) se quedaron fuera porque no
+              tienen nota del trimestre {lastReport.trimestre}. No se cuentan como 0:
+              faltan, que no es lo mismo.
+            </p>
+          )}
           <div className="overflow-x-auto max-h-64">
             <table className="min-w-full text-xs">
               <thead className="bg-white sticky top-0">
                 <tr className="border-b text-neutral-500">
                   <th className="p-1.5 text-left">Curso</th>
                   <th className="p-1.5 text-right">N</th>
+                  <th className="p-1.5 text-right">Sin nota</th>
                   <th className="p-1.5 text-right">% Aprob</th>
                   <th className="p-1.5 text-right">% ≥80</th>
                   <th className="p-1.5 text-right">DEF prom</th>
@@ -89,6 +111,9 @@ export function ExportEfas() {
                   <tr key={r.curso} className="border-b">
                     <td className="p-1.5 font-medium">{r.curso}</td>
                     <td className="p-1.5 text-right tabular-nums">{r.activos}</td>
+                    <td className={`p-1.5 text-right tabular-nums ${r.sinDato ? 'text-amber-700' : 'text-neutral-400'}`}>
+                      {r.sinDato || '—'}
+                    </td>
                     <td className={`p-1.5 text-right tabular-nums ${pctTone(r.aprobandoPct)}`}>
                       {r.aprobandoPct}%
                     </td>
@@ -99,6 +124,7 @@ export function ExportEfas() {
                 <tr className="bg-neutral-50 font-medium">
                   <td className="p-1.5">TOTAL</td>
                   <td className="p-1.5 text-right tabular-nums">{lastReport.totals.activos}</td>
+                  <td className="p-1.5 text-right tabular-nums">{lastReport.totals.sinDato || '—'}</td>
                   <td className="p-1.5 text-right tabular-nums">{lastReport.totals.aprobandoPct}%</td>
                   <td className="p-1.5 text-right tabular-nums">{lastReport.totals.expertoPct}%</td>
                   <td className="p-1.5 text-right tabular-nums">{lastReport.totals.promedio}</td>

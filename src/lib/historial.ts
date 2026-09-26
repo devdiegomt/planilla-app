@@ -381,6 +381,59 @@ export interface ResumenEstudiante {
  * no hace falta: la app ya tiene el dato. Es una herramienta de relleno, no
  * parte del flujo normal.
  */
+/** De dónde salió una definitiva. */
+export type OrigenDefinitiva = 'app' | 'cierre' | 'plataforma';
+
+export interface DefinitivaDe {
+  valor: number | null;
+  origen: OrigenDefinitiva;
+  /** Lo que dice la plataforma cuando NO coincide con el cierre propio. */
+  discrepancia?: number;
+}
+
+/**
+ * La definitiva de un estudiante en un trimestre, con su procedencia.
+ *
+ * Es **la única regla de precedencia** que hay en la app, y por eso vive acá
+ * sola: tanto la línea `T1 · T2 · T3` de la pantalla como el EFAS de un
+ * trimestre pasado salen de esto. Con dos copias, dos pantallas mostrarían
+ * números distintos del mismo estudiante — que es justo lo que esta app no
+ * puede permitirse.
+ *
+ * `valor: null` significa **no hay dato**, y no es lo mismo que 0: un
+ * estudiante sin nota de T1 no está perdiendo T1, es que ese trimestre no se
+ * cerró acá ni se importó. Quien cuente promedios tiene que dejarlo fuera.
+ */
+export function definitivaDe(
+  student: Student,
+  course: Pick<Course, 'grade' | 'trimestre' | 'year'>,
+  trimestre: number,
+  cierres: Pick<TrimesterSnapshot, 'trimestre' | 'year' | 'definitiva'>[],
+  subjects: ConSlots[] | undefined,
+): DefinitivaDe {
+  // 1. El trimestre en curso sale de la app, que es donde está vivo.
+  if (trimestre === course.trimestre) {
+    const def = calcDef(student.subnotas ?? {}, slotsFor(course.grade, subjects), 'platform').definitiva;
+    return { valor: def > 0 ? def : null, origen: 'app' };
+  }
+
+  const hist = student.platformHistory;
+  const delAnio = hist && hist.year === course.year ? hist.definitivas : {};
+  const dePlataforma = delAnio[String(trimestre).padStart(2, '0')];
+
+  // 2. Los pasados, del cierre de la app si ese trimestre se cerró acá.
+  const delCierre = cierres.find(c => c.year === course.year && c.trimestre === trimestre)?.definitiva;
+  if (delCierre != null) {
+    return {
+      valor: delCierre, origen: 'cierre',
+      ...(dePlataforma != null && dePlataforma !== delCierre ? { discrepancia: dePlataforma } : {}),
+    };
+  }
+
+  // 3. Y si no, lo importado de la plataforma.
+  return { valor: dePlataforma != null ? dePlataforma : null, origen: 'plataforma' };
+}
+
 export function resumenDe(
   student: Student,
   course: Pick<Course, 'grade' | 'trimestre' | 'year'>,
@@ -390,37 +443,14 @@ export function resumenDe(
   const hist = student.platformHistory;
   const delAnio = hist && hist.year === course.year ? hist.definitivas : {};
 
-  const porTrimestre = new Map<number, number>();
-  for (const c of cierres) {
-    if (c.year === course.year) porTrimestre.set(c.trimestre, c.definitiva);
-  }
-
-  const enCurso = String(course.trimestre).padStart(2, '0');
-  const defApp = calcDef(student.subnotas ?? {}, slotsFor(course.grade, subjects), 'platform').definitiva;
-
   const periodos: PeriodoResumen[] = [];
   for (const p of PERIODOS) {
     if (p === PERIODO_FINAL) continue;
-    const etiqueta = NOMBRE_PERIODO[p];
-    if (p === enCurso) {
-      periodos.push({ periodo: p, etiqueta, valor: defApp > 0 ? defApp : null, origen: 'app' });
-      continue;
-    }
     const t = trimestreDe(p);
-    const delCierre = t != null ? porTrimestre.get(t) : undefined;
-    const dePlataforma = delAnio[p];
-    if (delCierre != null) {
-      periodos.push({
-        periodo: p, etiqueta, valor: delCierre, origen: 'cierre',
-        ...(dePlataforma != null && dePlataforma !== delCierre ? { discrepancia: dePlataforma } : {}),
-      });
-    } else {
-      periodos.push({
-        periodo: p, etiqueta,
-        valor: dePlataforma != null ? dePlataforma : null,
-        origen: 'plataforma',
-      });
-    }
+    if (t == null) continue;
+    // Una sola regla de precedencia, compartida con el EFAS: ver `definitivaDe`.
+    const d = definitivaDe(student, course, t, cierres, subjects);
+    periodos.push({ periodo: p, etiqueta: NOMBRE_PERIODO[p], ...d });
   }
 
   const conNota = periodos.map((p) => p.valor).filter((v): v is number => v != null && v > 0);
