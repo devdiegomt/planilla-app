@@ -108,6 +108,19 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   dice. Y el `cod_mat` de esa pantalla (1035, 2438, 1043, 1045) es **otro espacio de
   ids**, nada que ver con los 2508/2509/2510/3011 del Califica.
 
+- **En qué ciclo va cada nota lo dice la matriz, no una pantalla aparte.**
+  `SlotDef` ganó `ciclo` y `destino`, opcionales, que salen de la matriz de actividades.
+  **Cada materia tiene su propia matriz** —los porcentajes NO son los mismos en todo el
+  colegio— y de ahí sale cuántas notas hay por trimestre y en cuáles ciclos. Un ciclo
+  sin ninguna actividad es **formativo**: se da clase y se pasa lista, pero no sale nota.
+  `cyclesActive` existía en el tipo desde el principio y **nadie lo leía**; esto lo
+  reemplaza sin preguntar nada, porque el dato ya venía en la matriz.
+  **`ciclosConNota` devuelve `null`, no un conjunto vacío**, cuando ningún slot trae
+  ciclo — que es el caso de quien no importó su matriz. Null es "no se sabe"; vacío
+  sería "ninguno lleva nota", y con eso la app le diría a todo el mundo que sus nueve
+  ciclos son formativos. Donde es null, no se muestra nada y la app se comporta como
+  antes. Las constantes `SLOTS_*` no traen ciclo a propósito.
+
 - **Llenar la matriz desde la app no puede inventar filas** (`lib/matriz.ts`). La
   pantalla 831 se edita fila por fila —"Editar" → "Actualizar", unas diez por curso y
   diecinueve cursos— y el formulario de `/matriz` la edita de una y saca un plan que el
