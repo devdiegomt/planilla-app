@@ -27,7 +27,7 @@ export default function TraerPage() {
         titulo="Notas de trimestres anteriores"
         descripcion="Solo si empezaste a usar la app con el año ya empezado."
       />
-      <section className="border rounded-lg p-4 bg-neutral-50">
+      <section className="panel p-4">
         <ImportHistorial />
       </section>
     </main>

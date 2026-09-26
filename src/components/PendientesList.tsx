@@ -55,7 +55,7 @@ export function PendientesList({ courseCode, limit, compact }: Props) {
           {courseCode ? 'Sin pendientes en este curso.' : 'Sin pendientes.'}
         </p>
       ) : (
-        <ul className="divide-y divide-neutral-100 border rounded-lg overflow-hidden">
+        <ul className="divide-y divide-neutral-100 tarjeta overflow-hidden">
           {visible.map(t => <TodoRow key={t.id} todo={t} showCourse={!courseCode} />)}
           {hidden > 0 && (
             <li className="p-2 text-center text-xs">
@@ -169,7 +169,7 @@ function NewTodoForm({ defaultCourseCode }: { defaultCourseCode?: string }) {
       <button
         type="submit"
         disabled={!title.trim()}
-        className="px-3 py-1 rounded bg-neutral-900 text-white text-sm disabled:opacity-40"
+        className="px-3 py-1 rounded boton-primario text-sm disabled:opacity-40"
       >
         Añadir
       </button>

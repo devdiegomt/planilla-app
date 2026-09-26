@@ -84,7 +84,7 @@ export function Buscador() {
         />
         <button
           type="submit"
-          className="shrink-0 text-sm px-3 py-2 rounded-lg bg-neutral-900 text-white"
+          className="shrink-0 text-sm px-3 py-2 rounded-lg boton-primario"
         >
           Preguntar
         </button>
@@ -121,7 +121,7 @@ export function Buscador() {
 
 function Resultado({ r }: { r: Respuesta }) {
   return (
-    <div className="border rounded-lg p-3 min-w-0">
+    <div className="tarjeta p-3 min-w-0">
       <p className="font-medium text-sm">{r.titulo}</p>
       <p className="text-xs text-neutral-600 mt-0.5">{r.resumen}</p>
 

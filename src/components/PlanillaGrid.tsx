@@ -444,7 +444,7 @@ function NoteCell({
               <button
                 type="button"
                 onClick={commitAndClose}
-                className="text-[11px] px-2 py-0.5 rounded bg-neutral-900 text-white"
+                className="text-[11px] px-2 py-0.5 rounded boton-primario"
               >
                 Guardar
               </button>

@@ -83,7 +83,7 @@ export function TodayClasses() {
         <PendingBanner items={pending} />
       )}
       {!yearCfg.trim2Start && !yearCfg.trim1Start && !yearCfg.trim3Start && (
-        <div className="border rounded-lg p-3 bg-neutral-50 text-xs text-neutral-600">
+        <div className="panel p-3 text-xs text-neutral-600">
           Tip: define fechas de inicio de trimestre en{' '}
           <Link href="/calendario" className="underline">calendario</Link>{' '}
           para que los ciclos se cuenten desde ahí en vez del arranque del año.
@@ -229,7 +229,7 @@ function DayCard({
      * la página con ella: el nombre del curso y las insignias quedaban fuera
      * del borde derecho.
      */
-    <div className="border rounded-lg p-4 bg-white min-w-0">
+    <div className="tarjeta p-4 min-w-0">
       <div className="flex items-baseline justify-between mb-3">
         <div>
           <div className="text-xs text-neutral-500 uppercase">{label}</div>

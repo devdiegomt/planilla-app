@@ -104,7 +104,7 @@ export function Botones({
       <button
         onClick={onGuardar}
         disabled={!puedeGuardar}
-        className="px-3 py-1.5 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
+        className="px-3 py-1.5 rounded-md boton-primario text-sm disabled:opacity-40"
       >
         Guardar
       </button>

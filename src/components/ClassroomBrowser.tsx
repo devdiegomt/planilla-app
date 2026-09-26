@@ -94,14 +94,14 @@ export function ClassroomBrowser({
 
   if (!me?.connected) {
     return (
-      <div className="border rounded-lg p-6 bg-neutral-50 space-y-3">
+      <div className="panel p-6 space-y-3">
         <p className="text-sm text-neutral-700">
           No has conectado tu cuenta de Google. Al aceptar, autorizas <strong>solo lectura</strong> de tus
           cursos, tareas y entregas de estudiantes.
         </p>
         <a
           href="/api/classroom/login"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-neutral-900 text-white text-sm"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-md boton-primario text-sm"
         >
           Conectar Google Classroom
         </a>
@@ -112,7 +112,7 @@ export function ClassroomBrowser({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 text-sm border rounded-lg px-3 py-2 bg-neutral-50">
+      <div className="flex items-center gap-3 text-sm panel px-3 py-2">
         {me.profile?.photoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={me.profile.photoUrl} alt="" className="w-6 h-6 rounded-full" />
@@ -251,7 +251,7 @@ export function ClassroomBrowser({
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border rounded-lg bg-white">
+    <div className="tarjeta">
       <h3 className="px-3 py-2 text-xs uppercase tracking-wide text-neutral-500 border-b">
         {title}
       </h3>

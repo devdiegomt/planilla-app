@@ -101,7 +101,7 @@ export function SubjectsConfig() {
       <div className="flex items-center gap-3">
         <button
           onClick={guardar}
-          className="px-3 py-1.5 rounded-md bg-neutral-900 text-white text-sm"
+          className="px-3 py-1.5 rounded-md boton-primario text-sm"
         >
           Guardar materias
         </button>

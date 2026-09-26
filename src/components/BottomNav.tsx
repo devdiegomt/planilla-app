@@ -29,7 +29,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Navegación principal"
-      className="sm:hidden fixed inset-x-0 bottom-0 z-50 border-t bg-white
+      className="sm:hidden fixed inset-x-0 bottom-0 z-50 border-t border-borde bg-superficie
                  pb-[env(safe-area-inset-bottom)]"
     >
       <ul className="flex items-stretch">

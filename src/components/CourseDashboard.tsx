@@ -34,7 +34,7 @@ export function CourseDashboard({ course }: Props) {
 
   if (stats.activos === 0) {
     return (
-      <div className="border rounded-lg p-4 text-sm text-neutral-500">
+      <div className="tarjeta p-4 text-sm text-neutral-500">
         Sin estudiantes activos en este curso.
       </div>
     );
@@ -202,7 +202,7 @@ function StatCard({
     tone === 'bad'  ? 'text-red-700' :
                       'text-neutral-900';
   return (
-    <div className="border rounded-lg p-3 bg-white">
+    <div className="tarjeta p-3">
       <div className="text-xs text-neutral-500 uppercase">{label}</div>
       <div className={`text-2xl font-semibold ${toneCls}`}>{value}</div>
       {hint && <div className="text-[11px] text-neutral-500 mt-0.5">{hint}</div>}
@@ -212,7 +212,7 @@ function StatCard({
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border rounded-lg p-4 bg-white">
+    <div className="tarjeta p-4">
       <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-3">{title}</h3>
       {children}
     </div>
@@ -266,7 +266,7 @@ function StudentList({
     tone === 'warn' ? 'text-amber-700' :
                       'text-red-700';
   return (
-    <div className="border rounded-lg p-4 bg-white">
+    <div className="tarjeta p-4">
       <div className="flex items-baseline justify-between mb-2">
         <h3 className="text-xs uppercase tracking-wide text-neutral-500">{title}</h3>
         <span className="text-[10px] text-neutral-400">{hint}</span>

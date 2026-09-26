@@ -130,7 +130,7 @@ function Preview({ plan, onGuardar, busy }: {
 }) {
   const nada = plan.totales.estudiantes === 0;
   return (
-    <div className="border rounded-lg p-3 space-y-2 bg-neutral-50 min-w-0">
+    <div className="panel p-3 space-y-2 min-w-0">
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <Stat label="Estudiantes" value={plan.totales.estudiantes} tone={nada ? 'warn' : 'good'} />
         <Stat label="Trimestres" value={plan.totales.periodos} />
@@ -181,7 +181,7 @@ function Preview({ plan, onGuardar, busy }: {
       <button
         onClick={onGuardar}
         disabled={busy || nada}
-        className="text-sm px-3 py-1.5 rounded-lg bg-neutral-900 text-white disabled:opacity-50"
+        className="text-sm px-3 py-1.5 rounded-lg boton-primario disabled:opacity-50"
       >
         {busy ? 'Guardando…' : `Guardar para ${plan.totales.estudiantes} estudiante(s)`}
       </button>

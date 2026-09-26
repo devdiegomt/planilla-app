@@ -48,7 +48,7 @@ export function NavMenu() {
           />
           <div
             role="menu"
-            className="absolute right-0 top-full mt-1 border rounded-md bg-white shadow-md
+            className="absolute right-0 top-full mt-1 border border-borde rounded-md bg-superficie shadow-alzado
                        min-w-[220px] z-50 text-sm"
           >
             <Link

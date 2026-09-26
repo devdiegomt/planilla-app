@@ -49,7 +49,7 @@ export function PrimerArranque() {
   return (
     <section
       aria-label="Primeros pasos"
-      className="border rounded-lg bg-white overflow-hidden"
+      className="tarjeta overflow-hidden"
     >
       <div className="px-4 py-3 border-b bg-neutral-50">
         <h2 className="font-medium">Primeros pasos</h2>
@@ -76,7 +76,7 @@ function Paso({ paso, numero }: { paso: SetupStep; numero: number }) {
             ? 'bg-green-100 text-green-800'
             : bloqueado
               ? 'bg-neutral-100 text-neutral-400'
-              : 'bg-neutral-900 text-white'
+              : 'boton-primario'
         }`}
       >
         {paso.done ? '✓' : numero}

@@ -74,7 +74,7 @@ export function PwaInstall() {
         ) : prompt ? (
           <button
             onClick={doInstall}
-            className="px-4 py-1.5 rounded-md bg-neutral-900 text-white text-sm"
+            className="px-4 py-1.5 rounded-md boton-primario text-sm"
           >
             Instalar app
           </button>

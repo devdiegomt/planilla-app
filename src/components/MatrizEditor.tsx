@@ -130,7 +130,7 @@ export function MatrizEditor() {
 
   return (
     <div className="space-y-6">
-      <section className="border rounded-lg p-4 bg-neutral-50 space-y-2">
+      <section className="panel p-4 space-y-2">
         <h2 className="font-medium">1. Trae la matriz de la plataforma</h2>
         <p className="text-[12px] text-neutral-600">
           Se necesita una vez por trimestre. La app no puede llenar una matriz que
@@ -166,7 +166,7 @@ export function MatrizEditor() {
       ))}
 
       {grados && (
-        <section className="border rounded-lg p-4 bg-neutral-50 space-y-3">
+        <section className="panel p-4 space-y-3">
           <h2 className="font-medium">3. Guarda y manda</h2>
 
           {!sano && (
@@ -187,7 +187,7 @@ export function MatrizEditor() {
             <button
               onClick={copiar}
               disabled={!sano || nCambios === 0}
-              className="text-sm px-3 py-1.5 rounded-lg bg-neutral-900 text-white disabled:opacity-50"
+              className="text-sm px-3 py-1.5 rounded-lg boton-primario disabled:opacity-50"
             >
               {copiado
                 ? '✔ Copiado'
@@ -260,7 +260,7 @@ function TablaGrado({ g, trimestre, contraLaApp, problemas, onEditar }: {
   }, [g.filas]);
 
   return (
-    <section className="border rounded-lg p-4 bg-neutral-50 space-y-3 min-w-0">
+    <section className="panel p-4 space-y-3 min-w-0">
       <div className="flex flex-wrap items-baseline gap-2">
         <h2 className="font-medium">2. {g.grado}°</h2>
         <span className="text-[12px] text-neutral-500">

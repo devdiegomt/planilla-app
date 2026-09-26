@@ -199,7 +199,7 @@ function NoClassRange() {
   }
 
   return (
-    <div className="border rounded-lg p-3 bg-neutral-50 space-y-2">
+    <div className="panel p-3 space-y-2">
       <div className="text-sm font-medium">Semana sin clase</div>
       <p className="text-xs text-neutral-600">
         Vacaciones o jornadas institucionales. Los días marcados no consumen ciclo:
@@ -219,7 +219,7 @@ function NoClassRange() {
         <button
           onClick={() => aplicar(true)}
           disabled={busy || rango.length === 0}
-          className="px-3 py-1.5 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
+          className="px-3 py-1.5 rounded-md boton-primario text-sm disabled:opacity-40"
         >
           Marcar {rango.length > 0 ? `${rango.length} día${rango.length === 1 ? '' : 's'}` : ''}
         </button>
@@ -392,7 +392,7 @@ function DayCell({
                   key={dt}
                   onClick={() => setOverride(dt)}
                   className={`px-1.5 py-0.5 border rounded text-[10px] hover:bg-neutral-100 ${
-                    customOverride === dt ? 'bg-neutral-900 text-white border-neutral-900' : ''
+                    customOverride === dt ? 'boton-primario border-neutral-900' : ''
                   }`}
                 >
                   {dt === 'FIJO' ? 'Fijo' : dt}
@@ -485,7 +485,7 @@ function QuickAddEvent({ iso }: { iso: string }) {
         <button
           type="submit"
           disabled={!title.trim()}
-          className="px-2 py-0.5 rounded bg-neutral-900 text-white text-[10px] disabled:opacity-40"
+          className="px-2 py-0.5 rounded boton-primario text-[10px] disabled:opacity-40"
         >
           +
         </button>
@@ -523,7 +523,7 @@ function YearConfigForm({
   });
 
   return (
-    <div className="border rounded-lg p-4 bg-neutral-50 space-y-3">
+    <div className="panel p-4 space-y-3">
       <div className="flex items-end gap-4 flex-wrap">
         <div>
           <label className="block text-xs text-neutral-500 mb-1">Año</label>
@@ -568,7 +568,7 @@ function YearConfigForm({
         <button
           disabled={!dirty}
           onClick={save}
-          className="px-4 py-1.5 rounded-md bg-neutral-900 text-white text-sm disabled:opacity-40"
+          className="px-4 py-1.5 rounded-md boton-primario text-sm disabled:opacity-40"
         >
           Guardar
         </button>

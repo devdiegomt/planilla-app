@@ -22,7 +22,7 @@ export interface Destino {
 
 export function ListaDestinos({ destinos }: { destinos: Destino[] }) {
   return (
-    <ul className="border rounded-lg divide-y overflow-hidden bg-white">
+    <ul className="tarjeta divide-y overflow-hidden">
       {destinos.map(d => (
         <li key={d.href}>
           <Link
