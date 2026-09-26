@@ -30,6 +30,13 @@ export interface Favorito {
   id: string;
   /** El archivo en el repositorio de los scripts. */
   archivo: string;
+  /**
+   * Envolver el script en el marco: el favorito mete la plataforma en un
+   * iframe del mismo origen y reinyecta el script en cada carga de adentro.
+   * Es lo único que hacía Tampermonkey, y es lo que deja correr un recorrido
+   * de varios pasos desde un favorito.
+   */
+  conMarco?: boolean;
   /** Lo que dice el botón que se arrastra. Corto: va en la barra del navegador. */
   boton: string;
   titulo: string;
@@ -43,26 +50,35 @@ export interface Favorito {
 }
 
 /**
- * Los tres caminos que hoy sirven de favorito, en el orden en que un docente
- * se los encuentra. El de historial no está: todavía recorre la pantalla.
+ * Los caminos que sirven de favorito, en el orden en que un docente se los
+ * encuentra: lo de todos los días primero, lo de una vez al año al final.
+ *
+ * Desde que existe el marco —que reinyecta el script en cada carga, que es lo
+ * único que hacía la extensión— **ninguno de los que solo leen pide instalar
+ * nada**. Eso no es un detalle: tener que explicar "estos dos se arrastran
+ * pero este otro necesita una extensión" es la clase de excepción que hace que
+ * alguien abandone en el primer intento.
  */
 export const FAVORITOS: Favorito[] = [
   {
     id: 'asistencia',
     archivo: 'asistencia-autofill.user.js',
+    // El marco es lo que hace que este camino valga la pena: sin él hay que
+    // poner fecha, hora, curso y asignatura a mano, y entonces sale más rápido
+    // escribir la asistencia directo en la plataforma.
+    conMarco: true,
     boton: 'Asistencia GLA',
     titulo: 'Pasar la asistencia a la plataforma',
-    para: 'Marca en la plataforma las fallas y los retardos que ya marcaste acá, '
-        + 'en vez de buscarlos uno por uno en la lista.',
+    para: 'Marca en la plataforma las fallas y los retardos que ya marcaste acá. '
+        + 'Pone la fecha, la hora, el curso y la asignatura solo.',
     escribe: 'Marca en pantalla y se detiene. Nada queda guardado hasta que tú '
-           + 'pulses Guardar en la plataforma.',
+           + 'pulses Guardar.',
     pasos: [
       'En la app, copia la asistencia del día desde el inicio.',
-      'En la plataforma, abre la asistencia diaria por asignatura y elige a mano '
-      + 'la hora, el curso y la asignatura, hasta que salga la lista de estudiantes.',
-      'Pulsa el favorito: se abre un panel.',
-      'Pega ahí lo que copiaste y pulsa "Solo marcar".',
-      'Revisa lo que marcó y, si está bien, pulsa Guardar en la plataforma.',
+      'En la plataforma, abre cualquier pantalla con tu sesión iniciada.',
+      'Pulsa el favorito: la plataforma queda dentro de un marco y aparece un panel.',
+      'Pega ahí lo que copiaste y pulsa "Flujo completo".',
+      'Revisa lo que marcó y pulsa Guardar, dentro del mismo marco.',
     ],
     enLaApp: { href: '/', texto: 'Copiar la asistencia del día' },
   },
@@ -82,6 +98,24 @@ export const FAVORITOS: Favorito[] = [
     ],
     enLaApp: { href: '/matriz', texto: 'Matriz de actividades' },
   },
+  {
+    id: 'historial',
+    archivo: 'historial-extractor.user.js',
+    conMarco: true,
+    boton: 'Historial GLA',
+    titulo: 'Traer las notas de trimestres pasados',
+    para: 'Solo si empezaste a usar la app con el año ya empezado. La plataforma '
+        + 'guarda las definitivas de los trimestres anteriores; la app no puede '
+        + 'calcularlas porque esas notas ya no están en tu planilla.',
+    escribe: null,
+    pasos: [
+      'En la plataforma, abre cualquier pantalla con tu sesión iniciada.',
+      'Pulsa el favorito: la plataforma queda dentro de un marco y aparece un panel.',
+      'Elige los trimestres que quieres traer y arranca. Recorre tus cursos solo.',
+      'Cuando termine, copia lo que te muestra y pégalo en la app.',
+    ],
+    enLaApp: { href: '/ajustes/traer', texto: 'Notas de trimestres anteriores' },
+  },
 ];
 
 /** Lo que recorre la pantalla y por eso todavía pide la extensión. */
@@ -97,6 +131,24 @@ export const CON_EXTENSION = [
     porque: 'Es el único camino que escribe de verdad en la plataforma, y va fila '
           + 'por fila a la vista. Verlo pasar en pantalla es parte de lo que lo hace seguro.',
     enLaApp: { href: '/matriz', texto: 'Matriz de actividades' },
+  },
+  {
+    id: 'historial',
+    archivo: 'historial-extractor.user.js',
+    conMarco: true,
+    boton: 'Historial GLA',
+    titulo: 'Traer las notas de trimestres pasados',
+    para: 'Solo si empezaste a usar la app con el año ya empezado. La plataforma '
+        + 'guarda las definitivas de los trimestres anteriores; la app no puede '
+        + 'calcularlas porque esas notas ya no están en tu planilla.',
+    escribe: null,
+    pasos: [
+      'En la plataforma, abre cualquier pantalla con tu sesión iniciada.',
+      'Pulsa el favorito: la plataforma queda dentro de un marco y aparece un panel.',
+      'Elige los trimestres que quieres traer y arranca. Recorre tus cursos solo.',
+      'Cuando termine, copia lo que te muestra y pégalo en la app.',
+    ],
+    enLaApp: { href: '/ajustes/traer', texto: 'Notas de trimestres anteriores' },
   },
 ];
 
@@ -116,21 +168,38 @@ export interface FavoritoListo extends Favorito {
  * Devuelve null si no se pudo traer. La pantalla enseña entonces el camino
  * manual: es mejor que un botón que promete algo y no lo cumple.
  */
-export async function cargarFavorito(f: Favorito): Promise<FavoritoListo | null> {
+async function traer(ruta: string): Promise<string | null> {
   try {
-    const res = await fetch(`${REPO}/${RAMA}/${f.archivo}`, {
-      // Se traen al compilar, no en cada visita. Un despliegue nuevo los
-      // vuelve a traer, que es lo que los mantiene al día.
-      cache: 'force-cache',
-    });
+    // Se traen al compilar, no en cada visita. Un despliegue nuevo los vuelve
+    // a traer, que es lo que los mantiene al día.
+    const res = await fetch(`${REPO}/${RAMA}/${ruta}`, { cache: 'force-cache' });
     if (!res.ok) return null;
-    const fuente = (await res.text()).replace(/\r\n/g, '\n');
-    // Sin código real no hay favorito: mejor el camino manual que un botón que
-    // arrastra una página de error de GitHub.
-    if (!fuente.includes('==UserScript==')) return null;
-    const url = 'javascript:' + encodeURIComponent(fuente + '\nvoid 0;');
-    return { ...f, url, kb: (url.length / 1024).toFixed(0) };
+    return (await res.text()).replace(/\r\n/g, '\n');
   } catch {
     return null;
   }
+}
+
+export async function cargarFavorito(f: Favorito): Promise<FavoritoListo | null> {
+  const fuente = await traer(f.archivo);
+  // Sin código real no hay favorito: mejor el camino manual que un botón que
+  // arrastra una página de error de GitHub.
+  if (!fuente || !fuente.includes('==UserScript==')) return null;
+
+  let codigo = fuente;
+  if (f.conMarco) {
+    const marco = await traer('recon/marco.js');
+    if (!marco || !marco.includes('__glaMarco')) return null;
+    /*
+     * El script viaja como cadena y NO se toca: `JSON.stringify` lo mete
+     * entero, escapado, y el marco lo inyecta tal cual. Es la misma envoltura
+     * que arma `recon/hacer-bookmarklet.mjs` allá, y tiene que seguir siéndolo:
+     * si acá se modificara al envolver, habría dos versiones del mismo script
+     * y ninguna señal de cuál corre.
+     */
+    codigo = `var FUENTE = ${JSON.stringify(fuente)};\n${marco}`;
+  }
+
+  const url = 'javascript:' + encodeURIComponent(codigo + '\nvoid 0;');
+  return { ...f, url, kb: (url.length / 1024).toFixed(0) };
 }

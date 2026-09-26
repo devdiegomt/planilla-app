@@ -39,12 +39,26 @@ export function Bienvenida() {
         <ImportCalifica451 />
       </section>
 
+      {/*
+        * Decirlo acá y no esperar a que lo descubra: arriba hay un botón de
+        * "Iniciar sesión", y quien lo ve da por hecho que hay que registrarse
+        * antes de empezar. Ninguna pantalla lo exige —la cuenta es solo para
+        * sincronizar—, pero eso no se ve por ningún lado, y creerlo es
+        * suficiente para no pasar del primer minuto.
+        */}
+      <p className="text-[13px] text-tinta-suave">
+        No necesitas cuenta para empezar: todo esto funciona en tu equipo, sin
+        internet. La cuenta sirve después, para tener lo mismo en el celular y
+        en el computador.
+      </p>
+
       <section className="panel p-4">
         <h2 className="font-medium text-sm">Y después</h2>
         <ol className="mt-2 space-y-1.5 text-sm text-tinta-suave list-decimal list-inside">
           <li>Dices cuándo empieza el año, para que la app sepa los ciclos.</li>
           <li>Dices qué materia dictas en cada grado.</li>
           <li>Armas tu horario, y con eso sabe qué clases tienes hoy.</li>
+          <li>Arrastras los botones que hablan con la plataforma.</li>
         </ol>
         <p className="text-[12px] text-tinta-tenue mt-2">
           La app te va marcando cuáles faltan; no hay que acordarse.
