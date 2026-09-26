@@ -10,6 +10,7 @@ import { PrimerArranque } from './PrimerArranque';
 import { ExportEfas } from './ExportEfas';
 import { ExportDayAttendance } from './ExportDayAttendance';
 import { PendientesList } from './PendientesList';
+import { Deberes } from './Deberes';
 import { Bienvenida } from './Bienvenida';
 
 /**
@@ -59,6 +60,16 @@ export function Inicio() {
         */}
       <section>
         <Buscador />
+      </section>
+
+      {/*
+        * Primero lo que la app ve y después lo anotado a mano: lo de arriba es
+        * lo que se pierde de vista —una clase dictada sin F/R no se recuerda al
+        * día siguiente— y lo de abajo el docente ya sabe que lo escribió.
+        */}
+      <section>
+        <h2 className="font-medium mb-3">Lo que falta</h2>
+        <Deberes limit={5} />
       </section>
 
       <section>

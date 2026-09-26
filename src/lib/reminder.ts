@@ -11,10 +11,8 @@ import {
   formatIso,
   classesForDayType,
 } from './schedule';
-import {
-  buildCycleContext, cycleOf,
-  type CycleContext, type CourseCycle,
-} from './cycles';
+import { buildCycleContext, cycleOf, type CourseCycle } from './cycles';
+import { deberesDeAsistencia } from './deberes';
 import type {
   DayType, ScheduleBlock, CalendarDay, YearConfig, Course,
   AttendanceMark, Todo, CalendarEvent,
@@ -81,20 +79,15 @@ export function composeReminder(
 
   const uniqueCodes = [...new Set(classesToday.map(c => c.courseCode))];
 
-  // F/R sin registrar: se mira la última clase de cada curso ANTES de hoy.
+  // F/R sin registrar: sale de `lib/deberes.ts`, que es la MISMA regla que
+  // pinta la pantalla de Pendientes. Con dos copias, el aviso del celular y la
+  // pantalla podrían listar cursos distintos el mismo día, y el docente no
+  // tendría cómo saber cuál de los dos mirar.
   const ctx = buildCycleContext(seq, schedule, courses, yearConfig);
-  const pendingCourses: string[] = [];
-  for (const course of courses) {
-    if (!schedule.some(b => b.courseCode === course.code)) continue;   // no lo dicta
-    const ultima = lastClassBefore(ctx, course.code, today);
-    if (!ultima) continue;
-    // El match va por `courseCode`, NO por `courseId`: los ids locales de Dexie
-    // los borra `stripLocalMeta` antes de subir, así que aquí ambos lados serían
-    // `undefined` y la comparación daría true para cualquier curso — una marca
-    // de 801 dejaba los 19 cursos como registrados.
-    if (!hasMark(attendanceMarks, course.code, ultima)) pendingCourses.push(course.code);
-  }
-  pendingCourses.sort();
+  const pendingCourses = [...new Set(
+    deberesDeAsistencia({ yearConfig, schedule, courses, attendanceMarks }, ctx, today)
+      .map(d => d.courseCode!),
+  )].sort();
 
   // `date` y `dueDate` se guardan como 'YYYY-MM-DD' planos (vienen de
   // <input type="date">), así que comparar strings contra `today` es exacto.
@@ -218,28 +211,6 @@ export function composeAfternoonReminder(
     url,
     tag: `afternoon-${today}`,
   };
-}
-
-/**
- * Última clase de un curso estrictamente antes de `iso`, con su ciclo y sesión.
- * Null si el curso todavía no ha tenido clase en el trimestre.
- */
-function lastClassBefore(
-  ctx: CycleContext, courseCode: string, iso: string,
-): CourseCycle | null {
-  const porTrim = ctx.byCourseCiclo.get(courseCode);
-  if (!porTrim) return null;
-  let mejor: string | null = null;
-  // El índice va por trimestre y después por ciclo: los ciclos se numeran
-  // 1..9 dentro de cada trimestre, así que hay un ciclo 2 en cada uno.
-  for (const porCiclo of porTrim.values()) {
-    for (const fechas of porCiclo.values()) {
-      for (const f of fechas) {
-        if (f < iso && (mejor === null || f > mejor)) mejor = f;
-      }
-    }
-  }
-  return mejor ? cycleOf(ctx, courseCode, mejor) : null;
 }
 
 /**

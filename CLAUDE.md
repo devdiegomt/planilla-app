@@ -225,6 +225,36 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   `--allow-file-access-from-files`): el `--window-size` de este Chromium headless se
   queda en 500 sin importar lo que se le pida. En los cuatro casos la captura se ve
   plausible y es mentira.
+- **Pendientes son dos listas, y la de arriba no se puede tachar** (`lib/deberes.ts`
+  + `components/Deberes.tsx`). Era una lista escrita a mano y nada más, que deja
+  afuera lo único que la app sí sabe sola: que una clase ya se dictó y su F/R sigue
+  sin registrar, que un ciclo que lleva nota está a medias, que el trimestre cambió y
+  el anterior nunca se cerró. Revisar eso a mano son diecinueve cursos por nueve
+  ciclos. Van separadas porque se resuelven distinto: lo detectado desaparece cuando
+  el dato cambia, lo anotado lo tacha el docente. **No hay casilla para tachar un
+  deber detectado**: sería pedirle a la app que mienta sobre sus propios datos.
+  **La misma regla la usa el aviso del celular.** `composeReminder` saca su lista de
+  `deberesDeAsistencia`, no de una copia: con dos copias, el push de la mañana y la
+  pantalla podrían nombrar cursos distintos el mismo día y no habría cómo saber cuál
+  mirar. Es el mismo motivo por el que `definitivaDe` vive sola.
+  **De dónde arranca a mirar la asistencia, que es lo que la hace usable.** Quien
+  empieza a usar la app en septiembre tiene meses de clases que nunca pensó marcar
+  acá; listarlas sería abrir Pendientes a un muro de filas falsas. Se mira desde la
+  PRIMERA marca de cada curso en adelante —antes de eso la app no tiene por qué
+  suponer que el docente quería llevar la asistencia ahí— y si el curso no tiene
+  ninguna marca se ofrece solo la última clase: lo justo para empezar, no una cuenta
+  pendiente. Y va **una fila por curso, no una por clase**: medido con dos cursos y
+  sesenta días daba nueve filas, o sea más de cien con los diecinueve — la pantalla
+  dejaría de servir justo para el que más atrasado está. La fila lleva la cuenta y
+  entra por la clase más vieja, que es la que peor se recuerda.
+  **Donde la app no sabe, no inventa un deber.** Cuáles ciclos llevan nota lo dice la
+  matriz y cada materia tiene la suya, así que sin matriz `ciclosConNota` da `null`
+  —"no se sabe", no "ninguno"— y no se muestra nada. Un 0 cuenta como *sin calificar*
+  y no como nota, que es lo que significa en esta app.
+  `useLiveQuery` devuelve `undefined` **mientras carga Y cuando no hay fila**, que son
+  cosas distintas: sin un `?? null` que las separe, quien no configuró el año veía la
+  sección vacía para siempre sin nada que le dijera por qué.
+
 - **El modo oscuro no tiene un solo `dark:`, y es a propósito** (`globals.css` +
   `lib/tema.ts`). La app usa más de setecientas clases de color —`text-neutral-500`
   sale 204 veces—; escribir la variante oscura de cada una serían setecientas
