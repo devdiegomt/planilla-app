@@ -1,3 +1,4 @@
+import { SelectorTema } from '@/components/SelectorTema';
 import { PwaInstall } from '@/components/PwaInstall';
 import { PushSetup } from '@/components/PushSetup';
 import { WipeDevice } from '@/components/WipeDevice';
@@ -22,6 +23,11 @@ export default function EquipoPage() {
       />
 
       <section className="panel p-4">
+        <h2 className="font-medium mb-3">Cómo se ve</h2>
+        <SelectorTema />
+      </section>
+
+      <section className="panel p-4">
         <h2 className="font-medium mb-3">Instalar la app</h2>
         <PwaInstall />
       </section>
@@ -31,7 +37,7 @@ export default function EquipoPage() {
         <PushSetup />
       </section>
 
-      <section className="border border-red-200 rounded-lg p-4 bg-red-50">
+      <section className="border border-red-300 rounded-lg p-4 bg-red-50">
         <h2 className="font-medium mb-3 text-red-900">Borrar los datos de este equipo</h2>
         <WipeDevice />
       </section>

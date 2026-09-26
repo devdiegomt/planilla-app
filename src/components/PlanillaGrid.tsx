@@ -188,10 +188,10 @@ export function PlanillaGrid({ course }: Props) {
                     popover), así que sin z-index explícito ganaban el orden de
                     pintado por ir después en el DOM y se deslizaban por encima
                     del nombre en móvil. */}
-                <td className="p-2 sticky left-0 z-10 bg-white text-neutral-500
+                <td className="p-2 sticky left-0 z-10 bg-superficie text-neutral-500
                                hidden sm:table-cell">{i + 1}</td>
                 <td
-                  className="p-2 sticky left-0 sm:left-8 z-10 bg-white whitespace-nowrap
+                  className="p-2 sticky left-0 sm:left-8 z-10 bg-superficie whitespace-nowrap
                              w-[88px] max-w-[88px] sm:max-w-none overflow-hidden
                              text-ellipsis border-r sm:border-r-0"
                   title={s.nombre}
@@ -505,7 +505,7 @@ function NoteCell({
       {open && (
         <div
           ref={popoverRef}
-          className="absolute z-30 top-full left-1/2 -translate-x-1/2 mt-1 w-64 bg-white border border-neutral-300 rounded-md shadow-lg p-2 text-left"
+          className="absolute z-30 top-full left-1/2 -translate-x-1/2 mt-1 w-64 bg-superficie border border-neutral-300 rounded-md shadow-lg p-2 text-left"
         >
           <div className="text-[10px] text-neutral-500 mb-1">
             <div className="flex items-baseline justify-between">

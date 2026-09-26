@@ -63,7 +63,7 @@ export function GlobalDashboard() {
               <Link
                 key={a.course.code}
                 href={`/curso/${a.course.code}`}
-                className="text-xs bg-white border border-red-300 rounded px-2 py-1 hover:bg-red-100 text-red-900"
+                className="text-xs bg-superficie border border-red-300 rounded px-2 py-1 hover:bg-red-100 text-red-900"
               >
                 {a.course.code} · {a.aprobandoPct}% aprob
                 {a.reprobando >= 3 && ` · ${a.reprobando} rep`}
@@ -95,7 +95,7 @@ function CourseTile({ card }: { card: CourseCard }) {
   const c = card.course;
   const tone =
     card.aprobandoPct >= 90 ? 'bg-green-50 border-green-200' :
-    card.aprobandoPct >= 75 ? 'bg-white border-neutral-200' :
+    card.aprobandoPct >= 75 ? 'bg-superficie border-neutral-200' :
     card.aprobandoPct >= 60 ? 'bg-amber-50 border-amber-200' :
                               'bg-red-50 border-red-200';
   const pctColor =

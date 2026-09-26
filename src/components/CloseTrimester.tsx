@@ -65,7 +65,7 @@ export function CloseTrimester() {
       {!preview && !report && (
         <button
           onClick={verAlcance}
-          className="px-3 py-1.5 rounded-md border bg-white text-sm hover:bg-neutral-50"
+          className="px-3 py-1.5 rounded-md border bg-superficie text-sm hover:bg-neutral-50"
         >
           Ver qué se cerraría
         </button>
@@ -145,7 +145,7 @@ export function CloseTrimester() {
                 <button
                   onClick={ejecutar}
                   disabled={!confirmado || busy}
-                  className="px-3 py-1.5 rounded-md bg-red-700 text-white text-sm disabled:opacity-40"
+                  className="px-3 py-1.5 rounded-md bg-red-700 text-sobre-color text-sm disabled:opacity-40"
                 >
                   {busy ? 'Cerrando…' : `Cerrar trimestre ${preview.trimestre}`}
                 </button>

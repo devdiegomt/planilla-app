@@ -244,7 +244,7 @@ interface Acciones {
 function kindClasses(kind: BlockKind) {
   if (kind === 'evento') return 'bg-amber-50 border-amber-200 text-amber-900';
   if (kind === 'descanso') return 'bg-neutral-100 border-neutral-200 text-neutral-600';
-  return 'bg-white border-neutral-200 text-neutral-900';
+  return 'bg-superficie border-neutral-200 text-neutral-900';
 }
 
 function BlockChip({
@@ -467,7 +467,7 @@ function TimelineMobile({
             className={`shrink-0 px-3 py-1.5 rounded-md text-sm border ${
               selectedDay === dt
                 ? 'boton-primario border-acento'
-                : 'bg-white text-neutral-700'
+                : 'bg-superficie text-neutral-700'
             }`}
           >
             {dayLabelShort(dt)}
@@ -616,7 +616,7 @@ function BlockEditor({
               onClick={() => set({ kind: k })}
               aria-pressed={kind === k}
               className={`px-2 py-1.5 rounded-md border text-sm capitalize ${
-                kind === k ? 'boton-primario border-acento' : 'bg-white'
+                kind === k ? 'boton-primario border-acento' : 'bg-superficie'
               }`}
             >
               {k}
@@ -804,7 +804,7 @@ function BreakEditor({
                   onClick={() => alternarDia(dt)}
                   aria-pressed={activo}
                   className={`shrink-0 w-20 px-2 py-1.5 rounded-md border text-xs ${
-                    activo ? 'boton-primario border-acento' : 'bg-white text-neutral-400'
+                    activo ? 'boton-primario border-acento' : 'bg-superficie text-neutral-400'
                   }`}
                 >
                   {dayLabel(dt)}
@@ -825,7 +825,7 @@ function BreakEditor({
                         className={`w-7 py-1.5 text-xs border-r last:border-r-0 disabled:opacity-40 ${
                           (d.turns[dt] ?? undefined) === t
                             ? 'boton-primario'
-                            : 'bg-white text-neutral-600'
+                            : 'bg-superficie text-neutral-600'
                         }`}
                       >
                         {t ?? '—'}

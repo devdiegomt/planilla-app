@@ -87,7 +87,7 @@ export function PwaInstall() {
         <button
           disabled={persist === 'yes'}
           onClick={doPersist}
-          className="px-4 py-1.5 rounded-md border text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-white"
+          className="px-4 py-1.5 rounded-md border text-sm hover:bg-neutral-50 disabled:opacity-50 disabled:hover:bg-superficie"
         >
           {persist === 'yes' ? '✓ Datos persistentes' : 'Proteger datos locales'}
         </button>

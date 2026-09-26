@@ -226,7 +226,7 @@ function NoClassRange() {
         <button
           onClick={() => aplicar(false)}
           disabled={busy || rango.length === 0}
-          className="px-3 py-1.5 rounded-md border text-sm hover:bg-white disabled:opacity-40"
+          className="px-3 py-1.5 rounded-md border text-sm hover:bg-superficie disabled:opacity-40"
         >
           Quitar marca
         </button>
@@ -320,7 +320,7 @@ function DayCell({
             className="text-[10px] leading-tight mt-0.5"
             title={cycles.map(c => `${c.courseCode} · ${cycleLabel(c)}`).join('\n')}
           >
-            <span className="font-semibold text-neutral-900 bg-white/70 rounded px-1">
+            <span className="font-semibold text-neutral-900 bg-superficie/70 rounded px-1">
               {badge}
             </span>
             {cycles.some(c => c.sessionsInCiclo > 1 && c.session > 1) && (
@@ -347,7 +347,7 @@ function DayCell({
       </button>
 
       {open && (
-        <div className="absolute z-20 top-full left-0 mt-1 bg-white border rounded-md shadow-lg p-2 text-xs w-40 space-y-1">
+        <div className="absolute z-20 top-full left-0 mt-1 bg-superficie border rounded-md shadow-lg p-2 text-xs w-40 space-y-1">
           <div className="font-medium text-neutral-700 pb-1 border-b mb-1 flex items-center justify-between gap-2">
             <span>{iso}</span>
             <button
@@ -527,20 +527,20 @@ function YearConfigForm({
       <div className="flex items-end gap-4 flex-wrap">
         <div>
           <label className="block text-xs text-neutral-500 mb-1">Año</label>
-          <div className="px-3 py-1.5 border rounded bg-white text-sm">{year}</div>
+          <div className="px-3 py-1.5 border rounded bg-superficie text-sm">{year}</div>
         </div>
         <div>
           <label className="block text-xs text-neutral-500 mb-1">Primer día lectivo</label>
           <input
             type="date" value={sd} onChange={e => setSd(e.target.value)}
-            className="px-3 py-1.5 border rounded bg-white text-sm"
+            className="px-3 py-1.5 border rounded bg-superficie text-sm"
           />
         </div>
         <div>
           <label className="block text-xs text-neutral-500 mb-1">Tipo inicial</label>
           <select
             value={dt} onChange={e => setDt(e.target.value as DayType)}
-            className="px-3 py-1.5 border rounded bg-white text-sm"
+            className="px-3 py-1.5 border rounded bg-superficie text-sm"
           >
             {(['D1', 'D2', 'D3', 'D4', 'D5'] as DayType[]).map(x => (
               <option key={x} value={x}>Día {x.slice(1)}</option>
@@ -553,17 +553,17 @@ function YearConfigForm({
         <div>
           <label className="block text-xs text-neutral-500 mb-1">Inicio Trim 1</label>
           <input type="date" value={t1} onChange={e => setT1(e.target.value)}
-            className="px-3 py-1.5 border rounded bg-white text-sm" />
+            className="px-3 py-1.5 border rounded bg-superficie text-sm" />
         </div>
         <div>
           <label className="block text-xs text-neutral-500 mb-1">Inicio Trim 2</label>
           <input type="date" value={t2} onChange={e => setT2(e.target.value)}
-            className="px-3 py-1.5 border rounded bg-white text-sm" />
+            className="px-3 py-1.5 border rounded bg-superficie text-sm" />
         </div>
         <div>
           <label className="block text-xs text-neutral-500 mb-1">Inicio Trim 3</label>
           <input type="date" value={t3} onChange={e => setT3(e.target.value)}
-            className="px-3 py-1.5 border rounded bg-white text-sm" />
+            className="px-3 py-1.5 border rounded bg-superficie text-sm" />
         </div>
         <button
           disabled={!dirty}

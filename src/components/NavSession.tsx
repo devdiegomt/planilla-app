@@ -38,7 +38,7 @@ export function NavSession() {
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 border rounded-md bg-white shadow-md min-w-[180px] z-20"
+          className="absolute right-0 top-full mt-1 border rounded-md bg-superficie shadow-md min-w-[180px] z-20"
           onMouseLeave={() => setOpen(false)}
         >
           <div className="px-3 py-2 text-[11px] text-neutral-500 border-b truncate" title={label}>

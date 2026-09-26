@@ -3,49 +3,139 @@
 @tailwind utilities;
 
 /*
- * El sistema visual.
+ * El sistema visual, en claro y en oscuro.
  *
- * Por qué se veía plana, medido sobre el propio código: **nueve sombras en
- * toda la app**, ningún fondo de página, y 66 `bg-white` junto a 70
- * `bg-neutral-50` — tarjetas blancas sobre una página blanca, separadas apenas
- * por una línea de un píxel. No le faltaba color: le faltaba que las cosas se
- * despegaran unas de otras.
+ * Por qué se veía plana, medido sobre el código: nueve sombras en toda la app,
+ * ningún fondo de página, y 66 `bg-white` junto a 70 `bg-neutral-50` — tarjetas
+ * blancas sobre una página blanca. No le faltaba color: le faltaba que las
+ * cosas se despegaran unas de otras.
  *
- * Tres decisiones, en orden de efecto:
+ * === CÓMO FUNCIONA EL MODO OSCURO ===
  *
- *   1. **La página deja de ser blanca.** Con un fondo apenas tibio, cada
- *      tarjeta blanca pasa a ser una tarjeta sin dibujarle nada encima.
- *   2. **Hay dos niveles y no uno.** Lo que sobresale (`.tarjeta`) y lo que se
- *      hunde (`.panel`). Esa distinción ya estaba en el código —lo blanco
- *      sobresalía, lo gris se hundía— y se conserva en vez de aplanarla.
- *   3. **El botón principal deja de ser negro.** El negro era lo que le daba
- *      ese aire de herramienta a medio terminar.
+ * No hay un solo `dark:` en la app, y es a propósito. La app usa más de
+ * setecientas clases de color (`text-neutral-500` sale 204 veces, `bg-amber-50`
+ * catorce). Escribir la variante oscura de cada una sería setecientas
+ * oportunidades de olvidarse de una — y la que se olvide queda texto oscuro
+ * sobre fondo oscuro, que es invisible, no feo.
  *
- * El acento es un verde profundo, por el árbol del colegio, y es UNA variable:
- * cambiar `--acento` cambia toda la app.
+ * En vez de eso, **la escala de color sale de variables**. `bg-neutral-50` no
+ * apunta a un gris claro: apunta a `--n50`. En oscuro la escala se **invierte**
+ * —lo que era el fondo más claro pasa a ser el más oscuro, y el texto más
+ * oscuro pasa a ser el más claro— así que las setecientas clases voltean solas.
+ *
+ * Eso vale también para los estados: `bg-amber-50` con `text-amber-800` sigue
+ * siendo "fondo tenue con texto fuerte" en los dos temas, porque los dos
+ * extremos se invierten juntos.
+ *
+ * Los valores van como tripletas `R G B` sin `rgb()` para que los modificadores
+ * de opacidad de Tailwind sigan sirviendo: la cabecera usa `bg-superficie/85`.
  */
 @layer base {
   :root {
-    /* Superficies, de atrás hacia adelante. */
-    --fondo: 43 33% 97%;            /* la página */
-    --superficie: 0 0% 100%;        /* lo que sobresale */
-    --hundido: 43 22% 95%;          /* lo que va un nivel abajo */
-    --borde: 40 12% 87%;
+    /* --- Superficies, de atrás hacia adelante --- */
+    --fondo: 250 248 245;
+    --superficie: 255 255 255;
+    --hundido: 245 243 239;
+    --borde: 224 220 213;
 
-    /* Tinta. */
-    --tinta: 210 20% 14%;
-    --tinta-suave: 215 12% 42%;
-    --tinta-tenue: 215 10% 58%;
+    /* --- Tinta --- */
+    --tinta: 28 32 36;
+    --tinta-suave: 94 102 112;
+    --tinta-tenue: 134 141 150;
 
-    /* Acento. */
-    --acento: 157 46% 26%;
-    --acento-claro: 157 38% 94%;
-    --acento-tinta: 0 0% 100%;
+    /*
+     * La tinta que va ENCIMA de un relleno fuerte: la F de falla, el botón de
+     * borrar. No puede ser `text-sobre-color`, y ahí está el único punto donde
+     * invertir la escala se muerde la cola: `bg-red-600` en claro es un rojo
+     * OSCURO y en oscuro es un rojo CLARO, así que el blanco que en claro daba
+     * 4.83:1 en oscuro queda en 3.15:1 y la F se lee mal. Lo que no cambia es
+     * la intención —"la tinta que más contraste haga contra este relleno"—, y
+     * eso es lo que nombra el token.
+     */
+    --sobre-color: 255 255 255;
+
+    /* --- Acento --- */
+    --acento: 36 97 73;
+    --acento-claro: 233 244 239;
+    --acento-tinta: 255 255 255;
+
+    /* --- La escala neutra, que es casi toda la app --- */
+    --n50: 250 249 247;   --n100: 243 241 237;  --n200: 231 228 221;
+    --n300: 212 208 199;  --n400: 163 160 150;  --n500: 120 117 108;
+    --n600: 91 89 82;     --n700: 69 67 64;     --n800: 43 42 40;
+    --n900: 26 26 25;     --n950: 15 15 14;
+
+    /* --- Los estados. El 50/100 es fondo; el 700/800/900, texto. --- */
+    --a50: 255 251 235;  --a100: 254 243 199;  --a300: 252 211 77;
+    --a400: 251 191 36;  --a500: 245 158 11;   --a700: 180 83 9;
+    --a800: 146 64 14;   --a900: 120 53 15;
+
+    --r50: 254 242 242;  --r100: 254 226 226;  --r300: 252 165 165;
+    --r400: 248 113 113; --r600: 220 38 38;    --r700: 185 28 28;
+    --r800: 153 27 27;   --r900: 127 29 29;
+
+    --v50: 240 253 244;  --v100: 220 252 231;  --v300: 134 239 172;
+    --v700: 21 128 61;   --v800: 22 101 52;    --v900: 20 83 45;
+
+    --z100: 219 234 254; --z700: 29 78 216;    --z800: 30 64 175;
+    --a200: 253 230 138;  --a600: 217 119 6;  --r200: 254 202 202;  --r500: 239 68 68;  --v200: 187 247 208;  --v400: 74 222 128;  --v500: 34 197 94;  --z50: 239 246 255;  --z500: 59 130 246;
   }
 
+  /*
+   * El tema oscuro, en UN solo lugar.
+   *
+   * "Seguir al sistema" no se resuelve con un `@media` sino con el guion de
+   * arranque, que mira la preferencia del equipo y escribe `data-tema`. Con un
+   * `@media` harían falta dos listas de valores —una para el sistema y otra
+   * para la elección manual— y dos listas que hay que mantener iguales acaban
+   * divergiendo: bastaría agregar un tono a una y olvidarlo en la otra para
+   * que el interruptor manual funcione y el automático no.
+   *
+   * El precio es que el tema del sistema no cambia solo si el docente lo
+   * cambia con la app abierta; eso lo cubre un `matchMedia` en `lib/tema.ts`.
+   */
+  :root[data-tema="oscuro"] {
+    --fondo: 26 24 22;
+    --superficie: 34 32 29;
+    --hundido: 20 19 17;
+    --borde: 58 55 51;
+
+    --tinta: 237 235 231;
+    --tinta-suave: 168 165 158;
+    --tinta-tenue: 128 125 119;
+
+    --sobre-color: 23 21 19;
+
+    --acento: 74 155 122;
+    --acento-claro: 30 48 41;
+    --acento-tinta: 12 20 16;
+
+    --n50: 38 36 33;     --n100: 46 44 41;     --n200: 58 55 51;
+    --n300: 82 79 74;    --n400: 122 119 112;  --n500: 156 152 145;
+    --n600: 186 183 176; --n700: 210 207 201;  --n800: 230 227 222;
+    --n900: 244 242 238; --n950: 252 251 249;
+
+    --a50: 48 38 16;     --a100: 66 51 20;     --a300: 146 110 40;
+    --a400: 176 133 48;  --a500: 198 150 55;   --a700: 236 197 120;
+    --a800: 244 212 150; --a900: 250 227 180;
+
+    --r50: 52 24 24;     --r100: 72 30 30;     --r300: 150 70 70;
+    --r400: 190 90 90;   --r600: 239 100 100;  --r700: 248 145 145;
+    --r800: 252 175 175; --r900: 254 200 200;
+
+    --v50: 22 42 30;     --v100: 28 56 40;     --v300: 70 140 100;
+    --v700: 116 214 156; --v800: 150 226 180;  --v900: 180 238 205;
+
+    --z100: 30 48 78;    --z700: 140 180 250;  --z800: 170 200 252;
+    --a200: 96 74 30;  --a600: 216 170 90;  --r200: 104 44 44;  --r500: 214 82 82;  --v200: 40 78 56;  --v400: 92 176 126;  --v500: 70 160 108;  --z50: 24 38 62;  --z500: 92 146 224;
+  }
+
+  :root { color-scheme: light; }
+  :root[data-tema="oscuro"] { color-scheme: dark; }
+
   body {
-    background-color: hsl(var(--fondo));
-    color: hsl(var(--tinta));
+    background-color: rgb(var(--fondo));
+    color: rgb(var(--tinta));
     /* Las notas se leen en columna: que los dígitos no bailen de ancho. */
     font-variant-numeric: tabular-nums;
   }
@@ -56,34 +146,40 @@
 @layer components {
   /* Lo que sobresale del fondo. Reemplaza al `border rounded-lg bg-white`. */
   .tarjeta {
-    background-color: hsl(var(--superficie));
-    border: 1px solid hsl(var(--borde));
+    background-color: rgb(var(--superficie));
+    border: 1px solid rgb(var(--borde));
     border-radius: 0.75rem;
-    box-shadow: 0 1px 2px hsl(var(--tinta) / 0.04),
-                0 1px 3px hsl(var(--tinta) / 0.06);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 1px 3px rgb(0 0 0 / 0.06);
+  }
+  /*
+   * En oscuro la sombra no se ve —negro sobre negro— así que lo que separa la
+   * tarjeta del fondo es una línea de luz arriba, que es como se hace relieve
+   * cuando la luz viene de arriba y el fondo ya es oscuro.
+   */
+  :root[data-tema="oscuro"] .tarjeta {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 1px 3px rgb(0 0 0 / 0.35);
   }
 
   /*
-   * Lo que va DENTRO de una tarjeta y se lee un nivel más abajo: una vista
-   * previa, un bloque de ajustes, un resumen. Era `bg-neutral-50` con borde.
-   * Sin sombra a propósito: lo hundido no proyecta.
+   * Lo que va DENTRO de una tarjeta y se lee un nivel más abajo. Era
+   * `bg-neutral-50` con borde, y esa distinción ya estaba en el código: lo
+   * blanco sobresalía, lo gris se hundía. Sin sombra a propósito.
    */
   .panel {
-    background-color: hsl(var(--hundido));
-    border: 1px solid hsl(var(--borde));
+    background-color: rgb(var(--hundido));
+    border: 1px solid rgb(var(--borde));
     border-radius: 0.75rem;
   }
 
-  .hundido { background-color: hsl(var(--hundido)); }
+  .hundido { background-color: rgb(var(--hundido)); }
 
   .boton-primario {
-    background-color: hsl(var(--acento));
-    color: hsl(var(--acento-tinta));
+    background-color: rgb(var(--acento));
+    color: rgb(var(--acento-tinta));
     border-radius: 0.5rem;
     font-weight: 500;
-    box-shadow: 0 1px 2px hsl(var(--acento) / 0.25);
     transition: background-color .15s ease;
   }
-  .boton-primario:hover:not(:disabled) { background-color: hsl(var(--acento) / 0.88); }
-  .boton-primario:disabled { opacity: .45; box-shadow: none; }
+  .boton-primario:hover:not(:disabled) { background-color: rgb(var(--acento) / 0.88); }
+  .boton-primario:disabled { opacity: .45; }
 }

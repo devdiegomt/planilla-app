@@ -70,7 +70,7 @@ export function ExportAttendance({ course, students, ciclo, session }: Props) {
         onClick={handleClick}
         disabled={!yearConfig}
         title="Descargar para asistencia-autofill (Classroom Live)"
-        className="px-2 py-1 rounded border text-xs bg-white hover:bg-neutral-50 disabled:opacity-40"
+        className="px-2 py-1 rounded border text-xs bg-superficie hover:bg-neutral-50 disabled:opacity-40"
       >
         ⬇ {label}
       </button>

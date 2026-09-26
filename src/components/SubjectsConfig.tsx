@@ -69,7 +69,7 @@ export function SubjectsConfig() {
         {filas.map(f => (
           // Una tarjeta por grado: en una sola fila, a 360px el código se caía
           // a otra línea y quedaba desalineado del grado al que pertenece.
-          <li key={f.grade} className="border rounded-md bg-white p-2 space-y-1.5">
+          <li key={f.grade} className="border rounded-md bg-superficie p-2 space-y-1.5">
             <div className="text-sm font-medium">{f.grade}°</div>
             <div className="flex gap-2">
               <label className="text-xs flex-1 min-w-0">

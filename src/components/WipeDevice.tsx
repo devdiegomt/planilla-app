@@ -77,7 +77,7 @@ export function WipeDevice() {
         <button
           onClick={borrar}
           disabled={!confirmado || busy}
-          className="px-3 py-1.5 rounded-md bg-red-600 text-white text-sm disabled:opacity-40"
+          className="px-3 py-1.5 rounded-md bg-red-600 text-sobre-color text-sm disabled:opacity-40"
         >
           {busy ? 'Borrando…' : 'Borrar y cerrar sesión'}
         </button>
