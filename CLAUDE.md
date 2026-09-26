@@ -240,6 +240,23 @@ plataforma del colegio (Classroom Live). Ver "Integraciones".
   el de los otros dos. A dos personas con el nombre idéntico les devuelve el nombre
   entero: en la rejilla las separa el número de fila.
 
+- **`C4` y `K·C` no le dicen nada a un docente** (`PlanillaGrid` + `aportesDeColumna`).
+  La cabecera de la rejilla mostraba el código de la columna y las letras de las
+  categorías, que son del código de la app, no del oficio. Ahora en pantalla grande va
+  el **título del logro** bajo el código, y debajo de la tabla hay una **leyenda** con
+  todo: qué logro es cada columna, a qué categorías entra y cuánto pesa en cada una, y
+  —si el docente trajo su matriz— en qué ciclo va y si es para casa o para clase.
+  La leyenda existe porque en la cabecera **no cabe**: en el celular la columna mide
+  63px. Ahí el título se esconde y la leyenda es lo único que queda, y sirve igual.
+  El título va a **dos líneas y no truncado a una**: medido, `line-clamp-2` a 76px deja
+  la columna en 91px contra los 108 de `truncate`, y encima muestra más texto — el alto
+  de la cabecera lo paga una vez y el ancho lo pagan las diez columnas.
+  Una columna real puede alimentar **dos categorías** (C4 entra en Conocimiento y en
+  Comunicación), así que `aportesDeColumna` devuelve una lista. Y parte la clave por
+  `_` en vez de comparar prefijos: con `includes`, `C4` se llevaría lo de `C40`.
+  De paso, el pie decía "slots internos" y "ignore-zeros". La UI no nombra la
+  implementación: ahora dice que las casillas en blanco no cuentan.
+
 - **La casilla de nota no puede ser `type="number"`** (`PlanillaGrid` + `lib/gridNav.ts`).
   Ahí las flechas suben y bajan el valor, y calificando lo que se quiere es bajar por la
   columna estudiante por estudiante; de paso la rueda del mouse cambiaba la nota al pasar

@@ -14,6 +14,7 @@ import { PasteNotasPreview } from './PasteNotasPreview';
 import type { Course } from '@/types';
 import { useSubjects } from '@/lib/useSubjects';
 import { nombresCortos } from '@/lib/nombres';
+import { aportesDeColumna } from '@/lib/constants';
 
 interface Props {
   course: Course;
@@ -145,9 +146,29 @@ export function PlanillaGrid({ course }: Props) {
                     {col.column}
                     {isEv && <span className="ml-1 text-[11px]">★</span>}
                   </div>
-                  <div className={`text-[9px] font-normal ${isEv ? 'text-amber-800' : 'text-neutral-500'}`}>
-                    {col.cats.join('·')}
-                  </div>
+                  {/*
+                    * El título del logro, no `K·C`. Las letras son del código y
+                    * no significan nada para quien no armó la app; el título es
+                    * lo que el docente ve en la plataforma.
+                    *
+                    * Solo en pantalla grande: en el celular la columna mide
+                    * 63px y un título ahí no se lee — abajo está la leyenda,
+                    * que sirve en los dos tamaños.
+                    */}
+                  {/*
+                    * Dos líneas y no una: a 76px de ancho, cortar en la primera
+                    * deja "ORGANIZING CONT…" y no se entiende. Con dos entra
+                    * casi todo y la columna no crece — el alto de la cabecera
+                    * lo paga una vez, el ancho lo pagan las diez.
+                    */}
+                  {logro && (
+                    <div className={`hidden sm:block text-[9px] font-normal normal-case
+                                     leading-tight whitespace-normal max-w-[76px]
+                                     line-clamp-2 ${
+                      isEv ? 'text-amber-800' : 'text-neutral-500'}`}>
+                      {logro}
+                    </div>
+                  )}
                 </th>
               );
             })}
@@ -229,18 +250,76 @@ export function PlanillaGrid({ course }: Props) {
           <span>Pega una columna del Excel sobre una casilla</span>
         </p>
         <p>
-          {columns.length} columnas ({slots.length} slots internos) · {activos.length} activos ·
-          Definitiva con algoritmo de la plataforma (ignore-zeros).
-          <span className="ml-2 text-amber-800">
-            ★ C7 (EV) es toda la categoría E — un cambio ahí mueve la DEF ~4 pts.
-          </span>
+          {columns.length} columnas · {activos.length} estudiantes activos ·
+          La definitiva se calcula igual que en la plataforma: las casillas en
+          blanco no cuentan.
         </p>
       </div>
+
+      {/*
+        * Qué es cada columna.
+        *
+        * En la cabecera solo cabe el código —y en el celular ni eso— así que
+        * acá va lo que de verdad hace falta para calificar: qué logro es, a qué
+        * categoría entra y cuánto pesa dentro de ella. Con la matriz traída,
+        * además en qué ciclo va y si es para casa o para clase.
+        */}
+      <LeyendaColumnas
+        columns={columns}
+        slots={slots}
+        titleByColumn={titleByColumn}
+      />
 
       {pastePlan && (
         <PasteNotasPreview plan={pastePlan} onClose={() => setPastePlan(null)} />
       )}
     </div>
+  );
+}
+
+function LeyendaColumnas({ columns, slots, titleByColumn }: {
+  columns: ReturnType<typeof columnsFor>;
+  slots: ReturnType<typeof slotsFor>;
+  titleByColumn: Map<string, string>;
+}) {
+  return (
+    <details className="mt-3" open>
+      <summary className="cursor-pointer text-xs text-neutral-600">
+        Qué es cada columna
+      </summary>
+      <ul className="mt-2 space-y-1 text-xs">
+        {columns.map(col => {
+          const aportes = aportesDeColumna(slots, col.column);
+          const esEv = col.cats.length === 1 && col.cats[0] === 'E';
+          const ciclo = aportes.find(a => a.ciclo != null)?.ciclo;
+          const destino = aportes.find(a => a.destino)?.destino;
+          return (
+            <li key={col.column} className="flex flex-wrap items-baseline gap-x-2 min-w-0">
+              <span className={`font-medium shrink-0 ${esEv ? 'text-amber-900' : ''}`}>
+                {col.column}{esEv && ' ★'}
+              </span>
+              <span className="min-w-0">
+                {titleByColumn.get(col.column) ?? (
+                  <span className="text-tinta-tenue">sin título todavía</span>
+                )}
+              </span>
+              <span className="text-neutral-500">
+                {aportes.map(a => `${a.nombre} ${a.porcentaje}%`).join(' · ')}
+              </span>
+              {ciclo != null && (
+                <span className="text-neutral-500">
+                  · ciclo {ciclo}{destino ? ` · ${destino}` : ''}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-2 text-[11px] text-neutral-500">
+        Los títulos salen del Califica y cambian cada trimestre. El ciclo y para
+        qué es cada actividad salen de tu matriz de actividades.
+      </p>
+    </details>
   );
 }
 
