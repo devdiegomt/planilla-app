@@ -22,7 +22,9 @@
  *    usadas o no; estrenar una actividad es llenar una casilla que ya existe.
  */
 import type { SlotDef } from './constants';
-import { catDeMeta, columnaDeDescripcion, type CursoLeido } from './actividades';
+import {
+  catDeMeta, columnaDeDescripcion, mismaEstructura, mismosPesos, type CursoLeido,
+} from './actividades';
 
 /** Para qué es la actividad. Los tres valores que ofrece la pantalla. */
 export const DESTINOS = ['Casa', 'Clase', 'Casa-Clase'] as const;
@@ -246,3 +248,22 @@ export function jsonParaPlataforma(plan: PlanMatriz): string {
 /** Cuántas filas va a tocar el plan. */
 export const totalCambios = (plan: PlanMatriz) =>
   plan.grados.reduce((a, g) => a + g.cambios.length, 0);
+
+/** Cómo va lo editado contra lo que la app está usando hoy para ese grado. */
+export type ContraLaApp = 'igual' | 'pesos' | 'estructura';
+
+/**
+ * Compara lo del formulario con los pesos que la app usa hoy.
+ *
+ * Vive acá y no en una pantalla aparte porque eran dos puertas para lo mismo:
+ * un importador en Configuración que solo comparaba, y este formulario que
+ * edita. Con las dos, el docente tenía que adivinar cuál abrir.
+ *
+ * Usa las mismas primitivas que `planActividades`, para que la comparación no
+ * pueda decir una cosa acá y otra allá.
+ */
+export function comparaConLaApp(filas: FilaMatriz[], actuales: SlotDef[]): ContraLaApp {
+  const leidos = slotsDeFilas(filas);
+  if (!mismaEstructura(leidos, actuales)) return 'estructura';
+  return mismosPesos(leidos, actuales) ? 'igual' : 'pesos';
+}

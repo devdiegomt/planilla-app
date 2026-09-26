@@ -188,10 +188,12 @@ export interface PlanActividades {
   generadoEn?: string;
 }
 
-const mismaEstructura = (a: SlotDef[], b: SlotDef[]) =>
+/** Mismas claves en el mismo orden: las mismas actividades en las mismas columnas. */
+export const mismaEstructura = (a: SlotDef[], b: SlotDef[]) =>
   a.length === b.length && a.every((s, i) => s.key === b[i].key && s.cat === b[i].cat);
 
-const mismosPesos = (a: SlotDef[], b: SlotDef[]) =>
+/** Mismos porcentajes. Solo tiene sentido si ya coincide la estructura. */
+export const mismosPesos = (a: SlotDef[], b: SlotDef[]) =>
   a.every((s, i) => Math.abs(s.weight - b[i].weight) < 0.005);
 
 /**
