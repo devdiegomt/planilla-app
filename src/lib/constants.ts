@@ -149,3 +149,46 @@ export function ciclosConNota(slots: SlotDef[]): Set<number> | null {
 export function slotsDelCiclo(slots: SlotDef[], ciclo: number): SlotDef[] {
   return slots.filter(s => s.ciclo === ciclo);
 }
+
+/**
+ * Cómo se llama cada categoría en el colegio.
+ *
+ * En pantalla iba `K·C` bajo cada columna, que no significa nada para quien no
+ * armó la app. La letra es la del código; el nombre es el que el docente ve en
+ * la plataforma y en el manual.
+ */
+export const NOMBRE_CATEGORIA: Record<SlotDef['cat'], string> = {
+  K: 'Conocimiento',
+  M: 'Método',
+  U: 'Uso',
+  C: 'Comunicación',
+  E: 'Evaluación',
+};
+
+/** Qué aporta una columna real: su categoría y cuánto pesa dentro de ella. */
+export interface AporteColumna {
+  cat: SlotDef['cat'];
+  nombre: string;
+  /** 0..100, redondeado. */
+  porcentaje: number;
+  ciclo?: number;
+  destino?: string;
+}
+
+/**
+ * Lo que hace cada columna, en palabras.
+ *
+ * Una columna real puede alimentar más de una categoría —C4 entra en
+ * Conocimiento y en Comunicación— así que devuelve una lista y no un valor.
+ */
+export function aportesDeColumna(slots: SlotDef[], column: string): AporteColumna[] {
+  return slots
+    .filter(s => s.key.split('_')[1] === column)
+    .map(s => ({
+      cat: s.cat,
+      nombre: NOMBRE_CATEGORIA[s.cat],
+      porcentaje: Math.round(s.weight * 100),
+      ...(s.ciclo != null ? { ciclo: s.ciclo } : {}),
+      ...(s.destino ? { destino: s.destino } : {}),
+    }));
+}
